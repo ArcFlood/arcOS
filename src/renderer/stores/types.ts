@@ -81,7 +81,7 @@ export interface Conversation {
 }
 
 // ── Service ───────────────────────────────────────────────────────
-export type ServiceName = 'ollama' | 'fabric'
+export type ServiceName = 'ollama' | 'fabric' | 'arc-memory'
 
 export interface ServiceStatus {
   name: ServiceName

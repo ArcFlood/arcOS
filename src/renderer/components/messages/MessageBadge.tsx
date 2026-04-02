@@ -12,6 +12,7 @@ export default function MessageBadge({ tier, cost }: Props) {
     ollama: 'text-success',
     haiku: 'text-haiku-accent',
     'arc-sonnet': 'text-arc-accent',
+    'arc-opus': 'text-pink-400',
   }
 
   return (

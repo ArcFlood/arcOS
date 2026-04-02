@@ -47,11 +47,11 @@ export default function ChatArea() {
 }
 
 function EmptyState({ onStart }: { onStart: () => void }) {
-  const apiKey = useSettingsStore((s) => s.settings.claudeApiKey)
+  const hasApiKey = useSettingsStore((s) => s.hasApiKey)
   const ollamaRunning = useServiceStore((s) => s.getService('ollama')?.running ?? false)
   const openSettings = useSettingsStore((s) => s.openSettingsPanel)
 
-  const hasNoSetup = !apiKey && !ollamaRunning
+  const hasNoSetup = !hasApiKey && !ollamaRunning
 
   return (
     <div className="flex flex-col items-center justify-center h-full text-center gap-6 py-16">
@@ -77,7 +77,7 @@ function EmptyState({ onStart }: { onStart: () => void }) {
           />
           <OnboardingStep
             number={2}
-            done={!!apiKey}
+            done={hasApiKey}
             title="Add Claude API key"
             detail={
               <span>
@@ -102,7 +102,7 @@ function EmptyState({ onStart }: { onStart: () => void }) {
       {!hasNoSetup && (
         <div className="flex items-center gap-3 text-xs">
           <StatusChip label="Ollama" active={ollamaRunning} color="text-success" />
-          <StatusChip label="Claude API" active={!!apiKey} color="text-arc-accent" />
+          <StatusChip label="Claude API" active={hasApiKey} color="text-arc-accent" />
         </div>
       )}
 

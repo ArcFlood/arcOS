@@ -6,9 +6,10 @@ import { useServiceStore } from '../stores/serviceStore'
 
 interface SidebarProps {
   onOpenHistory?: () => void
+  onOpenMemory?: () => void
 }
 
-export default function Sidebar({ onOpenHistory }: SidebarProps) {
+export default function Sidebar({ onOpenHistory, onOpenMemory }: SidebarProps) {
   const [servicesExpanded, setServicesExpanded] = useState(true)
   const openSettings = useSettingsStore((s) => s.openSettingsPanel)
   const services = useServiceStore((s) => s.services)
@@ -49,6 +50,15 @@ export default function Sidebar({ onOpenHistory }: SidebarProps) {
 
       {/* Bottom buttons */}
       <div className="border-t border-border p-3 space-y-1">
+        {onOpenMemory && (
+          <button
+            onClick={onOpenMemory}
+            className="flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm text-text-muted hover:text-text hover:bg-surface-elevated transition-colors"
+          >
+            <span>🧠</span>
+            <span>Memory Search</span>
+          </button>
+        )}
         {onOpenHistory && (
           <button
             onClick={onOpenHistory}

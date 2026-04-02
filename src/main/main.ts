@@ -527,6 +527,12 @@ ipcMain.handle('service-status', (_event, name: string) => {
         return { running: r.ok || r.status < 500 }
       } catch { return { running: false } }
     }
+    if (name === 'arc-memory') {
+      try {
+        const r = await fetch('http://localhost:8082/status', { signal: AbortSignal.timeout(1500) })
+        return { running: r.ok }
+      } catch { return { running: false } }
+    }
   } catch { return { running: false } }
   return { running: false }
 })
@@ -543,6 +549,19 @@ ipcMain.handle('service-start', (_event, name: string) => {
       p.unref(); serviceProcesses[name] = p
       return { success: true }
     }
+    if (name === 'arc-memory') {
+      // Resolve memory-service dir relative to app resources
+      const memDir = app.isPackaged
+        ? path.join(process.resourcesPath, 'memory-service')
+        : path.join(app.getAppPath(), 'memory-service')
+      const p = spawn('uv', ['run', 'python', '-m', 'mcp_server.server'], {
+        cwd: memDir,
+        detached: true,
+        stdio: 'ignore',
+      })
+      p.unref(); serviceProcesses[name] = p
+      return { success: true }
+    }
   } catch (e) { return { success: false, error: String(e) } }
   return { success: false, error: 'Unknown service' }
 })
@@ -552,6 +571,7 @@ ipcMain.handle('service-stop', (_event, name: string) => {
     if (serviceProcesses[name]) { serviceProcesses[name].kill(); delete serviceProcesses[name] }
     if (name === 'ollama') { try { execSync('pkill -x ollama') } catch (_) {} }
     if (name === 'fabric') { try { execSync('pkill -f "fabric --serve"') } catch (_) {} }
+    if (name === 'arc-memory') { try { execSync('pkill -f "mcp_server.server"') } catch (_) {} }
     return { success: true }
   } catch (e) { return { success: false, error: String(e) } }
 })
@@ -827,6 +847,57 @@ ipcMain.handle('fabric-run-pattern', async (event, params: {
   } finally {
     activeStreams.delete(streamId)
   }
+})
+
+// ── IPC: ARC-Memory (port 8082) ───────────────────────────────────
+
+ipcMain.handle('memory-query', async (_event, params: {
+  query: string
+  limit?: number
+  dateAfter?: string
+}) => {
+  const { query, limit = 20, dateAfter } = params
+  try {
+    const res = await fetch('http://localhost:8082/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, limit, date_after: dateAfter ?? null }),
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!res.ok) {
+      const errText = await res.text().catch(() => `HTTP ${res.status}`)
+      return { success: false, error: errText, chunks: [], citations: [], query_time_ms: 0, total_results: 0 }
+    }
+    const data = await res.json()
+    return { success: true, ...data }
+  } catch (e) {
+    return { success: false, error: String(e), chunks: [], citations: [], query_time_ms: 0, total_results: 0 }
+  }
+})
+
+ipcMain.handle('memory-ingest', async (_event, force: boolean = false) => {
+  try {
+    const res = await fetch('http://localhost:8082/ingest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ force }),
+      signal: AbortSignal.timeout(5000),
+    })
+    if (!res.ok) return { success: false, error: `HTTP ${res.status}` }
+    const data = await res.json()
+    return { success: true, ...data }
+  } catch (e) {
+    return { success: false, error: String(e) }
+  }
+})
+
+ipcMain.handle('memory-status', async () => {
+  try {
+    const res = await fetch('http://localhost:8082/status', { signal: AbortSignal.timeout(3000) })
+    if (!res.ok) return { success: false }
+    const data = await res.json()
+    return { success: true, ...data }
+  } catch { return { success: false } }
 })
 
 // ── IPC: Plugin management ────────────────────────────────────────

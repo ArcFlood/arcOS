@@ -6,6 +6,7 @@ import SettingsPanel from './settings/SettingsPanel'
 import ErrorLogPanel from './debug/ErrorLogPanel'
 import SessionHistoryPanel from './history/SessionHistoryPanel'
 import WeeklyDigest from './history/WeeklyDigest'
+import MemoryPanel from './memory/MemoryPanel'
 import { useServiceStore } from '../stores/serviceStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useConversationStore } from '../stores/conversationStore'
@@ -27,6 +28,7 @@ export default function Layout() {
 
   const [logOpen, setLogOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [memoryOpen, setMemoryOpen] = useState(false)
   const [showDigest, setShowDigest] = useState(false)
 
   // ── DB bootstrap + service polling ───────────────────────────
@@ -85,7 +87,9 @@ export default function Layout() {
       if (meta && e.key === ',') { e.preventDefault(); settingsPanelOpen ? closeSettings() : openSettings(); return }
       if (meta && e.shiftKey && e.key === 'L') { e.preventDefault(); setLogOpen((v) => !v); return }
       if (meta && e.shiftKey && e.key === 'H') { e.preventDefault(); setHistoryOpen((v) => !v); return }
+      if (meta && e.shiftKey && e.key === 'M') { e.preventDefault(); setMemoryOpen((v) => !v); return }
       if (e.key === 'Escape') {
+        if (memoryOpen) { setMemoryOpen(false); return }
         if (logOpen) { setLogOpen(false); return }
         if (historyOpen) { setHistoryOpen(false); return }
         if (settingsPanelOpen) { closeSettings(); return }
@@ -93,7 +97,7 @@ export default function Layout() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [settingsPanelOpen, logOpen, historyOpen, openSettings, closeSettings, createConversation])
+  }, [settingsPanelOpen, logOpen, historyOpen, memoryOpen, openSettings, closeSettings, createConversation])
 
   // ── Native menu event listeners ───────────────────────────────
   useEffect(() => {
@@ -112,7 +116,7 @@ export default function Layout() {
   return (
     <div className="flex h-screen overflow-hidden bg-background text-text">
       <aside className="w-[280px] min-w-[280px] flex flex-col border-r border-border bg-surface overflow-hidden">
-        <Sidebar onOpenHistory={() => setHistoryOpen(true)} />
+        <Sidebar onOpenHistory={() => setHistoryOpen(true)} onOpenMemory={() => setMemoryOpen(true)} />
       </aside>
       <div className="flex flex-col flex-1 overflow-hidden">
         <TopBar />
@@ -125,6 +129,7 @@ export default function Layout() {
       {settingsPanelOpen && <SettingsPanel />}
       <ErrorLogPanel open={logOpen} onClose={() => setLogOpen(false)} />
       <SessionHistoryPanel open={historyOpen} onClose={() => setHistoryOpen(false)} />
+      <MemoryPanel open={memoryOpen} onClose={() => setMemoryOpen(false)} />
       {showDigest && <WeeklyDigest onDismiss={() => setShowDigest(false)} />}
     </div>
   )

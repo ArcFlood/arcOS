@@ -10,7 +10,7 @@ import CopyButton from './CopyButton'
 function BookmarkButton({ message }: { message: Message }) {
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
-  const activeConversation = useConversationStore((s) => s.activeConversation)
+  const activeConversation = useConversationStore((s) => s.activeConversation())
 
   const handleSave = async () => {
     if (saving || saved) return

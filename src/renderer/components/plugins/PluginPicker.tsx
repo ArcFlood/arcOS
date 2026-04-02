@@ -6,12 +6,14 @@ const TIER_LABEL: Record<Plugin['tier'], string> = {
   ollama: 'Local',
   haiku: 'Haiku',
   'arc-sonnet': 'A.R.C.',
+  'arc-opus': 'Opus',
 }
 
 const TIER_COLOR: Record<Plugin['tier'], string> = {
   ollama: 'text-success',
   haiku: 'text-haiku-accent',
   'arc-sonnet': 'text-arc-accent',
+  'arc-opus': 'text-pink-400',
 }
 
 export default function PluginPicker() {

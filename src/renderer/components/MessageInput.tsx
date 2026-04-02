@@ -57,11 +57,13 @@ const TIER_LABELS: Record<ModelTier, string> = {
   ollama: '💻 Local',
   haiku: '⚡ Haiku',
   'arc-sonnet': '🧠 A.R.C.',
+  'arc-opus': '🔮 Opus',
 }
 const TIER_COLORS: Record<ModelTier, string> = {
   ollama: 'text-success',
   haiku: 'text-haiku-accent',
   'arc-sonnet': 'text-arc-accent',
+  'arc-opus': 'text-pink-400',
 }
 
 export default function MessageInput({ conversationId }: Props) {
@@ -200,7 +202,6 @@ export default function MessageInput({ conversationId }: Props) {
       tier: effectiveTier,
       conversationHistory: [...history, { role: 'user', content: resolvedContent }],
       settings: {
-        claudeApiKey: settings.claudeApiKey,
         ollamaModel: settings.ollamaModel,
         extendedThinking: settings.extendedThinking,
       },

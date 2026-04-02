@@ -90,7 +90,7 @@ export const useCostStore = create<CostStore>((set, get) => ({
 
   getRecordsByTier: () => {
     const { records } = get()
-    const tiers: Record<ModelTier, number> = { ollama: 0, haiku: 0, 'arc-sonnet': 0 }
+    const tiers: Record<ModelTier, number> = { ollama: 0, haiku: 0, 'arc-sonnet': 0, 'arc-opus': 0 }
     for (const r of records) {
       if (r.model in tiers) tiers[r.model as ModelTier] += r.amount
     }
@@ -105,6 +105,7 @@ export function estimateCost(tier: ModelTier, inputTokens: number, outputTokens:
     ollama: { in: 0, out: 0 },
     haiku: { in: 1.0 / 1_000_000, out: 5.0 / 1_000_000 },
     'arc-sonnet': { in: 3.0 / 1_000_000, out: 15.0 / 1_000_000 },
+    'arc-opus': { in: 5.0 / 1_000_000, out: 25.0 / 1_000_000 },
   }
   const r = rates[tier]
   return r.in * inputTokens + r.out * outputTokens

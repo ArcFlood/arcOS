@@ -86,6 +86,15 @@ declare global {
         month?: string
       }) => Promise<{ success: boolean; filePath?: string; error?: string }>
 
+      // ARC-Memory
+      memoryQuery: (params: {
+        query: string
+        limit?: number
+        dateAfter?: string
+      }) => Promise<MemoryQueryResponse>
+      memoryIngest: (force?: boolean) => Promise<{ success: boolean; status?: string; message?: string; error?: string }>
+      memoryStatus: () => Promise<{ success: boolean; indexed_docs?: number; indexed_chunks?: number; db_size_mb?: number; last_indexed?: string; ingest_running?: boolean }>
+
       db: {
         conversations: {
           list: () => Promise<{ success: boolean; data?: DbRow[]; error?: string }>
@@ -152,6 +161,39 @@ type SessionSummaryData = {
   fabricPatternsUsed: string[]
   arcCalls: number
   notes?: string
+}
+
+// ARC-Memory types
+type MemoryChunk = {
+  conversation_id: string
+  source_path: string
+  title: string
+  date: string
+  source_type: string
+  chunk_index: number
+  chunk_type: 'summary' | 'section'
+  speaker: 'user' | 'ai' | 'mixed'
+  text: string
+  score: number
+}
+
+type MemoryCitation = {
+  title: string
+  date: string
+  source_type: string
+  source_path: string
+  excerpt: string
+  score: number
+  obsidian_uri: string
+}
+
+type MemoryQueryResponse = {
+  success: boolean
+  chunks: MemoryChunk[]
+  citations: MemoryCitation[]
+  query_time_ms: number
+  total_results: number
+  error?: string
 }
 
 // Plugin manifest shape (mirrors src/main/plugins/loader.ts)

@@ -85,6 +85,11 @@ contextBridge.exposeInMainWorld('electron', {
   // Spending CSV export (FR-11)
   spendingExportCsv: (params: object) => ipcRenderer.invoke('spending:export-csv', params),
 
+  // ARC-Memory (port 8082)
+  memoryQuery: (params: object) => ipcRenderer.invoke('memory-query', params),
+  memoryIngest: (force?: boolean) => ipcRenderer.invoke('memory-ingest', force ?? false),
+  memoryStatus: () => ipcRenderer.invoke('memory-status'),
+
   // SQLite database
   db: {
     conversations: {

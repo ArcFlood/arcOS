@@ -4,6 +4,7 @@ import { ServiceStatus, ServiceName } from './types'
 const INITIAL_SERVICES: ServiceStatus[] = [
   { name: 'ollama', displayName: 'Ollama', running: false, port: 11434, checking: false },
   { name: 'fabric', displayName: 'Fabric', running: false, port: 8080, checking: false },
+  { name: 'arc-memory', displayName: 'ARC-Memory', running: false, port: 8082, checking: false },
 ]
 
 interface ServiceStore {

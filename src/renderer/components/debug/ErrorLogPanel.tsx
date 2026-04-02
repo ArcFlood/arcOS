@@ -5,7 +5,7 @@
  * Accessible via Help menu → "Error Log" or keyboard shortcut Cmd+Shift+L.
  */
 
-import React, { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 
 interface LogEntry {
   id: string
