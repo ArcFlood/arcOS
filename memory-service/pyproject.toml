@@ -1,6 +1,6 @@
 [project]
 name = "arc-memory"
-version = "0.1.0"
+version = "0.2.0"
 description = "Local RAG memory layer for ARC-Hub — semantic search over 1000+ past AI conversations"
 requires-python = ">=3.11"
 dependencies = [
@@ -25,4 +25,4 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["ingestion", "retrieval", "mcp_server", "prompting"]
+packages = ["ingestion", "retrieval", "mcp_server", "prompting", "watcher"]
