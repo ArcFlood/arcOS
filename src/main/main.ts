@@ -900,6 +900,89 @@ ipcMain.handle('memory-status', async () => {
   } catch { return { success: false } }
 })
 
+// ── IPC: ARC-Memory Vault Write-Back (17.0) ───────────────────────
+
+/** Parse key=value pairs from memory-service/.env */
+function parseMemoryEnv(): Record<string, string> {
+  const envPath = isDev
+    ? path.join(app.getAppPath(), 'memory-service', '.env')
+    : path.join(process.resourcesPath, 'memory-service', '.env')
+  try {
+    const content = fs.readFileSync(envPath, 'utf8')
+    const result: Record<string, string> = {}
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('#')) continue
+      const eq = trimmed.indexOf('=')
+      if (eq === -1) continue
+      result[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim()
+    }
+    return result
+  } catch { return {} }
+}
+
+/** Convert a title to a URL-safe filename slug (max 60 chars). */
+function slugify(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .slice(0, 60)
+}
+
+interface VaultWriteParams {
+  title: string
+  createdAt: number
+  messages: Array<{ role: string; content: string; model?: string }>
+  tags: string[]
+  totalCost: number
+}
+
+ipcMain.handle('memory:vault-write', (_event, params: VaultWriteParams) => {
+  try {
+    const env = parseMemoryEnv()
+    const vaultPath = env['VAULT_PATH'] ?? ''
+    if (!vaultPath) return { success: false, error: 'VAULT_PATH not configured in memory-service/.env' }
+
+    const date = new Date(params.createdAt)
+    const dateStr = date.toISOString().slice(0, 10)
+    const slug = slugify(params.title) || 'conversation'
+    const filename = `${dateStr}_${slug}.md`
+    const dir = path.join(vaultPath, 'arc-hub')
+    fs.mkdirSync(dir, { recursive: true })
+    const filePath = path.join(dir, filename)
+
+    // YAML frontmatter (Obsidian-compatible)
+    const escapedTitle = params.title.replace(/"/g, '\\"')
+    const tagsYaml = params.tags.length > 0
+      ? `\ntags: [${params.tags.map((t) => `"${t}"`).join(', ')}]`
+      : ''
+    const costLine = params.totalCost > 0 ? `\ncost: ${params.totalCost.toFixed(5)}` : ''
+    const header = `---\nsource: arc-hub\ntitle: "${escapedTitle}"\ndate: ${dateStr}${tagsYaml}${costLine}\n---\n\n`
+
+    // Body: format as **User:** / **Assistant:** blocks for the chunker's speaker detection
+    const bodyParts: string[] = []
+    for (const m of params.messages) {
+      if (m.role === 'system') continue
+      const label = m.role === 'user' ? '**User:**' : '**Assistant:**'
+      bodyParts.push(`${label}\n\n${m.content}`)
+    }
+    const body = bodyParts.join('\n\n---\n\n')
+
+    fs.writeFileSync(filePath, header + body, 'utf8')
+    return { success: true, filePath }
+  } catch (e) {
+    return { success: false, error: String(e) }
+  }
+})
+
+ipcMain.handle('memory:vault-path', () => {
+  const env = parseMemoryEnv()
+  return { success: true, vaultPath: env['VAULT_PATH'] ?? '' }
+})
+
 // ── IPC: Plugin management ────────────────────────────────────────
 
 ipcMain.handle('plugins:list', () => {

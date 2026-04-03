@@ -94,6 +94,14 @@ declare global {
       }) => Promise<MemoryQueryResponse>
       memoryIngest: (force?: boolean) => Promise<{ success: boolean; status?: string; message?: string; error?: string }>
       memoryStatus: () => Promise<{ success: boolean; indexed_docs?: number; indexed_chunks?: number; db_size_mb?: number; last_indexed?: string; ingest_running?: boolean }>
+      memoryVaultWrite: (params: {
+        title: string
+        createdAt: number
+        messages: Array<{ role: string; content: string; model?: string }>
+        tags: string[]
+        totalCost: number
+      }) => Promise<{ success: boolean; filePath?: string; error?: string }>
+      memoryVaultPath: () => Promise<{ success: boolean; vaultPath: string }>
 
       db: {
         conversations: {

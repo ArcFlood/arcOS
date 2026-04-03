@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo, KeyboardEvent } from 'react'
 import { Conversation } from '../../stores/types'
 import { useConversationStore } from '../../stores/conversationStore'
 import { formatCostBadge } from '../../utils/formatCurrency'
-import { exportConversationAsMd } from '../../utils/exportConversation'
+import { exportConversationAsMd, saveConversationToVault } from '../../utils/exportConversation'
 
 interface Props {
   conversation: Conversation
@@ -11,6 +11,8 @@ interface Props {
 
 export default function ConversationItem({ conversation, isActive }: Props) {
   const [exporting, setExporting] = useState(false)
+  const [savingToVault, setSavingToVault] = useState(false)
+  const [vaultSaved, setVaultSaved] = useState(false)
   const [tagging, setTagging] = useState(false)
   const [tagInput, setTagInput] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -42,6 +44,18 @@ export default function ConversationItem({ conversation, isActive }: Props) {
     setExporting(true)
     await exportConversationAsMd(conversation)
     setExporting(false)
+  }
+
+  const handleSaveToVault = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (savingToVault || conversation.messages.length === 0) return
+    setSavingToVault(true)
+    const res = await saveConversationToVault(conversation)
+    setSavingToVault(false)
+    if (res.success) {
+      setVaultSaved(true)
+      setTimeout(() => setVaultSaved(false), 2000)
+    }
   }
 
   const handleTagKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -96,6 +110,14 @@ export default function ConversationItem({ conversation, isActive }: Props) {
             title="Export as Markdown"
           >
             {exporting ? '⟳' : '↓'}
+          </button>
+          <button
+            onClick={handleSaveToVault}
+            disabled={savingToVault || conversation.messages.length === 0}
+            className="text-text-muted hover:text-purple-400 transition-colors text-xs p-0.5 rounded"
+            title="Save to Obsidian vault"
+          >
+            {savingToVault ? '⟳' : vaultSaved ? '✓' : '⬡'}
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); deleteConversation(conversation.id) }}

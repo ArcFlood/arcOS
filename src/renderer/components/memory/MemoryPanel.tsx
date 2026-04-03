@@ -141,9 +141,17 @@ export default function MemoryPanel({ open, onClose }: Props) {
             </div>
           )}
 
-          {results && results.chunks.map((chunk: MemoryChunk, i: number) => (
-            <ChunkCard key={`${chunk.conversation_id}-${chunk.chunk_index}-${i}`} chunk={chunk} />
-          ))}
+          {results && results.chunks.map((chunk: MemoryChunk, i: number) => {
+            // Find matching citation for this chunk's source file (provides obsidian_uri)
+            const citation = results.citations.find((c) => c.source_path === chunk.source_path)
+            return (
+              <ChunkCard
+                key={`${chunk.conversation_id}-${chunk.chunk_index}-${i}`}
+                chunk={chunk}
+                obsidianUri={citation?.obsidian_uri}
+              />
+            )
+          })}
 
           {/* Status section when no results yet */}
           {!results && !searching && status && (
@@ -179,11 +187,16 @@ export default function MemoryPanel({ open, onClose }: Props) {
 
 // ── Sub-components ────────────────────────────────────────────────
 
-function ChunkCard({ chunk }: { chunk: MemoryChunk }) {
+function ChunkCard({ chunk, obsidianUri }: { chunk: MemoryChunk; obsidianUri?: string }) {
   const [expanded, setExpanded] = useState(false)
   const color = sourceColor(chunk.source_type)
   const label = sourceLabel(chunk.source_type)
   const excerpt = chunk.text.length > 200 ? chunk.text.slice(0, 200) + '…' : chunk.text
+
+  const handleOpenObsidian = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (obsidianUri) window.electron.openExternal(obsidianUri)
+  }
 
   return (
     <div className="bg-base-100 rounded-lg border border-base-300/60 overflow-hidden hover:border-primary/40 transition-colors">
@@ -199,9 +212,20 @@ function ChunkCard({ chunk }: { chunk: MemoryChunk }) {
           <p className="text-sm font-medium text-base-content truncate">{chunk.title}</p>
           <p className="text-xs text-base-content/40">{chunk.date} · chunk {chunk.chunk_index + 1}</p>
         </div>
-        <span className="text-xs text-base-content/30 shrink-0">
-          {(chunk.score * 100).toFixed(0)}%
-        </span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-xs text-base-content/30">
+            {(chunk.score * 100).toFixed(0)}%
+          </span>
+          {obsidianUri && (
+            <button
+              onClick={handleOpenObsidian}
+              className="text-[10px] px-1.5 py-0.5 rounded border border-purple-500/30 text-purple-400 hover:bg-purple-500/10 transition-colors"
+              title="Open in Obsidian"
+            >
+              Obsidian
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Text preview */}

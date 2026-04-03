@@ -1,7 +1,7 @@
 # A.R.C. Hub — Build Progress
 (hi there)
-**Last updated:** 2026-04-02
-**App version:** 2.1.0
+**Last updated:** 2026-04-03
+**App version:** 2.2.0
 
 > This file tracks implementation progress against the original WBS (`ai_hub_wbs.json`).
 > Updated after each completed implementation step.
@@ -26,6 +26,8 @@
 | P11 | PRD v2 / 4-Tier Model System | arc-opus, budget warnings, Qwen 3 defaults | ✅ Complete |
 | P12 | FR-11 Observability & Session Logs | Routing log, session history, learnings, CSV export | ✅ Complete |
 | P13 | ARC-Memory Integration | Local RAG over Obsidian vault, MCP server on :8082 | ✅ Complete |
+| P14 | RAG Phase 2 — Quality | HyDE, reranker, compressor, file watcher | ✅ Complete |
+| P15 | RAG Phase 4 — Bidirectional | Vault write-back, Open in Obsidian | ✅ Complete |
 
 > Note: Our implementation combined WBS phases and re-ordered them for faster delivery.
 > WBS P2 (SQLite) was deprioritized — data currently lives in Zustand (in-memory per session).
@@ -208,6 +210,29 @@
 | Session History in Help menu | ✅ Done | Native menu item triggers `menu:open-history` IPC event |
 | Preload + electron.d.ts types | ✅ Done | All FR-11 IPC bridges typed: RoutingEntry, SessionFile, SessionSummaryData |
 
+### P14 — RAG Phase 2 — Quality Improvements ✅ Complete (v2.2.0)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| `retrieval/hyde.py` | ✅ Done | HyDE query expansion via qwen3:14b; SQLite cache at `~/.noah-ai-hub/memory/hyde_cache.db`; falls back to raw query on error |
+| `retrieval/reranker.py` | ✅ Done | Lazy-loaded `cross-encoder/ms-marco-MiniLM-L-6-v2`; top-k by rerank score; graceful fallback to original score order |
+| `prompting/compressor.py` | ✅ Done | 2000-token budget; top-1 always verbatim; lower-ranked chunks summarized via qwen3:14b if over budget |
+| `watcher/file_watcher.py` | ✅ Done | watchdog Observer; 300ms debounce per-path; Created/Modified → ingest, Deleted → remove from LanceDB; lock file guard |
+| `mcp_server/server.py` v2.0.0 | ✅ Done | 4-step async pipeline: HyDE → hybrid_search → reranker → compressor; `use_hyde/use_reranker/compress` flags; file watcher in lifespan |
+| pyproject.toml 0.2.0 | ✅ Done | Version bump; `watcher` package added |
+
+### P15 — RAG Phase 4 — Bidirectional Integration ✅ Complete (v2.2.0)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| `memory:vault-write` IPC handler | ✅ Done | Parses `memory-service/.env` for VAULT_PATH; writes `arc-hub/YYYY-MM-DD_slug.md` with `source: arc-hub` frontmatter; file watcher auto-indexes within 5s |
+| `memory:vault-path` IPC handler | ✅ Done | Returns VAULT_PATH to renderer for display/validation |
+| `saveConversationToVault()` util | ✅ Done | Added to `exportConversation.ts`; wraps `memoryVaultWrite` IPC call |
+| "Save to Vault" button | ✅ Done | Hex icon (⬡) in ConversationItem hover row; turns ✓ for 2s on success; disabled when conversation has no messages |
+| Open in Obsidian button | ✅ Done | Added to `ChunkCard` in MemoryPanel; matches chunk to citation by `source_path`; calls `openExternal(obsidian_uri)`; uses `obsidian://open?vault=...` URI |
+| `memoryVaultWrite` + `memoryVaultPath` preload bindings | ✅ Done | Exposed via contextBridge; typed in `electron.d.ts` |
+| TypeScript 0 errors | ✅ Done | `tsc --noEmit` clean after all Phase 4 changes |
+
 ### P13 — ARC-Memory Integration ✅ Complete (v2.1.0)
 
 | Task | Status | Notes |
@@ -246,6 +271,10 @@
 
 **ARC-Memory MCP Pattern (P13)** — Memory service mirrors Fabric exactly: Python FastAPI on `:8082`, managed by the same `service-status/start/stop` IPC handlers, shown as a ServiceCard in the sidebar. This makes future services (e.g., a code indexer) trivially addable. LanceDB was chosen over Chroma for embedded operation (no separate server process) and native hybrid search support. nomic-embed-text via Ollama means zero embedding cost and zero privacy leak — embeddings never leave the machine.
 
+**RAG Quality Pipeline (P14)** — Phase 2 adds a 4-step query pipeline: (1) HyDE generates a hypothetical answer and embeds that instead of the raw query — better recall for semantic mismatch queries; (2) cross-encoder reranker (`ms-marco-MiniLM-L-6-v2`) rescores top-20 hits with precise relevance scores; (3) context compressor summarizes lower-ranked chunks with qwen3:14b if the total exceeds 2000 tokens; (4) file watcher auto-indexes vault changes within 5 seconds. All Phase 2 components have graceful fallbacks — if qwen3:14b is unavailable, HyDE and compression degrade silently.
+
+**Vault Write-Back (P15)** — Conversations can be pushed directly to the Obsidian vault via the ⬡ button on each ConversationItem. The main process reads `VAULT_PATH` from `memory-service/.env`, writes `VAULT_PATH/arc-hub/YYYY-MM-DD_slug.md` with `source: arc-hub` frontmatter, and the file watcher auto-indexes it within 5s — closing the full loop: ARC-Hub → Obsidian vault → ARC-Memory search. The "Open in Obsidian" button in MemoryPanel chunk cards uses the `obsidian://open?vault=...` URI scheme (available via `obsidian_uri` field returned by `/query`).
+
 ---
 
 ## File Tree
@@ -261,12 +290,18 @@ arc-hub/
 │   │   ├── lancedb_writer.py            ← Upsert + FTS index, hash dedup
 │   │   └── run_ingest.py                ← Orchestrator with tqdm + manifest
 │   ├── retrieval/
-│   │   └── hybrid_search.py             ← LanceDB vector + BM25 hybrid query
+│   │   ├── hybrid_search.py             ← LanceDB vector + BM25 hybrid query
+│   │   ├── hyde.py                      ← HyDE query expansion (qwen3:14b) + SQLite cache (P14)
+│   │   └── reranker.py                  ← cross-encoder/ms-marco-MiniLM-L-6-v2 reranking (P14)
+│   ├── prompting/
+│   │   └── compressor.py                ← Token-budget context compression (P14)
+│   ├── watcher/
+│   │   └── file_watcher.py              ← watchdog Observer, 300ms debounce (P14)
 │   └── mcp_server/
-│       └── server.py                    ← FastAPI :8082 — /query, /status, /ingest
+│       └── server.py v2.0.0             ← FastAPI :8082; HyDE→search→rerank→compress pipeline (P14)
 ├── src/
 │   ├── main/
-│   │   ├── main.ts                      ← All IPC: Ollama, Claude, Fabric, Memory, services, plugins
+│   │   ├── main.ts                      ← All IPC: Ollama, Claude, Fabric, Memory, vault-write, services, plugins
 │   │   ├── database/
 │   │   │   ├── db.ts                    ← SQLite singleton
 │   │   │   ├── schema.ts                ← 4-table schema
@@ -305,7 +340,7 @@ arc-hub/
 │           │   ├── MessageBadge.tsx     ← arc-opus pink badge
 │           │   └── CopyButton.tsx
 │           ├── memory/
-│           │   └── MemoryPanel.tsx      ← Search drawer + chunk cards + index stats (P13)
+│           │   └── MemoryPanel.tsx      ← Search drawer + chunk cards + Open-in-Obsidian button (P13/P15)
 │           ├── history/
 │           │   ├── SessionHistoryPanel.tsx ← Session log viewer (FR-11)
 │           │   └── WeeklyDigest.tsx     ← Monday digest card (FR-11)
@@ -325,3 +360,17 @@ arc-hub/
 ---
 
 *This file is updated after each completed phase step.*
+
+---
+
+## RAG WBS Status
+
+| Phase | Tasks | Status |
+|---|---|---|
+| Phase 1 — Working Retrieval | 1.0–8.0 | ✅ Complete |
+| Phase 2 — Quality (HyDE, reranker, compressor, watcher) | 9.0–12.0 | ✅ Complete |
+| Phase 2 — Quality Validation | 13.0 | Pending manual testing |
+| Phase 3 — ARC-Hub Integration | 14.0, 16.0 | ✅ Complete (done as P13) |
+| Phase 3 — /memory Slash Command | 15.0 | Deferred — MemoryPanel drawer implemented instead |
+| Phase 4 — Bidirectional | 17.0, 18.0 | ✅ Complete |
+| Phase 4 — Final QA | 19.0 | Pending end-to-end user testing |

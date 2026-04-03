@@ -89,6 +89,8 @@ contextBridge.exposeInMainWorld('electron', {
   memoryQuery: (params: object) => ipcRenderer.invoke('memory-query', params),
   memoryIngest: (force?: boolean) => ipcRenderer.invoke('memory-ingest', force ?? false),
   memoryStatus: () => ipcRenderer.invoke('memory-status'),
+  memoryVaultWrite: (params: object) => ipcRenderer.invoke('memory:vault-write', params),
+  memoryVaultPath: () => ipcRenderer.invoke('memory:vault-path'),
 
   // SQLite database
   db: {

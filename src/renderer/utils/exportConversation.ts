@@ -64,3 +64,24 @@ export async function exportConversationAsMd(conversation: Conversation): Promis
   })
   return result.success
 }
+
+/**
+ * Write conversation directly into the Obsidian vault as an arc-hub source file.
+ * Path: <VAULT_PATH>/arc-hub/YYYY-MM-DD_slug.md
+ * Returns { success, filePath?, error? }
+ */
+export async function saveConversationToVault(
+  conversation: Conversation
+): Promise<{ success: boolean; filePath?: string; error?: string }> {
+  return window.electron.memoryVaultWrite({
+    title: conversation.title,
+    createdAt: conversation.createdAt,
+    messages: conversation.messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+      model: m.model ?? undefined,
+    })),
+    tags: conversation.tags,
+    totalCost: conversation.totalCost,
+  })
+}
