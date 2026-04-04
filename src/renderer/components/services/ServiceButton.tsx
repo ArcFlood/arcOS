@@ -16,7 +16,7 @@ export default function ServiceButton({ label, onClick, disabled, variant = 'sta
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`px-2 py-0.5 rounded border text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${styles[variant]}`}
+      className={`rounded-md border bg-[#12161b] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${styles[variant]}`}
     >
       {label}
     </button>

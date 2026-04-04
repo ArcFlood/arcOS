@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 contextBridge.exposeInMainWorld('electron', {
   platform: process.platform,
   getPlatform: () => ipcRenderer.invoke('get-platform'),
+  systemFontsList: () => ipcRenderer.invoke('system-fonts:list'),
 
   // A.R.C.
   loadArcPrompts: () => ipcRenderer.invoke('load-arc-prompts'),
@@ -32,6 +33,16 @@ contextBridge.exposeInMainWorld('electron', {
   serviceStatus: (name: string) => ipcRenderer.invoke('service-status', name),
   serviceStart: (name: string) => ipcRenderer.invoke('service-start', name),
   serviceStop: (name: string) => ipcRenderer.invoke('service-stop', name),
+  workspaceDetachPanel: (panelId: string) => ipcRenderer.invoke('workspace:detach-panel', panelId),
+  workspaceRedockPanel: (panelId: string) => ipcRenderer.invoke('workspace:redock-panel', panelId),
+  workspaceSyncDetachedPanels: (panelIds: string[]) => ipcRenderer.invoke('workspace:sync-detached-panels', panelIds),
+  onWorkspaceEvent: (channel: string, callback: (payload: unknown) => void) => {
+    const allowed = ['workspace:detached-panel-closed']
+    if (!allowed.includes(channel)) return () => {}
+    const handler = (_event: Electron.IpcRendererEvent, payload: unknown) => callback(payload)
+    ipcRenderer.on(channel, handler)
+    return () => ipcRenderer.off(channel, handler)
+  },
 
   openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
 

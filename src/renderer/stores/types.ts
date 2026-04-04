@@ -96,6 +96,7 @@ export interface ServiceStatus {
 // ── Settings ──────────────────────────────────────────────────────
 export type RoutingMode = 'auto' | 'ollama' | 'haiku' | 'arc-sonnet' | 'arc-opus'
 export type RoutingAggressiveness = 'cost-first' | 'balanced' | 'quality-first'
+export type AppearanceTheme = 'default' | 'star-wars' | 'lord-of-the-rings' | 'matrix'
 
 export interface AppSettings {
   // Note: Claude API key is NOT stored here — it lives in main process only.
@@ -110,6 +111,11 @@ export interface AppSettings {
   routingAggressiveness: RoutingAggressiveness
   extendedThinking: boolean
   showRoutingReasons: boolean
+  appearanceTheme: AppearanceTheme
+  appearanceFont: string
+  appearanceTextColor: string
+  appearanceAccentColor: string
+  appearanceAccentSecondaryColor: string
 }
 
 // ── Plugin ────────────────────────────────────────────────────────

@@ -66,8 +66,8 @@ export async function exportConversationAsMd(conversation: Conversation): Promis
 }
 
 /**
- * Write conversation directly into the Obsidian vault as an arc-hub source file.
- * Path: <VAULT_PATH>/arc-hub/YYYY-MM-DD_slug.md
+ * Write conversation directly into the Obsidian vault as an arcos source file.
+ * Path: <VAULT_PATH>/arcos/YYYY-MM-DD_slug.md
  * Returns { success, filePath?, error? }
  */
 export async function saveConversationToVault(

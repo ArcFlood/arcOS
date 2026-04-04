@@ -83,7 +83,7 @@ export function writeSessionSummary(data: SessionSummaryData, haiku_topics: stri
     ...(data.arcCalls > 0 ? [`**A.R.C. calls:** ${data.arcCalls}`, ''] : []),
     ...(data.notes ? ['## Notes', '', data.notes, ''] : []),
     '---',
-    `_Generated automatically by A.R.C. Hub_`,
+    `_Generated automatically by ARCOS_`,
   ]
 
   fs.writeFileSync(filePath, lines.join('\n'), 'utf8')
@@ -153,7 +153,7 @@ export function saveLearning(entry: LearningEntry): string {
     entry.content,
     '',
     '---',
-    '_Saved from A.R.C. Hub_',
+    '_Saved from ARCOS_',
   ]
 
   fs.writeFileSync(filePath, lines.join('\n'), 'utf8')

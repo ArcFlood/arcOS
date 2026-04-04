@@ -12,6 +12,11 @@ const DEFAULT_SETTINGS: AppSettings = {
   routingAggressiveness: 'balanced',
   extendedThinking: false,
   showRoutingReasons: true,
+  appearanceTheme: 'default',
+  appearanceFont: 'IBM Plex Sans',
+  appearanceTextColor: '#e6edf5',
+  appearanceAccentColor: '#8fa1b3',
+  appearanceAccentSecondaryColor: '#d4a25a',
 }
 
 interface SettingsStore {
@@ -50,9 +55,9 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       const result = await window.electron.db.settings.get(DB_KEY)
       if (result.success && result.value) {
         const saved = JSON.parse(result.value) as Partial<AppSettings>
-        // Strip any legacy claudeApiKey that may have been stored in the blob
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { claudeApiKey: _, ...rest } = saved as any
+        // Strip any legacy claudeApiKey that may have been stored in the blob.
+        const rest = { ...(saved as Partial<AppSettings> & { claudeApiKey?: string }) }
+        delete rest.claudeApiKey
         set({ settings: { ...DEFAULT_SETTINGS, ...rest } })
       }
       // Check key existence in main process

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useServiceStore } from '../../stores/serviceStore'
@@ -8,7 +8,7 @@ import ServiceToggles from './ServiceToggles'
 import ModelManager from '../models/ModelManager'
 import AnalyticsPanel from '../cost/AnalyticsPanel'
 
-type Tab = 'api' | 'budget' | 'routing' | 'models' | 'analytics' | 'about'
+type Tab = 'api' | 'budget' | 'routing' | 'appearance' | 'models' | 'analytics' | 'about'
 
 export default function SettingsPanel() {
   const { settings, updateSettings, closeSettingsPanel, resetToDefaults } = useSettingsStore()
@@ -16,6 +16,19 @@ export default function SettingsPanel() {
   // claudeApiKey is intentionally excluded — managed separately via ApiKeyInput (write-only IPC)
   const [local, setLocal] = useState({ ...settings })
   const [activeTab, setActiveTab] = useState<Tab>('api')
+  const [systemFonts, setSystemFonts] = useState<string[]>([])
+
+  useEffect(() => {
+    setLocal({ ...settings })
+  }, [settings])
+
+  useEffect(() => {
+    window.electron.systemFontsList?.()
+      .then((result) => {
+        if (result?.success) setSystemFonts(result.fonts)
+      })
+      .catch(() => {})
+  }, [])
 
   const save = () => { updateSettings(local); closeSettingsPanel() }
 
@@ -23,6 +36,7 @@ export default function SettingsPanel() {
     { id: 'api', label: 'API Keys' },
     { id: 'budget', label: 'Budget' },
     { id: 'routing', label: 'Routing' },
+    { id: 'appearance', label: 'Appearance' },
     { id: 'models', label: 'Models' },
     { id: 'analytics', label: 'Analytics' },
     { id: 'about', label: 'About' },
@@ -153,6 +167,62 @@ export default function SettingsPanel() {
               </>
             )}
 
+            {activeTab === 'appearance' && (
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <p className="arcos-kicker">Theme</p>
+                  <p className="text-sm text-text-muted">
+                    Default stays the default ARCOS surface. The media presets only shift the atmosphere around it.
+                  </p>
+                  <select
+                    value={local.appearanceTheme}
+                    onChange={(e) => setLocal((s) => ({ ...s, appearanceTheme: e.target.value as typeof s.appearanceTheme }))}
+                    className="input-base w-full"
+                  >
+                    <option value="default">Default</option>
+                    <option value="star-wars">Star Wars</option>
+                    <option value="lord-of-the-rings">Lord of the Rings</option>
+                    <option value="matrix">Matrix</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="arcos-kicker">Typeface</p>
+                  <p className="text-sm text-text-muted">
+                    Pick from the fonts ARCOS found in your system font folders.
+                  </p>
+                  <select
+                    value={local.appearanceFont}
+                    onChange={(e) => setLocal((s) => ({ ...s, appearanceFont: e.target.value }))}
+                    className="input-base w-full"
+                    style={{ fontFamily: local.appearanceFont }}
+                  >
+                    {[...new Set(['IBM Plex Sans', 'SF Pro Display', 'JetBrains Mono', ...systemFonts])].map((font) => (
+                      <option key={font} value={font}>{font}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <ColorField
+                    label="Text Color"
+                    value={local.appearanceTextColor}
+                    onChange={(value) => setLocal((s) => ({ ...s, appearanceTextColor: value }))}
+                  />
+                  <ColorField
+                    label="Accent Color"
+                    value={local.appearanceAccentColor}
+                    onChange={(value) => setLocal((s) => ({ ...s, appearanceAccentColor: value }))}
+                  />
+                  <ColorField
+                    label="Secondary Accent"
+                    value={local.appearanceAccentSecondaryColor}
+                    onChange={(value) => setLocal((s) => ({ ...s, appearanceAccentSecondaryColor: value }))}
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Models */}
             {activeTab === 'models' && <ModelManager />}
 
@@ -163,16 +233,20 @@ export default function SettingsPanel() {
             {activeTab === 'about' && (
               <div className="space-y-3 text-sm text-text-muted">
                 <div>
-                  <p className="text-text font-semibold">A.R.C. Hub</p>
-                  <p className="text-xs mt-0.5">v0.4.0 — Privacy-first 3-tier AI routing</p>
+                  <p className="text-text font-semibold">ARCOS</p>
+                  <p className="text-xs mt-0.5">v0.4.0 — PAI operating surface for routing, memory, services, and execution state</p>
+                </div>
+                <div className="rounded-lg border border-border bg-[#12161b] px-4 py-3 text-xs leading-5">
+                  ARCOS is not meant to feel like a standard assistant shell. It is the persistent desktop layer for PAI:
+                  the place where services, orchestration, memory, and live task threads remain visible and composable.
                 </div>
                 <div className="space-y-1.5 text-xs">
                   <p className="font-medium text-text-muted uppercase tracking-wider">Keyboard Shortcuts</p>
                   <div className="space-y-1 font-mono">
-                    <div className="flex justify-between"><span>New Chat</span><kbd className="bg-surface-elevated px-1.5 py-0.5 rounded text-text">⌘K</kbd></div>
+                    <div className="flex justify-between"><span>New Thread</span><kbd className="bg-surface-elevated px-1.5 py-0.5 rounded text-text">⌘K</kbd></div>
                     <div className="flex justify-between"><span>Settings</span><kbd className="bg-surface-elevated px-1.5 py-0.5 rounded text-text">⌘,</kbd></div>
                     <div className="flex justify-between"><span>Close Settings</span><kbd className="bg-surface-elevated px-1.5 py-0.5 rounded text-text">Esc</kbd></div>
-                    <div className="flex justify-between"><span>Send Message</span><kbd className="bg-surface-elevated px-1.5 py-0.5 rounded text-text">Enter</kbd></div>
+                    <div className="flex justify-between"><span>Send Prompt</span><kbd className="bg-surface-elevated px-1.5 py-0.5 rounded text-text">Enter</kbd></div>
                     <div className="flex justify-between"><span>New Line</span><kbd className="bg-surface-elevated px-1.5 py-0.5 rounded text-text">⇧Enter</kbd></div>
                   </div>
                 </div>
@@ -206,5 +280,35 @@ export default function SettingsPanel() {
         </motion.div>
       </motion.div>
     </AnimatePresence>
+  )
+}
+
+function ColorField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+}) {
+  return (
+    <label className="space-y-1.5">
+      <span className="text-xs text-text-muted">{label}</span>
+      <div className="flex items-center gap-2 rounded-md border border-border bg-surface-elevated px-3 py-2">
+        <input
+          type="color"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-8 w-10 border-0 bg-transparent p-0"
+        />
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="input-base h-9 flex-1 px-2 py-1"
+        />
+      </div>
+    </label>
   )
 }

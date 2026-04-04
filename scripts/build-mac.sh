@@ -1,7 +1,7 @@
 #!/bin/bash
-# ── A.R.C. Hub — Mac build script ────────────────────────────────────────────
-# Run from the arc-hub folder:  bash scripts/build-mac.sh
-# Produces: release/A.R.C. Hub-1.0.3-arm64.dmg  (opens in Finder when done)
+# ── ARCOS — Mac build script ────────────────────────────────────────────
+# Run from the arcos folder:  bash scripts/build-mac.sh
+# Produces: release/ARCOS-1.0.3-arm64.dmg  (opens in Finder when done)
 # ─────────────────────────────────────────────────────────────────────────────
 set -e
 
@@ -11,15 +11,15 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 echo ""
 echo "╔══════════════════════════════════════╗"
-echo "║      A.R.C. Hub — Build for Mac      ║"
+echo "║      ARCOS — Build for Mac      ║"
 echo "╚══════════════════════════════════════╝"
 echo "  Project: $PROJECT_DIR"
 echo ""
 
 # ── Space-in-path workaround ─────────────────────────────────────────────────
 # node-gyp (used to compile better-sqlite3) breaks if the project path
-# contains spaces. Create a temporary symlink at ~/arc-hub-build to dodge it.
-BUILD_DIR="$HOME/arc-hub-build"
+# contains spaces. Create a temporary symlink at ~/arcos-build to dodge it.
+BUILD_DIR="$HOME/arcos-build"
 
 if [[ "$PROJECT_DIR" == *" "* ]]; then
   echo "→ Path contains spaces — creating symlink at $BUILD_DIR"
@@ -67,7 +67,7 @@ CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac
 
 # ── Ad-hoc re-sign (fixes any residual Team ID mismatch on unsigned builds) ──
 # Ensures dyld accepts the bundle locally without an Apple Developer certificate.
-APP_BUNDLE="$PROJECT_DIR/release/mac-arm64/A.R.C. Hub.app"
+APP_BUNDLE="$PROJECT_DIR/release/mac-arm64/ARCOS.app"
 if [ -d "$APP_BUNDLE" ]; then
   echo ""
   echo "→ Ad-hoc signing bundle (removes Team ID mismatch)..."

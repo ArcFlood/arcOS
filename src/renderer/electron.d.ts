@@ -5,6 +5,7 @@ declare global {
     electron: {
       platform: string
       getPlatform: () => Promise<string>
+      systemFontsList: () => Promise<{ success: boolean; fonts: string[] }>
 
       loadArcPrompts: () => Promise<{ success: boolean; content?: string; source?: string; error?: string }>
 
@@ -29,6 +30,10 @@ declare global {
       serviceStatus: (name: string) => Promise<{ running: boolean; pid?: number }>
       serviceStart: (name: string) => Promise<{ success: boolean; error?: string }>
       serviceStop: (name: string) => Promise<{ success: boolean; error?: string }>
+      workspaceDetachPanel?: (panelId: string) => Promise<{ success: boolean }>
+      workspaceRedockPanel?: (panelId: string) => Promise<{ success: boolean }>
+      workspaceSyncDetachedPanels?: (panelIds: string[]) => Promise<{ success: boolean }>
+      onWorkspaceEvent?: (channel: string, callback: (payload: unknown) => void) => () => void
       openExternal: (url: string) => Promise<void>
 
       fabricListPatterns: () => Promise<{ success: boolean; patterns: string[] }>

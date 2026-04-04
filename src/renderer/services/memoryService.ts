@@ -114,7 +114,7 @@ export function sourceLabel(sourceType: string): string {
   const map: Record<string, string> = {
     chatgpt: 'ChatGPT',
     claude: 'Claude',
-    'arc-hub': 'ARC-Hub',
+    'arcos': 'ARCOS',
   }
   return map[sourceType] ?? sourceType
 }
@@ -123,7 +123,7 @@ export function sourceColor(sourceType: string): string {
   const map: Record<string, string> = {
     chatgpt: '#10a37f',
     claude: '#d97706',
-    'arc-hub': '#8b5cf6',
+    'arcos': '#8b5cf6',
   }
   return map[sourceType] ?? '#6b7280'
 }

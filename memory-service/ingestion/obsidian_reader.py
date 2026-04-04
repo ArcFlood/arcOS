@@ -19,7 +19,7 @@ import frontmatter
 
 logger = logging.getLogger(__name__)
 
-VALID_SOURCE_TYPES = {"chatgpt", "claude", "arc-hub"}
+VALID_SOURCE_TYPES = {"chatgpt", "claude", "arcos"}
 
 
 @dataclass
@@ -34,7 +34,7 @@ class ConversationDoc:
     # Frontmatter fields
     title: str
     date: str                  # ISO date string (e.g. "2024-03-15")
-    source_type: str           # "chatgpt" | "claude" | "arc-hub"
+    source_type: str           # "chatgpt" | "claude" | "arcos"
 
     # Body content
     body: str                  # Raw markdown body (no frontmatter)

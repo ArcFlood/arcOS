@@ -1,4 +1,4 @@
-# A.R.C. Hub
+# ARCOS
 
 **A.R.C. (AI Reasoning Companion) Hub** is a personal AI desktop app for macOS — an Electron + React interface that routes your queries across local and cloud models automatically, integrates with Fabric patterns, and keeps all your data local.
 
@@ -35,7 +35,7 @@
 ```bash
 # 1. Clone and install
 git clone <repo-url>
-cd arc-hub
+cd arcos
 npm install
 
 # 2. Start in dev mode

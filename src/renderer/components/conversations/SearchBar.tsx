@@ -12,8 +12,8 @@ export default function SearchBar() {
         type="text"
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
-        placeholder="Search conversations..."
-        className="w-full bg-background border border-border rounded-md pl-7 pr-3 py-1.5 text-xs text-text placeholder:text-text-muted focus:outline-none focus:border-accent transition-colors"
+        placeholder="Search sessions..."
+        className="arcos-input w-full rounded-md pl-7 pr-3 py-2 text-xs"
       />
     </div>
   )

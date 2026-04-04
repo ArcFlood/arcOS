@@ -51,7 +51,9 @@ export default function ErrorLogPanel({ open, onClose }: Props) {
     try {
       const result = await window.electron.logGetEntries()
       if (result.success) setEntries(result.entries as LogEntry[])
-    } catch (_) {}
+    } catch {
+      // Keep the existing entries if refresh fails.
+    }
   }, [])
 
   // Initial fetch + auto-refresh every 2s when panel is open
@@ -235,7 +237,7 @@ export default function ErrorLogPanel({ open, onClose }: Props) {
             Showing {filtered.length} of {entries.length} entries
           </span>
           <span className="text-xs text-slate-600">
-            Log file: ~/.noah-ai-hub/logs/arc-hub.log
+            Log file: ~/.noah-ai-hub/logs/arcos.log
           </span>
         </div>
       </div>

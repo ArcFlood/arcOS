@@ -85,8 +85,10 @@ export default function ConversationItem({ conversation, isActive }: Props) {
   return (
     <div
       onClick={() => setActive(conversation.id)}
-      className={`group relative flex flex-col px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
-        isActive ? 'bg-accent/15 border border-accent/30' : 'hover:bg-surface-elevated border border-transparent'
+      className={`group relative flex flex-col px-3 py-2.5 rounded-lg cursor-pointer transition-colors border ${
+        isActive
+          ? 'bg-[#161b21] border-[#7f90a1]/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]'
+          : 'bg-transparent border-transparent hover:bg-[#1b2027] hover:border-[#36404b]'
       }`}
     >
       {/* Title row */}
@@ -98,7 +100,7 @@ export default function ConversationItem({ conversation, isActive }: Props) {
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
           <button
             onClick={(e) => { e.stopPropagation(); setTagging((v) => !v) }}
-            className="text-text-muted hover:text-accent transition-colors text-xs p-0.5 rounded"
+            className="text-text-muted hover:text-text transition-colors text-xs p-0.5 rounded"
             title="Add tag"
           >
             #
@@ -106,7 +108,7 @@ export default function ConversationItem({ conversation, isActive }: Props) {
           <button
             onClick={handleExport}
             disabled={exporting}
-            className="text-text-muted hover:text-accent transition-colors text-xs p-0.5 rounded"
+            className="text-text-muted hover:text-text transition-colors text-xs p-0.5 rounded"
             title="Export as Markdown"
           >
             {exporting ? '⟳' : '↓'}
@@ -114,7 +116,7 @@ export default function ConversationItem({ conversation, isActive }: Props) {
           <button
             onClick={handleSaveToVault}
             disabled={savingToVault || conversation.messages.length === 0}
-            className="text-text-muted hover:text-purple-400 transition-colors text-xs p-0.5 rounded"
+            className="text-text-muted hover:text-[#b7c4d0] transition-colors text-xs p-0.5 rounded"
             title="Save to Obsidian vault"
           >
             {savingToVault ? '⟳' : vaultSaved ? '✓' : '⬡'}
@@ -133,7 +135,7 @@ export default function ConversationItem({ conversation, isActive }: Props) {
       <div className="flex items-center justify-between mt-1">
         <span className="text-xs text-text-muted">{timeStr}</span>
         {conversation.totalCost > 0 && (
-          <span className="text-xs text-danger/70">{formatCostBadge(conversation.totalCost)}</span>
+          <span className="text-xs text-danger/80">{formatCostBadge(conversation.totalCost)}</span>
         )}
       </div>
 
@@ -143,7 +145,7 @@ export default function ConversationItem({ conversation, isActive }: Props) {
           {conversation.tags.map((tag) => (
             <span
               key={tag}
-              className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent/15 text-accent border border-accent/20 cursor-pointer hover:bg-danger/15 hover:text-danger hover:border-danger/20 transition-colors"
+              className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-[#232b33] text-[#b7c4d0] border border-[#3c4652] cursor-pointer hover:bg-danger/15 hover:text-danger hover:border-danger/20 transition-colors"
               onClick={(e) => {
                 e.stopPropagation()
                 // Clicking the tag filters by it
@@ -177,16 +179,16 @@ export default function ConversationItem({ conversation, isActive }: Props) {
             onKeyDown={handleTagKeyDown}
             onBlur={() => { setTimeout(() => { setShowSuggestions(false); setTagging(false); setTagInput('') }, 150) }}
             placeholder="tag-name (Enter to add)"
-            className="w-full text-[11px] bg-surface-elevated border border-accent/40 rounded px-2 py-1 text-text placeholder:text-text-muted focus:outline-none focus:border-accent"
+            className="arcos-input w-full text-[11px] rounded px-2 py-1"
           />
           {/* Suggestions dropdown */}
           {showSuggestions && suggestions.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-0.5 bg-surface border border-border rounded-lg shadow-lg z-50 overflow-hidden">
+            <div className="absolute top-full left-0 right-0 mt-0.5 bg-[#1b2128] border border-border rounded-lg shadow-lg z-50 overflow-hidden">
               {suggestions.map((s) => (
                 <button
                   key={s}
                   onMouseDown={() => commitTag(s)}
-                  className="w-full text-left px-2 py-1 text-[11px] text-text hover:bg-surface-elevated transition-colors"
+                  className="w-full text-left px-2 py-1 text-[11px] text-text hover:bg-[#232a33] transition-colors"
                 >
                   #{s}
                 </button>

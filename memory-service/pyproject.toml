@@ -1,7 +1,7 @@
 [project]
 name = "arc-memory"
 version = "0.2.0"
-description = "Local RAG memory layer for ARC-Hub — semantic search over 1000+ past AI conversations"
+description = "Local RAG memory layer for ARCOS — semantic search over 1000+ past AI conversations"
 requires-python = ">=3.11"
 dependencies = [
     "lancedb>=0.6.0",

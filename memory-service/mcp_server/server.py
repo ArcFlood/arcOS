@@ -76,7 +76,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="ARC-Memory MCP Server",
     version="2.0.0",
-    description="Local RAG memory layer for ARC-Hub — Phase 2 (HyDE + reranking)",
+    description="Local RAG memory layer for ARCOS — Phase 2 (HyDE + reranking)",
     lifespan=lifespan,
 )
 

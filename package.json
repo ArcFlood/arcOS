@@ -1,5 +1,5 @@
 {
-  "name": "arc-hub",
+  "name": "arcos",
   "version": "2.1.0",
   "description": "Visual orchestration layer for A.R.C. (AI Reasoning Companion) infrastructure",
   "main": "dist-electron/main.js",
@@ -47,8 +47,8 @@
     "vite-plugin-electron-renderer": "^0.14.6"
   },
   "build": {
-    "appId": "com.arc.hub",
-    "productName": "A.R.C. Hub",
+    "appId": "com.arcos",
+    "productName": "ARCOS",
     "copyright": "Copyright © 2026 Noah Powell",
     "mac": {
       "identity": null,

@@ -1,7 +1,7 @@
 /**
- * logger.ts — File-based logger for A.R.C. Hub main process.
+ * logger.ts — File-based logger for ARCOS main process.
  *
- * Writes structured log entries to ~/.noah-ai-hub/logs/arc-hub.log
+ * Writes structured log entries to ~/.noah-ai-hub/logs/arcos.log
  * and keeps the last MAX_ENTRIES in memory for the ErrorLog panel.
  * IPC handlers: log:append, log:get-entries, log:clear
  */
@@ -23,7 +23,7 @@ export interface LogEntry {
 
 const MAX_ENTRIES = 500
 const LOG_DIR = path.join(os.homedir(), '.noah-ai-hub', 'logs')
-const LOG_FILE = path.join(LOG_DIR, 'arc-hub.log')
+const LOG_FILE = path.join(LOG_DIR, 'arcos.log')
 
 const memoryLog: LogEntry[] = []
 
@@ -79,7 +79,9 @@ export function clearLog(): void {
   memoryLog.splice(0, memoryLog.length)
   try {
     if (fs.existsSync(LOG_FILE)) fs.writeFileSync(LOG_FILE, '', 'utf8')
-  } catch (_) {}
+  } catch {
+    // Best-effort log truncation only.
+  }
 }
 
 export function getLogFilePath(): string {

@@ -5,59 +5,12 @@ import { useServiceStore } from '../stores/serviceStore'
 import { useCostStore } from '../stores/costStore'
 import { usePluginStore } from '../stores/pluginStore'
 import { ModelTier } from '../stores/types'
+import { useTraceStore } from '../stores/traceStore'
 import { sendMessage } from '../services/chatService'
+import { routeQuery, TIER_DISPLAY_LABELS } from '../utils/routing'
 
 interface Props {
   conversationId: string | null
-}
-
-type RoutingTier = { tier: ModelTier; reason: string }
-
-function routeQuery(
-  text: string,
-  mode: string,
-  aggressiveness: string,
-  ollamaRunning: boolean,
-  spendingToday: number,
-  dailyLimit: number
-): RoutingTier {
-  // Budget guard
-  if (spendingToday >= dailyLimit && ollamaRunning) {
-    return { tier: 'ollama', reason: `Daily budget ($${dailyLimit}) reached — local model` }
-  }
-
-  if (mode !== 'auto') return { tier: mode as ModelTier, reason: 'Manual override' }
-
-  const words = text.trim().split(/\s+/).length
-  const hasCode = /```|function |const |let |class |import |def |debug|error|refactor/.test(text)
-  const isComplex = /analyze|research|synthesize|multi.?step|orchestrat|architecture|evaluate|comprehensive/.test(text.toLowerCase())
-  const isSimple = words < 50 && !hasCode && !isComplex
-  const isMid = words >= 50 && words < 300 && !hasCode && !isComplex
-
-  if (aggressiveness === 'cost-first') {
-    if (isSimple && ollamaRunning) return { tier: 'ollama', reason: 'Simple query → local (cost-first)' }
-    if (isMid && ollamaRunning) return { tier: 'ollama', reason: 'Moderate query → local (cost-first)' }
-    return { tier: 'haiku', reason: 'Cost-first → Haiku' }
-  }
-
-  if (aggressiveness === 'quality-first') {
-    if (isSimple && ollamaRunning) return { tier: 'ollama', reason: 'Simple → local' }
-    return { tier: 'arc-sonnet', reason: 'Quality-first → A.R.C.' }
-  }
-
-  // Balanced
-  if (isSimple && ollamaRunning) return { tier: 'ollama', reason: 'Short & simple → local model' }
-  if (hasCode || isComplex) return { tier: 'arc-sonnet', reason: hasCode ? 'Code detected → A.R.C.' : 'Complex reasoning → A.R.C.' }
-  if (isMid) return { tier: 'haiku', reason: 'Moderate complexity → Haiku' }
-  if (!ollamaRunning) return { tier: 'haiku', reason: 'Ollama offline → Haiku' }
-  return { tier: 'arc-sonnet', reason: 'Long query → A.R.C.' }
-}
-
-const TIER_LABELS: Record<ModelTier, string> = {
-  ollama: '💻 Local',
-  haiku: '⚡ Haiku',
-  'arc-sonnet': '🧠 A.R.C.',
-  'arc-opus': '🔮 Opus',
 }
 const TIER_COLORS: Record<ModelTier, string> = {
   ollama: 'text-success',
@@ -86,6 +39,7 @@ export default function MessageInput({ conversationId }: Props) {
   const activePlugin = usePluginStore((s) => s.activePlugin)
   const activatePlugin = usePluginStore((s) => s.activatePlugin)
   const findByCommand = usePluginStore((s) => s.findByCommand)
+  const appendTraceEntry = useTraceStore((s) => s.appendEntry)
 
   // Auto-resize textarea
   useEffect(() => {
@@ -113,9 +67,9 @@ export default function MessageInput({ conversationId }: Props) {
   // What tier + reason to show in the preview
   const previewTier = slashCommandPlugin?.tier ?? activePlugin?.tier ?? route?.tier ?? null
   const previewReason = slashCommandPlugin
-    ? `Plugin: ${slashCommandPlugin.name}`
-    : activePlugin
-      ? `Plugin: ${activePlugin.name} → ${TIER_LABELS[activePlugin.tier]}`
+      ? `Plugin: ${slashCommandPlugin.name}`
+      : activePlugin
+      ? `Plugin: ${activePlugin.name} → ${TIER_DISPLAY_LABELS[activePlugin.tier]}`
       : route?.reason ?? ''
 
   const handleSend = async () => {
@@ -168,14 +122,34 @@ export default function MessageInput({ conversationId }: Props) {
     // Effective tier — plugin overrides router
     const effectiveTier = resolvedPlugin ? resolvedPlugin.tier : tier
     const effectiveReason = resolvedPlugin
-      ? `Plugin: ${resolvedPlugin.name} → ${TIER_LABELS[resolvedPlugin.tier]}`
+      ? `Plugin: ${resolvedPlugin.name} → ${TIER_DISPLAY_LABELS[resolvedPlugin.tier]}`
       : reason
+
+    appendTraceEntry({
+      source: 'routing',
+      level: 'info',
+      title: `Routed to ${TIER_DISPLAY_LABELS[effectiveTier]}`,
+      detail: effectiveReason,
+      conversationId: convId,
+      relatedPanels: ['routing', resolvedPlugin ? 'tools' : 'prompt_inspector', 'execution'],
+      entityLabel: resolvedPlugin?.id ?? effectiveTier,
+    })
+
+    window.electron.routingAppend?.({
+      timestamp: new Date().toISOString(),
+      queryPreview: resolvedContent.slice(0, 80),
+      chosenTier: effectiveTier,
+      reason: effectiveReason,
+      confidence: resolvedPlugin ? 1 : 0.72,
+      wasOverridden: settings.routingMode !== 'auto' || Boolean(resolvedPlugin),
+      conversationId: convId,
+    }).catch?.(() => {})
 
     // Show routing decision
     if (settings.showRoutingReasons) {
       addMessage(convId, {
         role: 'system',
-        content: `${TIER_LABELS[effectiveTier]} — ${effectiveReason}`,
+        content: `${TIER_DISPLAY_LABELS[effectiveTier]} — ${effectiveReason}`,
         model: null,
         cost: 0,
         timestamp: Date.now(),
@@ -196,6 +170,16 @@ export default function MessageInput({ conversationId }: Props) {
     // Stream the response
     abortRef.current = new AbortController()
     let accumulatedContent = ''
+
+    appendTraceEntry({
+      source: 'chat',
+      level: 'info',
+      title: 'Started assistant response',
+      detail: `Conversation ${convId} is now streaming from ${TIER_DISPLAY_LABELS[effectiveTier]}.`,
+      conversationId: convId,
+      relatedPanels: ['chat', 'execution', 'prompt_inspector'],
+      entityLabel: effectiveTier,
+    })
 
     await sendMessage({
       content: resolvedContent,
@@ -222,6 +206,15 @@ export default function MessageInput({ conversationId }: Props) {
           cost,
           isStreaming: false,
         })
+        appendTraceEntry({
+          source: 'chat',
+          level: 'success',
+          title: 'Completed assistant response',
+          detail: `Received ${fullText.length} characters${cost > 0 ? ` at cost $${cost.toFixed(4)}` : ' with no cloud cost'}.`,
+          conversationId: convId,
+          relatedPanels: ['chat', 'execution', 'cost'],
+          entityLabel: effectiveTier,
+        })
         if (cost > 0) {
           addRecord({ id: crypto.randomUUID(), amount: cost, model: effectiveTier, conversationId: convId })
         }
@@ -231,6 +224,15 @@ export default function MessageInput({ conversationId }: Props) {
         updateMessage(convId, assistantMsg.id, {
           content: `⚠️ Error: ${err.message}`,
           isStreaming: false,
+        })
+        appendTraceEntry({
+          source: 'chat',
+          level: 'error',
+          title: 'Assistant response failed',
+          detail: err.message,
+          conversationId: convId,
+          relatedPanels: ['chat', 'execution', 'services'],
+          entityLabel: effectiveTier,
         })
         setError(err.message)
         setSending(false)
@@ -256,7 +258,7 @@ export default function MessageInput({ conversationId }: Props) {
       {previewTier && text.trim() && !sending && (
         <div className="flex items-center gap-2 px-1 text-xs text-text-muted">
           <span>→</span>
-          <span className={`font-medium ${TIER_COLORS[previewTier]}`}>{TIER_LABELS[previewTier]}</span>
+          <span className={`font-medium ${TIER_COLORS[previewTier]}`}>{TIER_DISPLAY_LABELS[previewTier]}</span>
           <span className="opacity-60">{previewReason}</span>
         </div>
       )}

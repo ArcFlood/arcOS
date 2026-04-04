@@ -28,8 +28,10 @@ export default function ServiceCard({ service }: { service: ServiceStatus }) {
 
   return (
     <div
-      className={`bg-background rounded-lg border p-3 space-y-2 transition-colors duration-300 ${
-        service.running ? 'border-success/25' : 'border-border'
+      className={`rounded-xl border p-3 space-y-3 transition-colors duration-300 ${
+        service.running
+          ? 'arcos-subpanel border-success/35'
+          : 'arcos-subpanel'
       }`}
     >
       {/* Header row */}
@@ -37,10 +39,10 @@ export default function ServiceCard({ service }: { service: ServiceStatus }) {
         <div className="flex items-center gap-2">
           <StatusIndicator running={service.running} checking={service.checking || restarting} />
           <span className="text-sm font-medium text-text">{service.displayName}</span>
-          <span className="text-xs text-text-muted">:{service.port}</span>
+          <span className="text-[11px] text-text-muted">:{service.port}</span>
         </div>
         <span
-          className={`text-xs font-medium transition-colors ${
+          className={`text-[11px] font-semibold uppercase tracking-wider transition-colors ${
             service.running ? 'text-success' : service.checking || restarting ? 'text-warning' : 'text-text-muted'
           }`}
         >
@@ -73,7 +75,7 @@ export default function ServiceCard({ service }: { service: ServiceStatus }) {
         />
         <button
           onClick={() => setLogsOpen((v) => !v)}
-          className="ml-auto text-xs text-text-muted hover:text-text transition-colors"
+          className="ml-auto text-[11px] text-text-muted hover:text-text transition-colors"
         >
           Logs {logsOpen ? '▾' : '▸'}
         </button>
@@ -81,12 +83,12 @@ export default function ServiceCard({ service }: { service: ServiceStatus }) {
 
       {/* Error */}
       {service.error && (
-        <p className="text-xs text-danger bg-danger/10 rounded px-2 py-1">{service.error}</p>
+        <p className="text-xs text-danger bg-danger/10 rounded-lg px-2 py-1.5">{service.error}</p>
       )}
 
       {/* Logs panel */}
       {logsOpen && (
-        <div className="bg-surface-elevated rounded p-2 text-xs font-mono min-h-[40px] space-y-0.5">
+        <div className="rounded-lg border border-border bg-[#11151a] p-2 text-xs font-mono min-h-[40px] space-y-1">
           {service.running ? (
             <>
               <p className="text-success">{service.displayName} is running</p>

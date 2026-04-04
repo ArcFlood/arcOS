@@ -1,50 +1,35 @@
 import { useEffect, useState } from 'react'
-import Sidebar from './Sidebar'
-import TopBar from './TopBar'
-import ChatArea from './ChatArea'
 import SettingsPanel from './settings/SettingsPanel'
 import ErrorLogPanel from './debug/ErrorLogPanel'
 import SessionHistoryPanel from './history/SessionHistoryPanel'
 import WeeklyDigest from './history/WeeklyDigest'
 import MemoryPanel from './memory/MemoryPanel'
-import { useServiceStore } from '../stores/serviceStore'
+import WorkspaceShell from './workspace/WorkspaceShell'
+import WorkspaceTopBar from './workspace/WorkspaceTopBar'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useConversationStore } from '../stores/conversationStore'
-import { useCostStore } from '../stores/costStore'
-import { usePluginStore } from '../stores/pluginStore'
+import { useWorkspaceStore } from '../stores/workspaceStore'
+import useAppBootstrap from '../hooks/useAppBootstrap'
 
 export default function Layout() {
-  const checkAllServices = useServiceStore((s) => s.checkAllServices)
-  const fetchOllamaModels = useServiceStore((s) => s.fetchOllamaModels)
   const settingsPanelOpen = useSettingsStore((s) => s.settingsPanelOpen)
   const openSettings = useSettingsStore((s) => s.openSettingsPanel)
   const closeSettings = useSettingsStore((s) => s.closeSettingsPanel)
-  const loadSettings = useSettingsStore((s) => s.loadFromDb)
-  const autoFixOllamaModel = useSettingsStore((s) => s.autoFixOllamaModel)
   const createConversation = useConversationStore((s) => s.createConversation)
-  const loadConversations = useConversationStore((s) => s.loadFromDb)
-  const loadCost = useCostStore((s) => s.loadFromDb)
-  const loadPlugins = usePluginStore((s) => s.loadPlugins)
+  const hydrateWorkspace = useWorkspaceStore((s) => s.hydrate)
+  const detachedPanels = useWorkspaceStore((s) => s.layout.detachedPanels)
+  const handleDetachedWindowClosed = useWorkspaceStore((s) => s.handleDetachedWindowClosed)
 
   const [logOpen, setLogOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [memoryOpen, setMemoryOpen] = useState(false)
   const [showDigest, setShowDigest] = useState(false)
 
-  // ── DB bootstrap + service polling ───────────────────────────
-  useEffect(() => {
-    const init = async () => {
-      await Promise.all([
-        loadSettings(),
-        loadConversations(),
-        loadCost(),
-        loadPlugins(),
-      ])
-      await checkAllServices()
-      const models = await fetchOllamaModels()
-      if (models.length > 0) autoFixOllamaModel(models)
+  useAppBootstrap()
 
-      // Check weekly digest (Monday only)
+  // ── Weekly digest gate ───────────────────────────────────────
+  useEffect(() => {
+    const loadDigest = async () => {
       const lastDigest = localStorage.getItem('arc-last-digest')
       const digestResult = await window.electron.sessionShouldShowDigest?.(lastDigest)
       if (digestResult?.show) {
@@ -52,15 +37,22 @@ export default function Layout() {
         localStorage.setItem('arc-last-digest', new Date().toISOString().slice(0, 10))
       }
     }
-    init().catch((err) => {
-      window.electron.logAppend?.('error', 'Bootstrap failed', String(err))?.catch?.(() => {})
-    })
-
-    const interval = setInterval(checkAllServices, 30_000)
-    return () => clearInterval(interval)
-  // Stable store-action refs — safe to omit from deps
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    loadDigest().catch(() => {})
   }, [])
+
+  useEffect(() => {
+    void window.electron.workspaceSyncDetachedPanels?.(detachedPanels)
+  }, [detachedPanels])
+
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'arcos-workspace-v2') {
+        hydrateWorkspace()
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [hydrateWorkspace])
 
   // ── Global renderer error capture → log pipe ─────────────────
   useEffect(() => {
@@ -117,16 +109,25 @@ export default function Layout() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    const cleanup = window.electron.onWorkspaceEvent?.('workspace:detached-panel-closed', (payload) => {
+      if (typeof payload === 'string') {
+        handleDetachedWindowClosed(payload as never)
+      }
+    })
+    return () => cleanup?.()
+  }, [handleDetachedWindowClosed])
+
   return (
     <div className="flex h-screen overflow-hidden bg-background text-text">
-      <aside className="w-[280px] min-w-[280px] flex flex-col border-r border-border bg-surface overflow-hidden">
-        <Sidebar onOpenHistory={() => setHistoryOpen(true)} onOpenMemory={() => setMemoryOpen(true)} />
-      </aside>
       <div className="flex flex-col flex-1 overflow-hidden">
-        <TopBar />
-        <main className="flex-1 overflow-hidden">
-          <ChatArea />
-        </main>
+        <WorkspaceTopBar onOpenSettings={() => openSettings()} />
+        <WorkspaceShell
+          onOpenHistory={() => setHistoryOpen(true)}
+          onOpenMemory={() => setMemoryOpen(true)}
+          onOpenLog={() => setLogOpen(true)}
+          onOpenSettings={() => openSettings()}
+        />
       </div>
 
       {/* Modals */}

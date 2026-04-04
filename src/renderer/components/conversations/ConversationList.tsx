@@ -13,7 +13,7 @@ export default function ConversationList() {
   const allTags = getAllTags()
 
   return (
-    <div className="flex flex-col h-full px-3 py-2 gap-2">
+    <div className="flex flex-col h-full px-3 py-3 gap-2">
       <NewChatButton />
       <SearchBar />
 
@@ -26,8 +26,8 @@ export default function ConversationList() {
               onClick={() => setTagFilter(tagFilter === tag ? null : tag)}
               className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full border transition-colors ${
                 tagFilter === tag
-                  ? 'bg-accent text-white border-accent'
-                  : 'bg-transparent text-text-muted border-border hover:border-accent/50 hover:text-accent'
+                  ? 'bg-[#3d4957] text-text border-[#7e90a2]'
+                  : 'bg-transparent text-text-muted border-border hover:border-[#7e90a2]/50 hover:text-text'
               }`}
             >
               #{tag}

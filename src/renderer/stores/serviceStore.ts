@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { ServiceStatus, ServiceName } from './types'
+import { useTraceStore } from './traceStore'
 
 const INITIAL_SERVICES: ServiceStatus[] = [
   { name: 'ollama', displayName: 'Ollama', running: false, port: 11434, checking: false },
@@ -39,7 +40,9 @@ export const useServiceStore = create<ServiceStore>((set, get) => ({
         set({ availableOllamaModels: result.models })
         return result.models
       }
-    } catch (_) {}
+    } catch {
+      // Fall back to an empty model list if Ollama is unavailable.
+    }
     return []
   },
 
@@ -51,6 +54,16 @@ export const useServiceStore = create<ServiceStore>((set, get) => ({
         try {
           const result = await window.electron.serviceStatus(svc.name)
           setServiceStatus(svc.name, { running: result.running, pid: result.pid, checking: false })
+          useTraceStore.getState().appendEntry({
+            source: 'service',
+            level: result.running ? 'success' : 'warn',
+            title: `${svc.displayName} ${result.running ? 'reachable' : 'offline'}`,
+            detail: result.running
+              ? `Port ${svc.port}${result.pid ? ` · pid ${result.pid}` : ''}`
+              : `No running process detected on expected port ${svc.port}.`,
+            relatedPanels: ['services', 'transparency'],
+            entityLabel: svc.name,
+          })
           // If Ollama just came up, fetch its models
           if (svc.name === 'ollama' && result.running) {
             await fetchOllamaModels()
@@ -71,14 +84,38 @@ export const useServiceStore = create<ServiceStore>((set, get) => ({
         await new Promise((r) => setTimeout(r, 1800))
         const status = await window.electron.serviceStatus(name)
         setServiceStatus(name, { running: status.running, checking: false })
+        useTraceStore.getState().appendEntry({
+          source: 'service',
+          level: status.running ? 'success' : 'warn',
+          title: `${name} start requested`,
+          detail: status.running ? 'Service reported healthy after startup.' : 'Startup returned, but service still appears offline.',
+          relatedPanels: ['services', name === 'fabric' ? 'tools' : 'transparency'],
+          entityLabel: name,
+        })
         if (name === 'ollama' && status.running) {
           await fetchOllamaModels()
         }
       } else {
         setServiceStatus(name, { checking: false, error: result.error })
+        useTraceStore.getState().appendEntry({
+          source: 'service',
+          level: 'error',
+          title: `${name} failed to start`,
+          detail: result.error,
+          relatedPanels: ['services', 'transparency'],
+          entityLabel: name,
+        })
       }
     } catch (e) {
       setServiceStatus(name, { checking: false, error: String(e) })
+      useTraceStore.getState().appendEntry({
+        source: 'service',
+        level: 'error',
+        title: `${name} start threw an error`,
+        detail: String(e),
+        relatedPanels: ['services', 'transparency'],
+        entityLabel: name,
+      })
     }
   },
 
@@ -88,8 +125,24 @@ export const useServiceStore = create<ServiceStore>((set, get) => ({
     try {
       await window.electron.serviceStop(name)
       setServiceStatus(name, { running: false, pid: undefined, checking: false })
+      useTraceStore.getState().appendEntry({
+        source: 'service',
+        level: 'info',
+        title: `${name} stopped`,
+        detail: 'Service stop command completed.',
+        relatedPanels: ['services', name === 'fabric' ? 'tools' : 'transparency'],
+        entityLabel: name,
+      })
     } catch (e) {
       setServiceStatus(name, { checking: false, error: String(e) })
+      useTraceStore.getState().appendEntry({
+        source: 'service',
+        level: 'error',
+        title: `${name} stop failed`,
+        detail: String(e),
+        relatedPanels: ['services', 'transparency'],
+        entityLabel: name,
+      })
     }
   },
 }))

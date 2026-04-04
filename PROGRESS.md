@@ -1,4 +1,4 @@
-# A.R.C. Hub — Build Progress
+# ARCOS — Build Progress
 (hi there)
 **Last updated:** 2026-04-03
 **App version:** 2.2.0
@@ -225,7 +225,7 @@
 
 | Task | Status | Notes |
 |------|--------|-------|
-| `memory:vault-write` IPC handler | ✅ Done | Parses `memory-service/.env` for VAULT_PATH; writes `arc-hub/YYYY-MM-DD_slug.md` with `source: arc-hub` frontmatter; file watcher auto-indexes within 5s |
+| `memory:vault-write` IPC handler | ✅ Done | Parses `memory-service/.env` for VAULT_PATH; writes `arcos/YYYY-MM-DD_slug.md` with `source: arcos` frontmatter; file watcher auto-indexes within 5s |
 | `memory:vault-path` IPC handler | ✅ Done | Returns VAULT_PATH to renderer for display/validation |
 | `saveConversationToVault()` util | ✅ Done | Added to `exportConversation.ts`; wraps `memoryVaultWrite` IPC call |
 | "Save to Vault" button | ✅ Done | Hex icon (⬡) in ConversationItem hover row; turns ✓ for 2s on success; disabled when conversation has no messages |
@@ -237,7 +237,7 @@
 
 | Task | Status | Notes |
 |------|--------|-------|
-| `memory-service/` Python project | ✅ Done | Copied into arc-hub repo; managed via `uv` package manager |
+| `memory-service/` Python project | ✅ Done | Copied into arcos repo; managed via `uv` package manager |
 | `ingestion/obsidian_reader.py` | ✅ Done | Walks vault, validates `source:` frontmatter, SHA256 hash per file, `ConversationDoc` dataclass |
 | `ingestion/chunker.py` | ✅ Done | Hierarchical: index-0 summary chunk (200 tok) + section chunks (600 tok, 100 overlap); respects speaker boundaries |
 | `ingestion/embedder.py` | ✅ Done | nomic-embed-text via Ollama `/api/embeddings`; batch=50; exponential backoff (3 retries) |
@@ -273,14 +273,14 @@
 
 **RAG Quality Pipeline (P14)** — Phase 2 adds a 4-step query pipeline: (1) HyDE generates a hypothetical answer and embeds that instead of the raw query — better recall for semantic mismatch queries; (2) cross-encoder reranker (`ms-marco-MiniLM-L-6-v2`) rescores top-20 hits with precise relevance scores; (3) context compressor summarizes lower-ranked chunks with qwen3:14b if the total exceeds 2000 tokens; (4) file watcher auto-indexes vault changes within 5 seconds. All Phase 2 components have graceful fallbacks — if qwen3:14b is unavailable, HyDE and compression degrade silently.
 
-**Vault Write-Back (P15)** — Conversations can be pushed directly to the Obsidian vault via the ⬡ button on each ConversationItem. The main process reads `VAULT_PATH` from `memory-service/.env`, writes `VAULT_PATH/arc-hub/YYYY-MM-DD_slug.md` with `source: arc-hub` frontmatter, and the file watcher auto-indexes it within 5s — closing the full loop: ARC-Hub → Obsidian vault → ARC-Memory search. The "Open in Obsidian" button in MemoryPanel chunk cards uses the `obsidian://open?vault=...` URI scheme (available via `obsidian_uri` field returned by `/query`).
+**Vault Write-Back (P15)** — Conversations can be pushed directly to the Obsidian vault via the ⬡ button on each ConversationItem. The main process reads `VAULT_PATH` from `memory-service/.env`, writes `VAULT_PATH/arcos/YYYY-MM-DD_slug.md` with `source: arcos` frontmatter, and the file watcher auto-indexes it within 5s — closing the full loop: ARCOS → Obsidian vault → ARC-Memory search. The "Open in Obsidian" button in MemoryPanel chunk cards uses the `obsidian://open?vault=...` URI scheme (available via `obsidian_uri` field returned by `/query`).
 
 ---
 
 ## File Tree
 
 ```
-arc-hub/
+arcos/
 ├── memory-service/                      ← ARC-Memory Python project (P13)
 │   ├── pyproject.toml                   ← uv deps: lancedb, fastapi, uvicorn, watchdog
 │   ├── ingestion/
@@ -370,7 +370,7 @@ arc-hub/
 | Phase 1 — Working Retrieval | 1.0–8.0 | ✅ Complete |
 | Phase 2 — Quality (HyDE, reranker, compressor, watcher) | 9.0–12.0 | ✅ Complete |
 | Phase 2 — Quality Validation | 13.0 | Pending manual testing |
-| Phase 3 — ARC-Hub Integration | 14.0, 16.0 | ✅ Complete (done as P13) |
+| Phase 3 — ARCOS Integration | 14.0, 16.0 | ✅ Complete (done as P13) |
 | Phase 3 — /memory Slash Command | 15.0 | Deferred — MemoryPanel drawer implemented instead |
 | Phase 4 — Bidirectional | 17.0, 18.0 | ✅ Complete |
 | Phase 4 — Final QA | 19.0 | Pending end-to-end user testing |

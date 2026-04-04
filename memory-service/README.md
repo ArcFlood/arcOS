@@ -1,4 +1,4 @@
-# arc-memory — ARC-Hub Memory System
+# arc-memory — ARCOS Memory System
 
 Local RAG pipeline for semantic search over 1000+ past AI conversations.
 Runs entirely on-device via Ollama. No API calls, no cost, no data leaving your machine.
@@ -62,7 +62,7 @@ arc-memory/
 
 ## Frontmatter Requirements
 
-Files must have `source: chatgpt`, `source: claude`, or `source: arc-hub` in frontmatter:
+Files must have `source: chatgpt`, `source: claude`, or `source: arcos` in frontmatter:
 
 ```yaml
 ---
@@ -88,5 +88,5 @@ Files without valid `source` frontmatter are skipped (logged, not errors).
 
 - **Phase 1 (current):** Working CLI retrieval + MCP server
 - **Phase 2:** HyDE query expansion + cross-encoder reranking + file watcher
-- **Phase 3:** ARC-Hub `/memory` slash command integration
-- **Phase 4:** Bidirectional write-back (ARC-Hub → Obsidian → Memory)
+- **Phase 3:** ARCOS `/memory` slash command integration
+- **Phase 4:** Bidirectional write-back (ARCOS → Obsidian → Memory)

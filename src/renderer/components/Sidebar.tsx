@@ -15,21 +15,22 @@ export default function Sidebar({ onOpenHistory, onOpenMemory }: SidebarProps) {
   const services = useServiceStore((s) => s.services)
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-transparent">
       {/* Titlebar drag region */}
-      <div className="titlebar-drag h-8 min-h-8 flex items-center px-4">
-        <span className="text-xs text-text-muted font-medium titlebar-no-drag select-none">
-          A.R.C. Hub
-        </span>
+      <div className="titlebar-drag arcos-panel-head h-10 min-h-10 flex items-center px-4 border-b border-border">
+        <div className="titlebar-no-drag select-none">
+          <p className="arcos-kicker">Navigator</p>
+          <span className="text-xs text-text-muted font-medium">Threads, runtime cues, and workspace entry points</span>
+        </div>
       </div>
 
       {/* Services section */}
-      <div className="px-3 pb-2">
+      <div className="px-3 pb-3 pt-3">
         <button
           onClick={() => setServicesExpanded((v) => !v)}
-          className="flex items-center justify-between w-full px-2 py-1.5 rounded text-xs text-text-muted hover:text-text hover:bg-surface-elevated transition-colors"
+          className="arcos-action flex items-center justify-between w-full rounded-md px-2 py-1.5 text-[11px] uppercase tracking-wider transition-colors"
         >
-          <span className="font-semibold uppercase tracking-wider">Services</span>
+          <span className="font-semibold">Services</span>
           <span className="text-xs">{servicesExpanded ? '▾' : '▸'}</span>
         </button>
         {servicesExpanded && (
@@ -41,7 +42,7 @@ export default function Sidebar({ onOpenHistory, onOpenMemory }: SidebarProps) {
         )}
       </div>
 
-      <div className="border-t border-border mx-3 my-1" />
+      <div className="border-t border-border mx-3 my-1 opacity-60" />
 
       {/* Conversations (fills remaining space) */}
       <div className="flex-1 overflow-hidden">
@@ -49,11 +50,11 @@ export default function Sidebar({ onOpenHistory, onOpenMemory }: SidebarProps) {
       </div>
 
       {/* Bottom buttons */}
-      <div className="border-t border-border p-3 space-y-1">
+      <div className="border-t border-border p-3 space-y-1.5">
         {onOpenMemory && (
           <button
             onClick={onOpenMemory}
-            className="flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm text-text-muted hover:text-text hover:bg-surface-elevated transition-colors"
+            className="arcos-action flex items-center gap-2 w-full rounded-md px-3 py-2 text-sm transition-colors"
           >
             <span>🧠</span>
             <span>Memory Search</span>
@@ -62,7 +63,7 @@ export default function Sidebar({ onOpenHistory, onOpenMemory }: SidebarProps) {
         {onOpenHistory && (
           <button
             onClick={onOpenHistory}
-            className="flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm text-text-muted hover:text-text hover:bg-surface-elevated transition-colors"
+            className="arcos-action flex items-center gap-2 w-full rounded-md px-3 py-2 text-sm transition-colors"
           >
             <span>📋</span>
             <span>Session History</span>
@@ -70,7 +71,7 @@ export default function Sidebar({ onOpenHistory, onOpenMemory }: SidebarProps) {
         )}
         <button
           onClick={openSettings}
-          className="flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm text-text-muted hover:text-text hover:bg-surface-elevated transition-colors"
+          className="arcos-action flex items-center gap-2 w-full rounded-md px-3 py-2 text-sm transition-colors"
         >
           <span>⚙️</span>
           <span>Settings</span>

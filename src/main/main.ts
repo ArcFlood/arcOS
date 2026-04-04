@@ -27,6 +27,44 @@ import {
 const isDev = !app.isPackaged
 const serviceProcesses: Record<string, ChildProcess> = {}
 const activeStreams = new Map<string, AbortController>()
+let mainWindow: BrowserWindow | null = null
+const detachedPanelWindows = new Map<string, BrowserWindow>()
+const suppressedDetachedPanelNotifications = new Set<string>()
+
+function listSystemFonts(): string[] {
+  const fontDirs = [
+    path.join(os.homedir(), 'Library', 'Fonts'),
+    '/Library/Fonts',
+    '/System/Library/Fonts',
+    '/System/Library/AssetsV2/com_apple_MobileAsset_Font7',
+  ]
+  const names = new Set<string>()
+  const fontPattern = /\.(ttf|otf|ttc|dfont)$/i
+
+  for (const dir of fontDirs) {
+    if (!fs.existsSync(dir)) continue
+    const visit = (current: string) => {
+      let entries: fs.Dirent[]
+      try {
+        entries = fs.readdirSync(current, { withFileTypes: true })
+      } catch {
+        return
+      }
+      for (const entry of entries) {
+        const nextPath = path.join(current, entry.name)
+        if (entry.isDirectory()) {
+          visit(nextPath)
+          continue
+        }
+        if (!fontPattern.test(entry.name)) continue
+        names.add(path.basename(entry.name, path.extname(entry.name)).replace(/[-_]+/g, ' ').trim())
+      }
+    }
+    visit(dir)
+  }
+
+  return [...names].sort((a, b) => a.localeCompare(b))
+}
 
 // ── Fix PATH for macOS .app bundles ──────────────────────────────
 // When launched via double-click, Electron doesn't inherit the user's shell PATH.
@@ -61,6 +99,21 @@ async function waitForVite(url: string, timeoutMs = 15000): Promise<void> {
   // Give up waiting — load anyway and let Electron show the error
 }
 
+function loadRenderer(win: BrowserWindow, query?: Record<string, string>): void {
+  if (isDev) {
+    const search = query ? `?${new URLSearchParams(query).toString()}` : ''
+    const DEV_URL = `http://localhost:5173${search}`
+    waitForVite(DEV_URL).then(() => {
+      win.loadURL(DEV_URL)
+      if (!query) {
+        win.webContents.openDevTools({ mode: 'detach' })
+      }
+    })
+  } else {
+    win.loadFile(path.join(__dirname, '../dist/index.html'), { query })
+  }
+}
+
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1280,
@@ -84,18 +137,66 @@ function createWindow(): BrowserWindow {
   })
 
   win.once('ready-to-show', () => win.show())
-
-  if (isDev) {
-    const DEV_URL = 'http://localhost:5173'
-    waitForVite(DEV_URL).then(() => {
-      win.loadURL(DEV_URL)
-      win.webContents.openDevTools({ mode: 'detach' })
-    })
-  } else {
-    win.loadFile(path.join(__dirname, '../dist/index.html'))
-  }
+  loadRenderer(win)
 
   return win
+}
+
+function notifyDetachedPanelClosed(panelId: string): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('workspace:detached-panel-closed', panelId)
+  }
+}
+
+function createDetachedPanelWindow(panelId: string): BrowserWindow {
+  const existing = detachedPanelWindows.get(panelId)
+  if (existing && !existing.isDestroyed()) {
+    existing.show()
+    existing.focus()
+    return existing
+  }
+
+  const win = new BrowserWindow({
+    width: 1080,
+    height: 760,
+    minWidth: 720,
+    minHeight: 480,
+    titleBarStyle: 'hiddenInset',
+    backgroundColor: '#12161c',
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      sandbox: false,
+      nodeIntegration: false,
+      webSecurity: !isDev,
+    },
+  })
+
+  win.setTitle(`ARCOS · ${panelId}`)
+  win.once('ready-to-show', () => win.show())
+  loadRenderer(win, { detachedPanel: panelId })
+  detachedPanelWindows.set(panelId, win)
+
+  win.on('closed', () => {
+    detachedPanelWindows.delete(panelId)
+    if (suppressedDetachedPanelNotifications.has(panelId)) {
+      suppressedDetachedPanelNotifications.delete(panelId)
+      return
+    }
+    notifyDetachedPanelClosed(panelId)
+  })
+
+  return win
+}
+
+function closeDetachedPanelWindow(panelId: string, suppressNotification = true): void {
+  const win = detachedPanelWindows.get(panelId)
+  if (!win || win.isDestroyed()) return
+  if (suppressNotification) {
+    suppressedDetachedPanelNotifications.add(panelId)
+  }
+  win.close()
 }
 
 // ── App Menu ──────────────────────────────────────────────────────
@@ -235,11 +336,11 @@ function buildTray(win: BrowserWindow): void {
     icon = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==')
   }
   tray = new Tray(icon)
-  tray.setToolTip('A.R.C. Hub')
+  tray.setToolTip('ARCOS')
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: 'Show A.R.C. Hub',
+      label: 'Show ARCOS',
       click: () => { win.show(); win.focus() },
     },
     { type: 'separator' },
@@ -266,7 +367,7 @@ function buildTray(win: BrowserWindow): void {
 }
 
 app.whenReady().then(() => {
-  log.info(`A.R.C. Hub starting — version ${app.getVersion()}, packaged=${app.isPackaged}`)
+  log.info(`ARCOS starting — version ${app.getVersion()}, packaged=${app.isPackaged}`)
   // Seed sample plugins on first run
   try {
     seedSamplePlugins()
@@ -274,26 +375,61 @@ app.whenReady().then(() => {
     log.error('Failed to seed sample plugins', String(e))
   }
   const win = createWindow()
+  mainWindow = win
+  win.on('closed', () => {
+    if (mainWindow === win) {
+      mainWindow = null
+    }
+  })
   buildAppMenu(win)
   buildTray(win)
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+    if (!mainWindow || mainWindow.isDestroyed()) {
       const w = createWindow()
+      mainWindow = w
       buildAppMenu(w)
     } else {
-      BrowserWindow.getAllWindows()[0].show()
+      mainWindow.show()
+      mainWindow.focus()
     }
   })
 })
 
 app.on('window-all-closed', () => {
-  Object.values(serviceProcesses).forEach((p) => { try { p.kill() } catch (_) {} })
+  Object.values(serviceProcesses).forEach((p) => {
+    try {
+      p.kill()
+    } catch {
+      // Best-effort child cleanup during shutdown.
+    }
+  })
   closeDb()
   if (process.platform !== 'darwin') app.quit()
 })
 
 // ── IPC: System ───────────────────────────────────────────────────
 ipcMain.handle('get-platform', () => process.platform)
+ipcMain.handle('system-fonts:list', () => ({ success: true, fonts: listSystemFonts() }))
+ipcMain.handle('workspace:detach-panel', (_event, panelId: string) => {
+  createDetachedPanelWindow(panelId)
+  return { success: true }
+})
+ipcMain.handle('workspace:redock-panel', (_event, panelId: string) => {
+  closeDetachedPanelWindow(panelId, true)
+  return { success: true }
+})
+ipcMain.handle('workspace:sync-detached-panels', (_event, panelIds: string[]) => {
+  const desired = new Set(panelIds)
+  for (const panelId of desired) {
+    createDetachedPanelWindow(panelId)
+  }
+  for (const [panelId] of detachedPanelWindows) {
+    if (!desired.has(panelId)) {
+      closeDetachedPanelWindow(panelId, true)
+    }
+  }
+  return { success: true }
+})
 
 // ── IPC: A.R.C. Prompt Loading ────────────────────────────────────
 ipcMain.handle('load-arc-prompts', async () => {
@@ -368,9 +504,13 @@ ipcMain.handle('ollama-stream-start', async (event, params: {
     const decoder = new TextDecoder()
     let fullText = ''
 
-    while (true) {
+    let doneReading = false
+    while (!doneReading) {
       const { done, value } = await reader.read()
-      if (done) break
+      if (done) {
+        doneReading = true
+        break
+      }
       const chunk = decoder.decode(value, { stream: true })
       for (const line of chunk.split('\n').filter(Boolean)) {
         try {
@@ -383,7 +523,9 @@ ipcMain.handle('ollama-stream-start', async (event, params: {
             emit({ type: 'done', fullText, evalTokens: data.eval_count })
             return
           }
-        } catch (_) {}
+        } catch {
+          // Ignore malformed incremental stream lines.
+        }
       }
     }
     emit({ type: 'done', fullText })
@@ -442,7 +584,12 @@ ipcMain.handle('claude-stream-start', async (event, params: {
 
     if (!res.ok) {
       let errMsg = `Claude API error ${res.status}`
-      try { const e = await res.json() as { error?: { message?: string } }; errMsg = e.error?.message ?? errMsg } catch (_) {}
+      try {
+        const e = await res.json() as { error?: { message?: string } }
+        errMsg = e.error?.message ?? errMsg
+      } catch {
+        // Fallback to status-based error message.
+      }
       log.error('Claude API error', `model=${model} status=${res.status} ${errMsg}`)
       emit({ type: 'error', error: errMsg })
       return
@@ -459,9 +606,13 @@ ipcMain.handle('claude-stream-start', async (event, params: {
     let fullText = ''
     const usage = { inputTokens: 0, outputTokens: 0, cacheRead: 0, cacheWrite: 0 }
 
-    while (true) {
+    let doneReading = false
+    while (!doneReading) {
       const { done, value } = await reader.read()
-      if (done) break
+      if (done) {
+        doneReading = true
+        break
+      }
       buffer += decoder.decode(value, { stream: true })
       const lines = buffer.split('\n')
       buffer = lines.pop() ?? ''
@@ -495,7 +646,9 @@ ipcMain.handle('claude-stream-start', async (event, params: {
             emit({ type: 'done', fullText, usage })
             return
           }
-        } catch (_) {}
+        } catch {
+          // Ignore malformed SSE frames and continue streaming.
+        }
       }
     }
     emit({ type: 'done', fullText, usage })
@@ -515,7 +668,7 @@ ipcMain.handle('stream-abort', (_event, streamId: string) => {
 })
 
 // ── IPC: Service Management ───────────────────────────────────────
-ipcMain.handle('service-status', (_event, name: string) => {
+ipcMain.handle('service-status', async (_event, name: string) => {
   try {
     if (name === 'ollama') {
       const r = execSync('pgrep -x ollama 2>/dev/null', { encoding: 'utf8' }).trim()
@@ -569,9 +722,21 @@ ipcMain.handle('service-start', (_event, name: string) => {
 ipcMain.handle('service-stop', (_event, name: string) => {
   try {
     if (serviceProcesses[name]) { serviceProcesses[name].kill(); delete serviceProcesses[name] }
-    if (name === 'ollama') { try { execSync('pkill -x ollama') } catch (_) {} }
-    if (name === 'fabric') { try { execSync('pkill -f "fabric --serve"') } catch (_) {} }
-    if (name === 'arc-memory') { try { execSync('pkill -f "mcp_server.server"') } catch (_) {} }
+    if (name === 'ollama') {
+      try { execSync('pkill -x ollama') } catch {
+        // Best-effort process cleanup only.
+      }
+    }
+    if (name === 'fabric') {
+      try { execSync('pkill -f "fabric --serve"') } catch {
+        // Best-effort process cleanup only.
+      }
+    }
+    if (name === 'arc-memory') {
+      try { execSync('pkill -f "mcp_server.server"') } catch {
+        // Best-effort process cleanup only.
+      }
+    }
     return { success: true }
   } catch (e) { return { success: false, error: String(e) } }
 })
@@ -678,9 +843,13 @@ ipcMain.handle('ollama-pull-model', async (event, params: {
     const reader = res.body!.getReader()
     const decoder = new TextDecoder()
 
-    while (true) {
+    let doneReading = false
+    while (!doneReading) {
       const { done, value } = await reader.read()
-      if (done) break
+      if (done) {
+        doneReading = true
+        break
+      }
       const chunk = decoder.decode(value, { stream: true })
       for (const line of chunk.split('\n').filter(Boolean)) {
         try {
@@ -700,7 +869,9 @@ ipcMain.handle('ollama-pull-model', async (event, params: {
             total: data.total,
             completed: data.completed,
           })
-        } catch (_) {}
+        } catch {
+          // Ignore malformed model-pull progress lines.
+        }
       }
     }
     emit({ type: 'done' })
@@ -781,7 +952,11 @@ ipcMain.handle('fabric-run-pattern', async (event, params: {
 
     if (!res.ok) {
       let errText = `Fabric error ${res.status}`
-      try { errText = await res.text() } catch (_) {}
+      try {
+        errText = await res.text()
+      } catch {
+        // Keep the status-derived error text.
+      }
       log.error('Fabric pattern error', `pattern=${pattern} ${errText}`)
       emit({ type: 'error', error: errText })
       return
@@ -800,9 +975,13 @@ ipcMain.handle('fabric-run-pattern', async (event, params: {
       let buffer = ''
       let fullText = ''
 
-      while (true) {
+      let doneReading = false
+      while (!doneReading) {
         const { done, value } = await reader.read()
-        if (done) break
+        if (done) {
+          doneReading = true
+          break
+        }
         buffer += decoder.decode(value, { stream: true })
         const lines = buffer.split('\n')
         buffer = lines.pop() ?? ''
@@ -950,7 +1129,7 @@ ipcMain.handle('memory:vault-write', (_event, params: VaultWriteParams) => {
     const dateStr = date.toISOString().slice(0, 10)
     const slug = slugify(params.title) || 'conversation'
     const filename = `${dateStr}_${slug}.md`
-    const dir = path.join(vaultPath, 'arc-hub')
+    const dir = path.join(vaultPath, 'arcos')
     fs.mkdirSync(dir, { recursive: true })
     const filePath = path.join(dir, filename)
 
@@ -960,7 +1139,7 @@ ipcMain.handle('memory:vault-write', (_event, params: VaultWriteParams) => {
       ? `\ntags: [${params.tags.map((t) => `"${t}"`).join(', ')}]`
       : ''
     const costLine = params.totalCost > 0 ? `\ncost: ${params.totalCost.toFixed(5)}` : ''
-    const header = `---\nsource: arc-hub\ntitle: "${escapedTitle}"\ndate: ${dateStr}${tagsYaml}${costLine}\n---\n\n`
+    const header = `---\nsource: arcos\ntitle: "${escapedTitle}"\ndate: ${dateStr}${tagsYaml}${costLine}\n---\n\n`
 
     // Body: format as **User:** / **Assistant:** blocks for the chunker's speaker detection
     const bodyParts: string[] = []
