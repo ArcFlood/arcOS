@@ -1,0 +1,637 @@
+{
+  "log_metadata": {
+    "log_name": "Codex_Log",
+    "log_file": "Codex_Log.json",
+    "owner": "Codex",
+    "project": "AI Project",
+    "created_at": "2026-04-03",
+    "last_updated": "2026-04-03",
+    "version": "1.0",
+    "purpose": "Persistent Codex activity log for all work completed on the AI Project."
+  },
+  "update_policy": {
+    "rule": "Update this file after completing any task related to the AI Project.",
+    "scope": [
+      "Planning",
+      "Architecture",
+      "Code changes",
+      "Bug fixes",
+      "Research",
+      "Documentation",
+      "Testing",
+      "Project management"
+    ],
+    "related_logs": [
+      "Claude_Log.json",
+      "Deepseek_Log.json"
+    ],
+    "entry_requirements": [
+      "date",
+      "agent",
+      "task_title",
+      "summary",
+      "files_touched",
+      "status"
+    ]
+  },
+  "project_context": {
+    "project_names": [
+      "Noah's Personal AI Hub",
+      "ARCOS",
+      "ARCOS Memory System"
+    ],
+    "high_level_summary": "Privacy-first local-first AI orchestration app with service management, multi-tier model routing, A.R.C. prompt orchestration, session transparency, and an integrated semantic memory service backed by Obsidian conversation history.",
+    "core_capabilities": [
+      "Service dashboard for Ollama, Fabric, and Memory",
+      "Three-tier routing across local, Haiku, and Sonnet models",
+      "Unified chat interface with cost visibility",
+      "A.R.C. prompt integration for cloud calls",
+      "Semantic retrieval of past conversations through a local RAG service",
+      "Observability, history, routing, and transparency tooling"
+    ],
+    "memory_system_summary": "The memory subsystem runs as a local Python FastAPI service on port 8082, ingests Obsidian markdown conversations, stores embeddings in LanceDB, supports hybrid retrieval with HyDE and reranking, and integrates into ARCOS via IPC and UI service controls.",
+    "architecture_summary": "ARCOS follows an orchestration pipeline of task classification, prompt strategy selection, context retrieval, prompt construction, model routing, execution, response handling, and storage plus cache, with strong emphasis on transparency, failure handling, and budget governance."
+  },
+  "source_documents": [
+    {
+      "requested_name": "ai_assistant_prd_v2.json",
+      "resolved_path": "ai_assistant_prd_v2.json",
+      "status": "read"
+    },
+    {
+      "requested_name": "ai_hub_wbs.json",
+      "resolved_path": "ai_hub_wbs.json",
+      "status": "read"
+    },
+    {
+      "requested_name": "rag_memory.prd.json",
+      "resolved_path": "rag_memory_prd.json",
+      "status": "read",
+      "note": "Filename in workspace uses underscores instead of a dot before prd."
+    },
+    {
+      "requested_name": "rag_memory_wbs.md",
+      "resolved_path": "rag_memory_wbs.md",
+      "status": "read"
+    },
+    {
+      "requested_name": "ARCOS Architecture Plan.txt",
+      "resolved_path": "ARCOS Architecture Plan.txt",
+      "status": "read"
+    }
+  ],
+  "entries": [
+    {
+      "entry_id": "codex-2026-04-03-001",
+      "date": "2026-04-03",
+      "agent": "Codex",
+      "task_title": "Initialize Codex project log and absorb project context",
+      "summary": "Read the core AI Project planning and architecture documents, resolved the requested memory PRD filename to rag_memory_prd.json, summarized the project direction, and created the persistent Codex log file for future task updates.",
+      "context_captured": [
+        "AI Hub PRD v2.0 priorities and routing model",
+        "ARCOS WBS phase and task structure",
+        "Memory system PRD and WBS progress state",
+        "Architecture plan for orchestration, transparency, and storage"
+      ],
+      "files_touched": [
+        "Codex_Log.json"
+      ],
+      "status": "completed",
+      "next_update_expectation": "Append a new entry after each completed AI Project task."
+    },
+    {
+      "entry_id": "codex-2026-04-03-002",
+      "date": "2026-04-03",
+      "agent": "Codex",
+      "task_title": "Package ARCOS for macOS Apple Silicon",
+      "summary": "Attempted a production macOS build, fixed a packaging-blocking async compile error in the Electron main process, reran the build successfully, and generated fresh 2.1.0 packaged artifacts including the Apple Silicon app bundle and DMG.",
+      "files_touched": [
+        "arcos/src/main/main.ts",
+        "Codex_Log.json"
+      ],
+      "artifacts_created": [
+        "arcos/release/mac-arm64/",
+        "arcos/release/mac/",
+        "arcos/release/"
+      ],
+      "status": "completed",
+      "notes": [
+        "Build required running outside the sandbox so Electron could rebuild better-sqlite3.",
+        "macOS signing remains disabled because package.json sets mac.identity to null."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-03-003",
+      "date": "2026-04-03",
+      "agent": "Codex",
+      "task_title": "Rename legacy branding to ARCOS",
+      "summary": "Replaced the prior product branding with ARCOS across the AI Project workspace, including architecture docs, memory docs, Electron product metadata, UI labels, and internal source identifiers such as arcos frontmatter/source labels. Also renamed the architecture plan file to ARCOS Architecture Plan.txt, renamed the app repo folder to arcos, and updated the Electron bundle identifier to com.arcos.",
+      "files_touched": [
+        "ARCOS Architecture Plan.txt",
+        "Codex_Log.json",
+        "arcos/package.json",
+        "arc hub json files/arc_package_json.json"
+      ],
+      "status": "completed",
+      "notes": [
+        "The app repo folder was renamed to arcos to keep workspace paths aligned with the new product name.",
+        "Historical package artifacts built before the rename still exist on disk under the prior app name until a new package build is run."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-03-004",
+      "date": "2026-04-03",
+      "agent": "Codex",
+      "task_title": "Draft ARCOS PRD and WBS",
+      "summary": "Created a new ARCOS product requirements document and work breakdown structure in the AI Project root. Both documents position ARCOS as a PAI-first modular desktop control surface, not a generic chat app, and center the redesign on dockable panels, tab groups, saved layouts, prompt/routing transparency, and explicit system visibility.",
+      "files_touched": [
+        "arcos_prd.json",
+        "arcos_wbs.md",
+        "Codex_Log.json"
+      ],
+      "status": "completed",
+      "notes": [
+        "The new planning docs treat PAI as the governing system and ARCOS as the visual operating layer.",
+        "The WBS is sequenced around a ground-up workspace engine before panel polish or extended features."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-03-005",
+      "date": "2026-04-03",
+      "agent": "Codex",
+      "task_title": "Complete ARCOS WBS Phase 0",
+      "summary": "Reviewed the new ARCOS planning documents against the PAI material and the ARCOS architecture plan, confirmed the repo still reflects the older fixed-shell renderer, and resolved the immediate scope mismatch by treating the renderer as a ground-up redesign while preserving backend and service capabilities where practical. Marked Phase 0 complete in the WBS and aligned the log paths with the moved documentation and work-log folders.",
+      "files_touched": [
+        "documentation/arcos_wbs.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "notes": [
+        "The main scope tension was between an existing chat-first renderer and the new panel-based ARCOS direction.",
+        "Phase 1 now begins from the current renderer codebase rather than from a blank prototype."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-03-006",
+      "date": "2026-04-03",
+      "agent": "Codex",
+      "task_title": "Complete ARCOS WBS Phase 1",
+      "summary": "Built the first real ARCOS workspace foundation in the renderer. Added a persisted workspace state model, panel registry, preset layouts, region resizing, tab groups, collapse/hide behavior, layout reset and restore, and a new workspace shell that replaces the former fixed renderer layout. Integrated the shell with live panels based on the current app surface, including navigator, chat, control deck, models, cost, and utility launchers.",
+      "files_touched": [
+        "arcos/src/renderer/components/Layout.tsx",
+        "arcos/src/renderer/components/workspace/WorkspaceShell.tsx",
+        "arcos/src/renderer/components/workspace/WorkspaceTopBar.tsx",
+        "arcos/src/renderer/stores/workspaceStore.ts",
+        "arcos/src/renderer/workspace/presets.ts",
+        "arcos/src/renderer/workspace/types.ts",
+        "documentation/arcos_wbs.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "TypeScript check passed with npm exec tsc -- --noEmit"
+      ],
+      "notes": [
+        "The old modal-only panels remain modal-backed for now and are exposed through the utilities surface until they are converted into true dockable panels in later phases.",
+        "This phase establishes the workspace engine so future panel refactors can happen without replacing the shell again."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-03-007",
+      "date": "2026-04-03",
+      "agent": "Codex",
+      "task_title": "Advance ARCOS WBS Phase 2 core panels",
+      "summary": "Promoted core ARCOS workspace surfaces beyond the initial shell by adding dedicated Services, Routing, Transparency, and Execution panels, while keeping the chat panel stable inside the workspace. Added reusable routing utilities, persisted routing decisions into the routing log from message sends, and introduced a trace store that captures real request and service lifecycle events for the new observability panels.",
+      "files_touched": [
+        "arcos/src/renderer/components/MessageInput.tsx",
+        "arcos/src/renderer/components/workspace/ServicePanel.tsx",
+        "arcos/src/renderer/components/workspace/RoutingPanel.tsx",
+        "arcos/src/renderer/components/workspace/TracePanel.tsx",
+        "arcos/src/renderer/components/workspace/ExecutionTracePanel.tsx",
+        "arcos/src/renderer/stores/serviceStore.ts",
+        "arcos/src/renderer/stores/traceStore.ts",
+        "arcos/src/renderer/utils/routing.ts",
+        "arcos/src/renderer/workspace/presets.ts",
+        "arcos/src/renderer/workspace/types.ts",
+        "documentation/arcos_wbs.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "TypeScript check passed with npm exec tsc -- --noEmit"
+      ],
+      "notes": [
+        "Phase 2 now includes verbosity tiers and direct panel-link actions from trace entries.",
+        "The new observability surfaces are fed by real routing and request events, not placeholder demo data."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-03-008",
+      "date": "2026-04-03",
+      "agent": "Codex",
+      "task_title": "Complete ARCOS WBS Phase 2",
+      "summary": "Finished the ARCOS core panel MVP phase. The workspace now has dedicated panels for chat, services, routing, cost, transparency, and execution trace. Added live trace verbosity controls, direct panel links from trace events, and real event capture for chat routing and service lifecycle actions so the new observability surfaces reflect actual runtime behavior.",
+      "files_touched": [
+        "arcos/src/renderer/components/workspace/TracePanel.tsx",
+        "arcos/src/renderer/components/workspace/ExecutionTracePanel.tsx",
+        "documentation/arcos_wbs.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "TypeScript check passed with npm exec tsc -- --noEmit"
+      ],
+      "notes": [
+        "Phase 2 is now fully checked off in the WBS.",
+        "The modal-backed history, memory, and settings surfaces still exist, but the main shell is no longer dependent on the former fixed-layout control structure."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-03-009",
+      "date": "2026-04-03",
+      "agent": "Codex",
+      "task_title": "Add ARCOS Phase 2.5 UI style design to planning docs",
+      "summary": "Updated the ARCOS planning documents to make the visual redesign explicit as Phase 2.5, positioned between the core panel MVP and the deeper prompt/memory/history panel work. Also repaired the PRD's malformed visual-direction section by turning it into a structured visual system block with reference examples.",
+      "files_touched": [
+        "documentation/arcos_prd.json",
+        "documentation/arcos_wbs.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "notes": [
+        "Phase 2.5 now explicitly covers visual system definition, workspace restyling, and review against the PRD style references.",
+        "The PRD remains valid JSON after the visual-direction fix."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-03-010",
+      "date": "2026-04-03",
+      "agent": "Codex",
+      "task_title": "Complete ARCOS WBS Phase 2.5",
+      "summary": "Applied the first dedicated ARCOS visual system pass across the modular workspace. Reworked the palette, typography, panel surfaces, tab styling, controls, navigator, service cards, chat empty state, and key observability panels so the app reads like a serious tool surface instead of an inherited AI chat UI. The restyle uses a restrained dark graphite palette with minimal accents and stronger panel hierarchy, aligned to the PRD's visual references.",
+      "files_touched": [
+        "arcos/src/renderer/index.css",
+        "arcos/tailwind.config.js",
+        "arcos/src/renderer/components/workspace/WorkspaceTopBar.tsx",
+        "arcos/src/renderer/components/workspace/WorkspaceShell.tsx",
+        "arcos/src/renderer/components/workspace/ServicePanel.tsx",
+        "arcos/src/renderer/components/workspace/RoutingPanel.tsx",
+        "arcos/src/renderer/components/workspace/TracePanel.tsx",
+        "arcos/src/renderer/components/workspace/ExecutionTracePanel.tsx",
+        "arcos/src/renderer/components/Sidebar.tsx",
+        "arcos/src/renderer/components/ChatArea.tsx",
+        "arcos/src/renderer/components/services/ServiceCard.tsx",
+        "arcos/src/renderer/components/services/ServiceButton.tsx",
+        "arcos/src/renderer/components/conversations/NewChatButton.tsx",
+        "arcos/src/renderer/components/conversations/SearchBar.tsx",
+        "arcos/src/renderer/components/conversations/ConversationList.tsx",
+        "arcos/src/renderer/components/conversations/ConversationItem.tsx",
+        "documentation/arcos_wbs.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "TypeScript check passed with npm exec tsc -- --noEmit"
+      ],
+      "notes": [
+        "This phase focused on the shared visual system and the most visible workspace surfaces rather than every remaining legacy component.",
+        "The codebase is ready for you to inspect the new ARCOS visual direction in a running build."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-03-011",
+      "date": "2026-04-03",
+      "agent": "Codex",
+      "task_title": "Complete ARCOS WBS Phase 3",
+      "summary": "Promoted prompt inspection, memory, and history into native dockable ARCOS workspace panels. Added a Prompt Inspector that shows current system prompt source, token estimates, current user prompt, and recent conversation context; a docked Memory panel with live search and index status; and a docked History panel for sessions and routing logs. The utilities surface now opens these native panels directly while keeping legacy modal entry points available during transition.",
+      "files_touched": [
+        "arcos/src/renderer/components/workspace/PromptInspectorPanel.tsx",
+        "arcos/src/renderer/components/workspace/MemoryWorkspacePanel.tsx",
+        "arcos/src/renderer/components/workspace/HistoryPanel.tsx",
+        "arcos/src/renderer/components/workspace/WorkspaceShell.tsx",
+        "arcos/src/renderer/workspace/presets.ts",
+        "arcos/src/renderer/workspace/types.ts",
+        "documentation/arcos_wbs.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "TypeScript check passed with npm exec tsc -- --noEmit"
+      ],
+      "notes": [
+        "The prompt inspector currently uses estimated token counts and current active prompt composition rather than a full backend-generated final prompt artifact.",
+        "Legacy modal surfaces remain available as a fallback while the docked panel flow settles."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-03-012",
+      "date": "2026-04-03",
+      "agent": "Codex",
+      "task_title": "Complete ARCOS WBS Phase 4",
+      "summary": "Completed the ARCOS preset and command-surface phase by adding a full preset manager, support for saving the current workspace as custom presets, custom preset duplication, renaming, and deletion, and a richer top-bar preset switcher. Added a global command palette with keyboard-first navigation, panel open and hide commands, preset switching, layout reset, and real service control actions. Also added a panel library that lists all available panels with icons, descriptions, and one-click placement into left, center, or right workspace docks.",
+      "files_touched": [
+        "arcos/src/renderer/components/Layout.tsx",
+        "arcos/src/renderer/components/workspace/WorkspaceTopBar.tsx",
+        "arcos/src/renderer/components/workspace/CommandPalette.tsx",
+        "arcos/src/renderer/components/workspace/PanelLibrary.tsx",
+        "arcos/src/renderer/components/workspace/PresetManager.tsx",
+        "arcos/src/renderer/stores/workspaceStore.ts",
+        "arcos/src/renderer/workspace/presets.ts",
+        "arcos/src/renderer/workspace/types.ts",
+        "documentation/arcos_wbs.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "TypeScript check passed with npm exec tsc -- --noEmit"
+      ],
+      "notes": [
+        "Built-in presets now include Command, Coding, Research, and Monitoring, while user-saved presets persist in workspace storage.",
+        "The command palette now supports arrow-key selection and Enter-to-run so panel and service actions are genuinely keyboard-first."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-03-013",
+      "date": "2026-04-03",
+      "agent": "Codex",
+      "task_title": "Complete ARCOS WBS Phase 5",
+      "summary": "Expanded ARCOS into a true multi-surface workspace by adding detached panel windows backed by Electron, persisted detached panel state, automatic re-docking, and duplicate-prevention between docked and detached panel instances. Added shared panel rendering for docked and detached modes, per-panel error boundaries, recovery controls for broken workspace state, diagnostics for stale or missing panel registrations in persisted layouts, and cross-window workspace synchronization so the main shell and detached windows stay aligned.",
+      "files_touched": [
+        "arcos/src/main/main.ts",
+        "arcos/src/preload/preload.ts",
+        "arcos/src/renderer/App.tsx",
+        "arcos/src/renderer/electron.d.ts",
+        "arcos/src/renderer/hooks/useAppBootstrap.ts",
+        "arcos/src/renderer/components/Layout.tsx",
+        "arcos/src/renderer/components/workspace/WorkspaceShell.tsx",
+        "arcos/src/renderer/components/workspace/WorkspaceTopBar.tsx",
+        "arcos/src/renderer/components/workspace/PanelLibrary.tsx",
+        "arcos/src/renderer/components/workspace/DetachedPanelWindow.tsx",
+        "arcos/src/renderer/components/workspace/PanelErrorBoundary.tsx",
+        "arcos/src/renderer/components/workspace/WorkspacePanelContent.tsx",
+        "arcos/src/renderer/stores/workspaceStore.ts",
+        "arcos/src/renderer/workspace/presets.ts",
+        "arcos/src/renderer/workspace/types.ts",
+        "documentation/arcos_wbs.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "TypeScript check passed with npm exec tsc -- --noEmit",
+        "Detached panel state now persists through workspace storage and is re-synchronized on bootstrap."
+      ],
+      "notes": [
+        "Detached panels open in dedicated Electron windows and can be re-docked from either the detached window or the main workspace header.",
+        "Recovery behavior now surfaces panel failures and stale persisted panel ids without collapsing the rest of the ARCOS workspace."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-03-014",
+      "date": "2026-04-03",
+      "agent": "Codex",
+      "task_title": "Complete ARCOS WBS Phase 6",
+      "summary": "Pushed ARCOS into a more PAI-native operating layer by adding a dedicated Tools workspace panel for Fabric patterns, plugins, and execution history; a structured Fabric execution store with in-panel progress and output; and richer trace metadata that links routing, services, chat, memory, and tool events back to the correct workspace surfaces. Extended the workspace registry with a first-class tools panel, normalized trace events to include machine-readable panel relationships and entity labels, and connected plugin activation plus memory search and ingest actions into the same observability flow. This phase also clarifies the extension path for future PAI modules: new capabilities now fit naturally into the panel registry, shared workspace panel renderer, detached window path, and structured trace/event model rather than requiring bespoke sidecar UI.",
+      "files_touched": [
+        "arcos/src/renderer/components/MessageInput.tsx",
+        "arcos/src/renderer/components/workspace/ExecutionTracePanel.tsx",
+        "arcos/src/renderer/components/workspace/MemoryWorkspacePanel.tsx",
+        "arcos/src/renderer/components/workspace/ToolsPanel.tsx",
+        "arcos/src/renderer/components/workspace/TracePanel.tsx",
+        "arcos/src/renderer/components/workspace/WorkspacePanelContent.tsx",
+        "arcos/src/renderer/stores/pluginStore.ts",
+        "arcos/src/renderer/stores/serviceStore.ts",
+        "arcos/src/renderer/stores/toolExecutionStore.ts",
+        "arcos/src/renderer/stores/traceStore.ts",
+        "arcos/src/renderer/workspace/presets.ts",
+        "arcos/src/renderer/workspace/types.ts",
+        "documentation/arcos_wbs.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "TypeScript check passed with npm exec tsc -- --noEmit"
+      ],
+      "notes": [
+        "Fabric runs can now be launched, monitored, and stopped from the native Tools panel while also syncing output into the active conversation when available.",
+        "Trace and execution panels now use panel-aware links rather than hard-coded source-to-panel assumptions, which gives future PAI surfaces a cleaner integration path."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-03-015",
+      "date": "2026-04-03",
+      "agent": "Codex",
+      "task_title": "Advance ARCOS QA and acceptance validation",
+      "summary": "Ran the strongest available non-GUI acceptance checks for ARCOS by cleaning the repo to a passing lint state, rerunning TypeScript validation, and producing a fresh packaged directory build for macOS arm64. This confirms that the current modular workspace, detached windows, tools surface, and Electron packaging path all compile and package successfully. Manual live-app acceptance still remains for interaction-heavy checklist items such as panel rearrangement persistence, preset switching behavior across relaunch, in-app request execution visibility, and end-user experience review.",
+      "files_touched": [
+        "arcos/src/main/logger.ts",
+        "arcos/src/main/main.ts",
+        "arcos/src/renderer/components/debug/ErrorLogPanel.tsx",
+        "arcos/src/renderer/stores/serviceStore.ts",
+        "arcos/src/renderer/stores/settingsStore.ts",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "artifacts_created": [
+        "arcos/release/mac-arm64/ARCOS.app"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm run lint",
+        "npm exec tsc -- --noEmit",
+        "npm run build:dir"
+      ],
+      "notes": [
+        "The packaged directory build required escalation so Electron could rebuild better-sqlite3 outside the sandbox.",
+        "QA checklist items that require live GUI interaction were intentionally left unclaimed rather than inferred from implementation alone."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-03-016",
+      "date": "2026-04-03",
+      "agent": "Codex",
+      "task_title": "Record manual ARCOS acceptance findings and architecture pivot",
+      "summary": "Captured the first real user acceptance pass against the current ARCOS build. Manual testing confirmed that layout restore across relaunch works, panel movement/removal/detach/re-dock works, preset switching works, and a real chat request routed correctly with utilities functioning. The same pass also surfaced key product-direction feedback: the current top header is overcrowded and blocks window dragging at default size, presets and panels should move into dropdown menus, the left/center/right region model and collapse behavior should be replaced, the app should open to an empty workspace instead of prebuilt presets, and the desired new panel architecture is a snap-to-grid pocket system inspired by Tarkov stash/raid bag modules with resizable tab containers. Functional failures were also confirmed in the current packaged app: Fabric pattern execution returned a 404 page and ARC-Memory failed to stay running after start/restart attempts.",
+      "files_touched": [
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "notes": [
+        "User likes the current color scheme and font, but noted there is no settings surface yet for changing them.",
+        "This acceptance pass should be treated as a pivot point for workspace architecture, not just a bug report against the current shell."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-03-017",
+      "date": "2026-04-03",
+      "agent": "Codex",
+      "task_title": "Rewrite ARCOS planning docs and complete rebuild Phase 1",
+      "summary": "Rewrote the ARCOS PRD and WBS around the accepted pocket-grid architecture: empty-by-default startup, no built-in presets, dropdown-based workspace controls, remove-not-collapse behavior, and a snapped stash-style grid of module pockets. Then started the rebuild by replacing the old split-region workspace foundation with a new grid-based state model, empty pocket placement flow, sparse draggable top bar, saved layout foundation, and module shells that place real ARCOS panels into a 3x4 default grid. The current app now opens against the new architectural direction instead of the previous left/center/right shell.",
+      "files_touched": [
+        "documentation/arcos_prd.json",
+        "documentation/arcos_wbs.md",
+        "arcos/src/renderer/components/Layout.tsx",
+        "arcos/src/renderer/components/workspace/WorkspaceShell.tsx",
+        "arcos/src/renderer/components/workspace/WorkspaceTopBar.tsx",
+        "arcos/src/renderer/stores/workspaceStore.ts",
+        "arcos/src/renderer/workspace/presets.ts",
+        "arcos/src/renderer/workspace/types.ts",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npm run lint",
+        "python3 -m json.tool documentation/arcos_prd.json",
+        "python3 -m json.tool AI Work Logs/Codex_Log.json"
+      ],
+      "notes": [
+        "Unused split-region management surfaces from the earlier rebuild were removed so the renderer now tracks the new pocket-grid direction more honestly.",
+        "Phase 2 of the rebuild is now the snapped module resizing pass."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-03-018",
+      "date": "2026-04-03",
+      "agent": "Codex",
+      "task_title": "Complete ARCOS rebuild Phase 2",
+      "summary": "Added snapped pocket resizing to the new grid workspace so modules can grow by whole-cell increments instead of freeform pixels. The new module shell now exposes right-edge, bottom-edge, and corner resize handles that snap against the grid, while the workspace store validates resized bounds and blocks overlap. I also hardened grid row and column adjustments so shrinking the workspace is only allowed when all current modules still fit, keeping the pocket-grid layout predictable and safe.",
+      "files_touched": [
+        "arcos/src/renderer/components/workspace/WorkspaceShell.tsx",
+        "arcos/src/renderer/stores/workspaceStore.ts",
+        "documentation/arcos_wbs.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npm run lint"
+      ],
+      "notes": [
+        "Phase 2 keeps module resizing snapped to the current row and column grid instead of permitting arbitrary dimensions.",
+        "Grid shrink requests now fail safely when placed modules would no longer fit."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-03-019",
+      "date": "2026-04-03",
+      "agent": "Codex",
+      "task_title": "Tighten grid density and complete ARCOS rebuild Phase 3",
+      "summary": "Adjusted the new grid workspace to better match the denser professional UI direction by reducing module and grid spacing and renaming the empty-state affordance from 'Empty Pocket' to the user-preferred 'empty module' label. Also closed the saved-layout phase: ARCOS now uses the `Layouts` dropdown as the real replacement for the old preset system, with save, rename, duplicate, delete, reset-to-empty, and relaunch restore all flowing through the new grid-based workspace state.",
+      "files_touched": [
+        "arcos/src/renderer/components/workspace/WorkspaceShell.tsx",
+        "documentation/arcos_wbs.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npm run lint"
+      ],
+      "notes": [
+        "The graphite theme and font direction were preserved while tightening spacing to better fit the Pro Tools-like density preference.",
+        "Phase 4 is now the core module migration pass inside the new grid shell."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-03-020",
+      "date": "2026-04-03",
+      "agent": "Codex",
+      "task_title": "Flatten module seams and close ARCOS rebuild Phase 4",
+      "summary": "Tightened the pocket-grid workspace again to remove the remaining empty space between modules and reduce visual framing to thin seam lines instead of thick card edges. The grid now renders as a denser continuous surface with pixel seams, flatter module headers, and simpler empty-module cells while preserving the approved graphite color system and typography. I also audited the current panel registry and renderer wiring, confirmed the core ARCOS/PAI surfaces are already seated in the new grid shell, and marked Phase 4 complete in the rebuild WBS.",
+      "files_touched": [
+        "arcos/src/renderer/components/workspace/WorkspaceShell.tsx",
+        "arcos/src/renderer/index.css",
+        "documentation/arcos_wbs.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npm run lint"
+      ],
+      "notes": [
+        "The workspace now uses tight pixel seams between modules instead of visible gutter spacing.",
+        "Phase 5 is now the next rebuild step: advanced behavior on top of the grid architecture."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-03-021",
+      "date": "2026-04-03",
+      "agent": "Codex",
+      "task_title": "Complete ARCOS rebuild Phase 5",
+      "summary": "Completed the advanced behavior pass for the pocket-grid rebuild by auditing the surviving detached-window and recovery systems, then hardening the workspace store around grid-era failure modes. Persisted workspace hydration now sanitizes and rewrites invalid live and saved layouts, removes duplicate docked-versus-detached panel state, drops overlapping or out-of-bounds module placements with explicit diagnostics, syncs repaired detached-panel state back to Electron, and surfaces a clear warning when re-docking stops because the grid is full. This preserves detached windows, re-dock behavior, panel failure isolation, and stale-layout recovery without reintroducing the old split-region assumptions.",
+      "files_touched": [
+        "arcos/src/renderer/stores/workspaceStore.ts",
+        "documentation/arcos_wbs.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npm run lint"
+      ],
+      "notes": [
+        "Phase 6 is now the next rebuild step: theme hooks and experience controls.",
+        "The detached-window and panel-error-boundary infrastructure was already present; this phase focused on making the grid-era persistence and recovery behavior explicit and safe."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-03-022",
+      "date": "2026-04-03",
+      "agent": "Codex",
+      "task_title": "Complete ARCOS rebuild Phase 6",
+      "summary": "Added real appearance controls to ARCOS by extending the persisted settings model with theme and font selection, exposing those controls through a new Appearance tab in Settings, and applying them at the renderer root through CSS-driven semantic tokens. The default graphite theme remains intact, but ARCOS now supports alternate slate and oxide palettes plus selectable type voices, all without breaking the dense control-surface direction. I also used the phase to tighten the product language in the chat, navigator, settings, and panel registry so ARCOS reads more clearly as a PAI operating surface rather than a generic AI chat shell.",
+      "files_touched": [
+        "arcos/src/renderer/stores/types.ts",
+        "arcos/src/renderer/stores/settingsStore.ts",
+        "arcos/src/renderer/components/settings/SettingsPanel.tsx",
+        "arcos/src/renderer/App.tsx",
+        "arcos/src/renderer/index.css",
+        "arcos/tailwind.config.js",
+        "arcos/src/renderer/components/ChatArea.tsx",
+        "arcos/src/renderer/components/Sidebar.tsx",
+        "arcos/src/renderer/workspace/presets.ts",
+        "arcos/src/renderer/components/workspace/WorkspaceTopBar.tsx",
+        "documentation/arcos_wbs.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npm run lint"
+      ],
+      "notes": [
+        "Graphite remains the default ARCOS theme, matching the accepted palette direction.",
+        "The next step after the rebuild phases is the QA and acceptance pass, plus the open Fabric and ARC-Memory bug track."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-04-023",
+      "date": "2026-04-04",
+      "agent": "Codex",
+      "task_title": "Apply QA-driven workspace interaction and appearance revisions",
+      "summary": "Used the first post-rebuild QA pass to tighten ARCOS around the accepted interaction model. The pocket-grid shell now supports snapped module dragging by header, top and left anchored resizing in addition to the original bottom-right growth, and quieter empty cells with no plus-label treatment. I also replaced the placeholder appearance card buttons with compact dropdown-driven controls, added native system font enumeration from macOS font directories, and expanded appearance settings to include default-plus-media themes, font selection, text color, accent color, and secondary accent color. This pass is intentionally logged as a QA refinement pass rather than a completed acceptance phase, because the new behavior still needs a live retest in the packaged app.",
+      "files_touched": [
+        "arcos/src/renderer/components/workspace/WorkspaceShell.tsx",
+        "arcos/src/renderer/stores/workspaceStore.ts",
+        "arcos/src/renderer/stores/types.ts",
+        "arcos/src/renderer/stores/settingsStore.ts",
+        "arcos/src/renderer/components/settings/SettingsPanel.tsx",
+        "arcos/src/renderer/App.tsx",
+        "arcos/src/renderer/index.css",
+        "arcos/src/preload/preload.ts",
+        "arcos/src/renderer/electron.d.ts",
+        "arcos/src/main/main.ts",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npm run lint"
+      ],
+      "notes": [
+        "System font choices are sourced from standard macOS font directories and applied directly as CSS font-family values.",
+        "Acceptance remains in progress pending a fresh manual pass on movement and appearance behavior."
+      ]
+    }
+  ]
+}
