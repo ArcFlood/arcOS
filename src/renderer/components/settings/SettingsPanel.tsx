@@ -16,19 +16,10 @@ export default function SettingsPanel() {
   // claudeApiKey is intentionally excluded — managed separately via ApiKeyInput (write-only IPC)
   const [local, setLocal] = useState({ ...settings })
   const [activeTab, setActiveTab] = useState<Tab>('api')
-  const [systemFonts, setSystemFonts] = useState<string[]>([])
 
   useEffect(() => {
     setLocal({ ...settings })
   }, [settings])
-
-  useEffect(() => {
-    window.electron.systemFontsList?.()
-      .then((result) => {
-        if (result?.success) setSystemFonts(result.fonts)
-      })
-      .catch(() => {})
-  }, [])
 
   const save = () => { updateSettings(local); closeSettingsPanel() }
 
@@ -189,7 +180,7 @@ export default function SettingsPanel() {
                 <div className="space-y-2">
                   <p className="arcos-kicker">Typeface</p>
                   <p className="text-sm text-text-muted">
-                    Pick from the fonts ARCOS found in your system font folders.
+                    Keep this tight and intentional with a fixed ARCOS font set.
                   </p>
                   <select
                     value={local.appearanceFont}
@@ -197,7 +188,13 @@ export default function SettingsPanel() {
                     className="input-base w-full"
                     style={{ fontFamily: local.appearanceFont }}
                   >
-                    {[...new Set(['IBM Plex Sans', 'SF Pro Display', 'JetBrains Mono', ...systemFonts])].map((font) => (
+                    {[
+                      'IBM Plex Sans',
+                      'Arial',
+                      'Menlo',
+                      'Futura',
+                      'Papyrus',
+                    ].map((font) => (
                       <option key={font} value={font}>{font}</option>
                     ))}
                   </select>

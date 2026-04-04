@@ -3,7 +3,6 @@ import { contextBridge, ipcRenderer } from 'electron'
 contextBridge.exposeInMainWorld('electron', {
   platform: process.platform,
   getPlatform: () => ipcRenderer.invoke('get-platform'),
-  systemFontsList: () => ipcRenderer.invoke('system-fonts:list'),
 
   // A.R.C.
   loadArcPrompts: () => ipcRenderer.invoke('load-arc-prompts'),

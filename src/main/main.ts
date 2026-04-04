@@ -31,41 +31,6 @@ let mainWindow: BrowserWindow | null = null
 const detachedPanelWindows = new Map<string, BrowserWindow>()
 const suppressedDetachedPanelNotifications = new Set<string>()
 
-function listSystemFonts(): string[] {
-  const fontDirs = [
-    path.join(os.homedir(), 'Library', 'Fonts'),
-    '/Library/Fonts',
-    '/System/Library/Fonts',
-    '/System/Library/AssetsV2/com_apple_MobileAsset_Font7',
-  ]
-  const names = new Set<string>()
-  const fontPattern = /\.(ttf|otf|ttc|dfont)$/i
-
-  for (const dir of fontDirs) {
-    if (!fs.existsSync(dir)) continue
-    const visit = (current: string) => {
-      let entries: fs.Dirent[]
-      try {
-        entries = fs.readdirSync(current, { withFileTypes: true })
-      } catch {
-        return
-      }
-      for (const entry of entries) {
-        const nextPath = path.join(current, entry.name)
-        if (entry.isDirectory()) {
-          visit(nextPath)
-          continue
-        }
-        if (!fontPattern.test(entry.name)) continue
-        names.add(path.basename(entry.name, path.extname(entry.name)).replace(/[-_]+/g, ' ').trim())
-      }
-    }
-    visit(dir)
-  }
-
-  return [...names].sort((a, b) => a.localeCompare(b))
-}
-
 // ── Fix PATH for macOS .app bundles ──────────────────────────────
 // When launched via double-click, Electron doesn't inherit the user's shell PATH.
 // Homebrew (Apple Silicon: /opt/homebrew/bin, Intel: /usr/local/bin) and other
@@ -197,6 +162,22 @@ function closeDetachedPanelWindow(panelId: string, suppressNotification = true):
     suppressedDetachedPanelNotifications.add(panelId)
   }
   win.close()
+}
+
+function parseFabricPatternList(output: string): string[] {
+  return output
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .sort()
+}
+
+function listFabricPatternsCli(): string[] {
+  const output = execSync('fabric --listpatterns --shell-complete-list', {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  return parseFabricPatternList(output)
 }
 
 // ── App Menu ──────────────────────────────────────────────────────
@@ -409,7 +390,6 @@ app.on('window-all-closed', () => {
 
 // ── IPC: System ───────────────────────────────────────────────────
 ipcMain.handle('get-platform', () => process.platform)
-ipcMain.handle('system-fonts:list', () => ({ success: true, fonts: listSystemFonts() }))
 ipcMain.handle('workspace:detach-panel', (_event, panelId: string) => {
   createDetachedPanelWindow(panelId)
   return { success: true }
@@ -707,7 +687,14 @@ ipcMain.handle('service-start', (_event, name: string) => {
       const memDir = app.isPackaged
         ? path.join(process.resourcesPath, 'memory-service')
         : path.join(app.getAppPath(), 'memory-service')
-      const p = spawn('uv', ['run', 'python', '-m', 'mcp_server.server'], {
+
+      if (!fs.existsSync(memDir)) {
+        const error = `ARC-Memory resources not found at ${memDir}`
+        log.error('ARC-Memory start failed', error)
+        return { success: false, error }
+      }
+
+      const p = spawn('uv', ['run', 'arc-serve'], {
         cwd: memDir,
         detached: true,
         stdio: 'ignore',
@@ -909,19 +896,26 @@ ipcMain.handle('fabric-list-patterns', async () => {
     const res = await fetch('http://localhost:8080/api/patterns', {
       signal: AbortSignal.timeout(4000),
     })
-    if (!res.ok) return { success: false, patterns: [] }
-    const data = await res.json() as unknown
-    // Fabric may return string[] or { patterns: string[] } or { data: string[] }
-    let patterns: string[] = []
-    if (Array.isArray(data)) {
-      patterns = data as string[]
-    } else if (data && typeof data === 'object') {
-      const obj = data as Record<string, unknown>
-      if (Array.isArray(obj.patterns)) patterns = obj.patterns as string[]
-      else if (Array.isArray(obj.data)) patterns = obj.data as string[]
+    if (res.ok) {
+      const data = await res.json() as unknown
+      let patterns: string[] = []
+      if (Array.isArray(data)) {
+        patterns = data as string[]
+      } else if (data && typeof data === 'object') {
+        const obj = data as Record<string, unknown>
+        if (Array.isArray(obj.patterns)) patterns = obj.patterns as string[]
+        else if (Array.isArray(obj.data)) patterns = obj.data as string[]
+      }
+      return { success: true, patterns: patterns.sort() }
     }
-    return { success: true, patterns: patterns.sort() }
   } catch {
+    // Fall through to CLI fallback.
+  }
+
+  try {
+    return { success: true, patterns: listFabricPatternsCli() }
+  } catch (error) {
+    log.error('Fabric pattern list error', String(error))
     return { success: false, patterns: [] }
   }
 })
@@ -942,6 +936,50 @@ ipcMain.handle('fabric-run-pattern', async (event, params: {
     }
   }
 
+  const runViaCli = async () => {
+    let fullText = ''
+    let errText = ''
+    const child = spawn('fabric', ['--pattern', pattern, '--stream'], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+
+    controller.signal.addEventListener('abort', () => {
+      try { child.kill() } catch {
+        // Best-effort process cleanup only.
+      }
+    })
+
+    child.stdin.write(input)
+    child.stdin.end()
+
+    child.stdout.on('data', (chunk: Buffer | string) => {
+      const token = chunk.toString()
+      if (!token) return
+      fullText += token
+      emit({ type: 'token', token })
+    })
+
+    child.stderr.on('data', (chunk: Buffer | string) => {
+      errText += chunk.toString()
+    })
+
+    await new Promise<void>((resolve, reject) => {
+      child.on('error', reject)
+      child.on('close', (code) => {
+        if (controller.signal.aborted) {
+          resolve()
+          return
+        }
+        if (code === 0) {
+          emit({ type: 'done', fullText })
+          resolve()
+          return
+        }
+        reject(new Error(errText.trim() || `Fabric exited with code ${code ?? 'unknown'}`))
+      })
+    })
+  }
+
   try {
     const res = await fetch(`http://localhost:8080/api/pattern/${encodeURIComponent(pattern)}`, {
       method: 'POST',
@@ -958,7 +996,12 @@ ipcMain.handle('fabric-run-pattern', async (event, params: {
         // Keep the status-derived error text.
       }
       log.error('Fabric pattern error', `pattern=${pattern} ${errText}`)
-      emit({ type: 'error', error: errText })
+      if (res.status !== 404) {
+        emit({ type: 'error', error: errText })
+        return
+      }
+
+      await runViaCli()
       return
     }
 
@@ -1020,8 +1063,13 @@ ipcMain.handle('fabric-run-pattern', async (event, params: {
       emit({ type: 'done', fullText: text })
     }
   } catch (e) {
-    if ((e as Error).name !== 'AbortError') {
-      emit({ type: 'error', error: String(e) })
+    if ((e as Error).name === 'AbortError') {
+      return
+    }
+    try {
+      await runViaCli()
+    } catch (cliError) {
+      emit({ type: 'error', error: String(cliError) })
     }
   } finally {
     activeStreams.delete(streamId)

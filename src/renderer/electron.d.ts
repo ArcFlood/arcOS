@@ -5,7 +5,6 @@ declare global {
     electron: {
       platform: string
       getPlatform: () => Promise<string>
-      systemFontsList: () => Promise<{ success: boolean; fonts: string[] }>
 
       loadArcPrompts: () => Promise<{ success: boolean; content?: string; source?: string; error?: string }>
 

@@ -75,7 +75,16 @@
       "**/*.node"
     ],
     "extraResources": [
-      { "from": "build/icon.png", "to": "icon.png" }
+      { "from": "build/icon.png", "to": "icon.png" },
+      {
+        "from": "memory-service",
+        "to": "memory-service",
+        "filter": [
+          "**/*",
+          "!**/__pycache__/**",
+          "!**/*.pyc"
+        ]
+      }
     ],
     "directories": {
       "buildResources": "build",

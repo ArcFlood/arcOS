@@ -632,6 +632,53 @@
         "System font choices are sourced from standard macOS font directories and applied directly as CSS font-family values.",
         "Acceptance remains in progress pending a fresh manual pass on movement and appearance behavior."
       ]
+    },
+    {
+      "entry_id": "codex-2026-04-04-024",
+      "date": "2026-04-04",
+      "agent": "Codex",
+      "task_title": "Simplify ARCOS font picker to fixed curated set",
+      "summary": "Removed the native system-font enumeration bridge and simplified ARCOS appearance font selection to a fixed curated list that matches the accepted product direction. The settings panel now offers IBM Plex Sans, Arial, Menlo, Futura, and Papyrus, while the rest of the appearance system remains intact. This keeps font choice intentional, reduces moving parts, and avoids the failed system-font workflow from the previous QA pass.",
+      "files_touched": [
+        "arcos/src/main/main.ts",
+        "arcos/src/preload/preload.ts",
+        "arcos/src/renderer/electron.d.ts",
+        "arcos/src/renderer/components/settings/SettingsPanel.tsx",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npm run lint"
+      ],
+      "notes": [
+        "Menlo was chosen as the terminal/plain-text font option.",
+        "Appearance theme and color controls were left unchanged."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-04-025",
+      "date": "2026-04-04",
+      "agent": "Codex",
+      "task_title": "Fix packaged ARC-Memory startup resources",
+      "summary": "Completed bug-track item B.2 by fixing the packaged ARC-Memory startup path. The packaged app had been trying to launch ARC-Memory from process resources, but the memory-service directory was not being bundled into the app at all, which caused startup to return and then immediately fall back to stopped. The packaging config now includes memory-service as an extra resource, excluding Python cache artifacts, and the main process startup path now validates that the bundled directory exists and launches the declared arc-serve entrypoint from that resource directory. Rebuilt the packaged directory app and confirmed that ARCOS.app now contains Contents/Resources/memory-service.",
+      "files_touched": [
+        "documentation/arcos_wbs.md",
+        "arcos/package.json",
+        "arcos/src/main/main.ts",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npm run lint",
+        "npm run build:dir",
+        "Verified ARCOS.app contains Contents/Resources/memory-service"
+      ],
+      "notes": [
+        "This fixes the packaged-resource cause of the ARC-Memory start-then-stop failure.",
+        "B.1 remains intentionally out of focus at the user's request, even though the Fabric CLI fallback work is already in place."
+      ]
     }
   ]
 }
