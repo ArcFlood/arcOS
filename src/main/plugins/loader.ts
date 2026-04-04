@@ -11,6 +11,12 @@ export interface PluginManifest {
   tier: 'ollama' | 'haiku' | 'arc-sonnet'
   commands: string[]
   systemPrompt: string
+  architectureRole?: 'prompt-shaper' | 'tool-surface' | 'service-integration' | 'workspace-module'
+  targetStages?: string[]
+  entrySurfaces?: string[]
+  opensPanels?: string[]
+  executionBoundary?: 'renderer' | 'main' | 'external-service'
+  stability?: 'experimental' | 'stable'
 }
 
 const PLUGINS_DIR = path.join(os.homedir(), '.noah-ai-hub', 'plugins')
@@ -24,6 +30,12 @@ const SAMPLE_PLUGINS: PluginManifest[] = [
     icon: '🔍',
     tier: 'arc-sonnet',
     commands: ['/review', '/cr'],
+    architectureRole: 'prompt-shaper',
+    targetStages: ['PAI core context', 'prompt rebuilder', 'local model'],
+    entrySurfaces: ['composer-command', 'tools-panel', 'prompt-inspector'],
+    opensPanels: ['tools', 'prompt_inspector', 'runtime'],
+    executionBoundary: 'renderer',
+    stability: 'stable',
     systemPrompt: `You are an expert code reviewer with deep knowledge of software engineering, security, and best practices across multiple languages. When given code:
 
 1. Identify bugs, logic errors, and edge cases
@@ -42,6 +54,12 @@ Format your review with clear sections. Be specific and actionable. Always expla
     icon: '✍️',
     tier: 'haiku',
     commands: ['/write', '/edit'],
+    architectureRole: 'prompt-shaper',
+    targetStages: ['PAI core context', 'prompt rebuilder', 'local model'],
+    entrySurfaces: ['composer-command', 'tools-panel', 'prompt-inspector'],
+    opensPanels: ['tools', 'prompt_inspector'],
+    executionBoundary: 'renderer',
+    stability: 'stable',
     systemPrompt: `You are a professional writing coach and editor. Your goal is to make writing clearer, more compelling, and better structured.
 
 When reviewing or writing:
@@ -61,6 +79,12 @@ Always explain your changes. Show before/after when editing existing text.`,
     icon: '🗄️',
     tier: 'haiku',
     commands: ['/sql', '/query'],
+    architectureRole: 'prompt-shaper',
+    targetStages: ['PAI core context', 'prompt rebuilder', 'local model'],
+    entrySurfaces: ['composer-command', 'tools-panel', 'prompt-inspector'],
+    opensPanels: ['tools', 'prompt_inspector'],
+    executionBoundary: 'renderer',
+    stability: 'stable',
     systemPrompt: `You are an expert SQL developer specializing in query writing, optimization, and database design.
 
 For every SQL task:
@@ -80,6 +104,12 @@ Default to PostgreSQL syntax unless the user specifies another dialect. Always w
     icon: '💡',
     tier: 'ollama',
     commands: ['/brainstorm', '/ideas'],
+    architectureRole: 'prompt-shaper',
+    targetStages: ['PAI core context', 'prompt rebuilder', 'local model'],
+    entrySurfaces: ['composer-command', 'tools-panel'],
+    opensPanels: ['tools'],
+    executionBoundary: 'renderer',
+    stability: 'stable',
     systemPrompt: `You are a creative brainstorming partner. Your job is to generate diverse, unexpected, and useful ideas.
 
 Rules:
@@ -99,6 +129,12 @@ Keep ideas concise — one sentence each. The goal is quantity and variety.`,
     icon: '🐛',
     tier: 'arc-sonnet',
     commands: ['/debug', '/fix'],
+    architectureRole: 'prompt-shaper',
+    targetStages: ['OpenClaw', 'Fabric', 'prompt rebuilder', 'local model'],
+    entrySurfaces: ['composer-command', 'tools-panel', 'runtime', 'prompt-inspector'],
+    opensPanels: ['tools', 'runtime', 'prompt_inspector', 'execution'],
+    executionBoundary: 'renderer',
+    stability: 'stable',
     systemPrompt: `You are an expert debugger and problem solver. When given an error, stack trace, or unexpected behavior:
 
 1. Identify the root cause — not just the symptom
@@ -114,6 +150,18 @@ If the problem could have multiple causes, work through them systematically. Ask
 export function ensurePluginsDir(): void {
   if (!fs.existsSync(PLUGINS_DIR)) {
     fs.mkdirSync(PLUGINS_DIR, { recursive: true })
+  }
+}
+
+function normalizePluginManifest(parsed: PluginManifest): PluginManifest {
+  return {
+    ...parsed,
+    architectureRole: parsed.architectureRole ?? 'prompt-shaper',
+    targetStages: parsed.targetStages ?? ['PAI core context', 'prompt rebuilder', 'local model'],
+    entrySurfaces: parsed.entrySurfaces ?? ['composer-command', 'tools-panel'],
+    opensPanels: parsed.opensPanels ?? ['tools', 'prompt_inspector'],
+    executionBoundary: parsed.executionBoundary ?? 'renderer',
+    stability: parsed.stability ?? 'stable',
   }
 }
 
@@ -138,12 +186,14 @@ export function listPlugins(): PluginManifest[] {
   for (const file of files) {
     try {
       const raw = fs.readFileSync(path.join(PLUGINS_DIR, file), 'utf8')
-      const parsed = JSON.parse(raw) as PluginManifest
+      const parsed = normalizePluginManifest(JSON.parse(raw) as PluginManifest)
       // Basic validation
       if (
         parsed.id && parsed.name && parsed.systemPrompt &&
         Array.isArray(parsed.commands) &&
-        ['ollama', 'haiku', 'arc-sonnet'].includes(parsed.tier)
+        ['ollama', 'haiku', 'arc-sonnet'].includes(parsed.tier) &&
+        Array.isArray(parsed.targetStages) &&
+        Array.isArray(parsed.entrySurfaces)
       ) {
         plugins.push(parsed)
       }
@@ -187,7 +237,7 @@ export function installPlugin(srcPath: string): { success: boolean; error?: stri
   try {
     ensurePluginsDir()
     const raw = fs.readFileSync(srcPath, 'utf8')
-    const parsed = JSON.parse(raw) as PluginManifest
+    const parsed = normalizePluginManifest(JSON.parse(raw) as PluginManifest)
     if (!parsed.id || !parsed.name || !parsed.systemPrompt) {
       return { success: false, error: 'Invalid plugin manifest: missing id, name, or systemPrompt' }
     }

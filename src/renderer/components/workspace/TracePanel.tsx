@@ -15,8 +15,10 @@ type Verbosity = 'minimal' | 'standard' | 'detailed' | 'debug'
 export default function TracePanel() {
   const entries = useTraceStore((s) => s.entries)
   const clearEntries = useTraceStore((s) => s.clearEntries)
+  const executionSummary = useTraceStore((s) => s.executionSummary)
   const showPanel = useWorkspaceStore((s) => s.showPanel)
   const [verbosity, setVerbosity] = useState<Verbosity>('standard')
+  const summary = executionSummary()
 
   const filteredEntries = entries.filter((entry) => {
     if (verbosity === 'debug') return true
@@ -56,6 +58,24 @@ export default function TracePanel() {
       </div>
 
       <div className="space-y-2">
+        <div className="rounded-xl border border-border bg-[#12161b] px-3 py-3">
+          <p className="arcos-kicker mb-2">Execution Summary</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <SummaryStat label="Current Phase" value={summary.currentPhase} />
+            <SummaryStat label="Lifecycle" value={summary.lifecycleState} />
+            <SummaryStat label="Last Good Checkpoint" value={summary.lastSuccessfulCheckpoint} />
+            <SummaryStat label="Mode" value={summary.degradedMode ? 'Degraded' : 'Normal'} />
+          </div>
+          {(summary.activeBlocker || summary.recommendedRecoveryAction) && (
+            <div className="mt-3 rounded-lg border border-amber-700/40 bg-amber-950/10 px-3 py-2">
+              {summary.activeBlocker && <p className="text-xs font-medium text-amber-300">{summary.activeBlocker}</p>}
+              {summary.recommendedRecoveryAction && (
+                <p className="mt-1 text-[11px] leading-5 text-text-muted">{summary.recommendedRecoveryAction}</p>
+              )}
+            </div>
+          )}
+        </div>
+
         {filteredEntries.length === 0 ? (
           <div className="arcos-subpanel rounded-xl px-4 py-6 text-xs text-text-muted">
             No trace entries yet. Send a message or start/stop a service to populate the feed.
@@ -79,8 +99,17 @@ export default function TracePanel() {
               {entry.stage && (
                 <p className="mt-2 text-[11px] uppercase tracking-wider opacity-70">stage: {entry.stage}</p>
               )}
+              {entry.executionState && (
+                <p className="mt-2 text-[11px] uppercase tracking-wider opacity-70">state: {entry.executionState}</p>
+              )}
+              {entry.failureType && (
+                <p className="mt-2 text-[11px] uppercase tracking-wider opacity-70">failure: {entry.failureType}</p>
+              )}
               {entry.entityLabel && (
                 <p className="mt-2 text-[11px] uppercase tracking-wider opacity-70">{entry.entityLabel}</p>
+              )}
+              {entry.recoveryAction && (
+                <p className="mt-2 text-xs leading-5 opacity-90">next: {entry.recoveryAction}</p>
               )}
               <div className="mt-3 flex flex-wrap gap-2">
                 {(entry.relatedPanels ?? []).map((panelId) => (
@@ -97,6 +126,15 @@ export default function TracePanel() {
           ))
         )}
       </div>
+    </div>
+  )
+}
+
+function SummaryStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-[#0f1318] px-3 py-2">
+      <p className="text-[10px] uppercase tracking-wider text-text-muted">{label}</p>
+      <p className="mt-1 text-xs font-medium text-text">{value}</p>
     </div>
   )
 }

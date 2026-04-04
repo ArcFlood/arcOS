@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo, KeyboardEvent } from 'react'
 import { useConversationStore } from '../stores/conversationStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useServiceStore } from '../stores/serviceStore'
-import { useCostStore } from '../stores/costStore'
+import { estimateCost, estimateTokens, useCostStore } from '../stores/costStore'
 import { usePluginStore } from '../stores/pluginStore'
 import { ModelTier } from '../stores/types'
 import { useTraceStore } from '../stores/traceStore'
@@ -212,11 +212,20 @@ export default function MessageInput({ conversationId }: Props) {
       ? `Plugin: ${resolvedPlugin.name} → ${TIER_DISPLAY_LABELS[resolvedPlugin.tier]}`
       : reason
 
+    const estimatedInputTokens = estimateTokens(
+      [
+        ...history.map((message) => message.content),
+        resolvedContent,
+      ].join('\n')
+    )
+    const estimatedOutputTokens = Math.max(estimateTokens(resolvedContent), 384)
+    const estimatedCost = estimateCost(effectiveTier, estimatedInputTokens, estimatedOutputTokens)
+
     appendTraceEntry({
       source: 'routing',
       level: 'info',
       title: `Routed to ${TIER_DISPLAY_LABELS[effectiveTier]}`,
-      detail: effectiveReason,
+      detail: `${effectiveReason}${estimatedCost > 0 ? ` Estimated cost: $${estimatedCost.toFixed(4)}.` : ' Local path selected.'}`,
       conversationId: convId,
       relatedPanels: ['routing', resolvedPlugin ? 'tools' : 'prompt_inspector', 'execution'],
       entityLabel: resolvedPlugin?.id ?? effectiveTier,
@@ -230,6 +239,7 @@ export default function MessageInput({ conversationId }: Props) {
       confidence: resolvedPlugin ? 1 : 0.72,
       wasOverridden: settings.routingMode !== 'auto' || Boolean(resolvedPlugin),
       conversationId: convId,
+      estimatedCost,
     }).catch?.(() => {})
 
     // Show routing decision

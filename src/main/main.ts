@@ -16,7 +16,7 @@ import { log, appendLog, getLogEntries, clearLog, getLogFilePath } from './logge
 import { appendRoutingEntry, getRoutingEntries, getRoutingLogDates, RoutingEntry } from './routingLog'
 import {
   writeSessionSummary, listSessionFiles, readSessionFile,
-  saveLearning, exportSpendingCsv, shouldShowWeeklyDigest,
+  saveLearning, listLearningFiles, readLearningFile, exportSpendingCsv, shouldShowWeeklyDigest,
   SessionSummaryData, LearningEntry, SpendingCsvRow,
 } from './sessionHistory'
 
@@ -221,6 +221,27 @@ type OpenClawServiceInfo = {
   controlUrl: string
 }
 
+type CodingRuntimeStatus = {
+  linkedWorkspacePath: string
+  activeRepositoryPath: string | null
+  branch: string | null
+  headShortSha: string | null
+  upstream: string | null
+  aheadCount: number
+  behindCount: number
+  worktreeCount: number
+  stagedChanges: number
+  unstagedChanges: number
+  untrackedFiles: number
+  conflictCount: number
+  dirty: boolean
+  staleBranch: boolean
+  mergeReadiness: 'ready' | 'needs_sync' | 'pending_local_changes' | 'conflicted' | 'unknown'
+  verificationCommands: string[]
+  openClawControlUrl: string | null
+  environment: 'development' | 'packaged'
+}
+
 function getOpenClawServiceInfo(): OpenClawServiceInfo {
   const configPath = path.join(os.homedir(), '.openclaw', 'openclaw.json')
   const workspacePath = path.join(os.homedir(), '.openclaw', 'workspace')
@@ -277,6 +298,145 @@ async function isHttpEndpointReachable(url: string, timeoutMs = 1200): Promise<b
     return response.status > 0
   } catch {
     return false
+  }
+}
+
+function runGit(repoPath: string, args: string[]): string {
+  return execSync(`git -C ${JSON.stringify(repoPath)} ${args.map((arg) => JSON.stringify(arg)).join(' ')}`, {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim()
+}
+
+function tryGit(repoPath: string, args: string[]): string | null {
+  try {
+    return runGit(repoPath, args)
+  } catch {
+    return null
+  }
+}
+
+function resolveGitRepo(candidatePath: string): string | null {
+  const resolved = path.resolve(candidatePath)
+  const repoRoot = tryGit(resolved, ['rev-parse', '--show-toplevel'])
+  return repoRoot ? path.resolve(repoRoot) : null
+}
+
+function resolveActiveRepositoryPath(): string | null {
+  const candidates = [
+    app.getAppPath(),
+    path.resolve(app.getAppPath(), '..'),
+    path.resolve(__dirname, '..', '..'),
+    process.cwd(),
+  ]
+  for (const candidate of candidates) {
+    const repo = resolveGitRepo(candidate)
+    if (repo) return repo
+  }
+  return null
+}
+
+function collectVerificationCommands(repoPath: string): string[] {
+  const commands: string[] = []
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(repoPath, 'package.json'), 'utf8')) as { scripts?: Record<string, string> }
+    if (pkg.scripts?.lint) commands.push('npm run lint')
+    commands.push('npm exec tsc -- --noEmit')
+    if (pkg.scripts?.['build:dir']) commands.push('npm run build:dir')
+  } catch {
+    // ignore
+  }
+
+  const memoryServiceTests = path.join(repoPath, 'memory-service', 'tests')
+  if (fs.existsSync(memoryServiceTests)) {
+    commands.push('uv run python -m unittest discover -s tests')
+  }
+  return [...new Set(commands)]
+}
+
+function getWorktreeCount(repoPath: string): number {
+  const output = tryGit(repoPath, ['worktree', 'list', '--porcelain'])
+  if (!output) return 0
+  return output.split('\n').filter((line) => line.startsWith('worktree ')).length
+}
+
+function getCodingRuntimeStatus(): CodingRuntimeStatus {
+  const openClawInfo = getOpenClawServiceInfo()
+  const repoPath = resolveActiveRepositoryPath()
+
+  if (!repoPath) {
+    return {
+      linkedWorkspacePath: openClawInfo.workspacePath,
+      activeRepositoryPath: null,
+      branch: null,
+      headShortSha: null,
+      upstream: null,
+      aheadCount: 0,
+      behindCount: 0,
+      worktreeCount: 0,
+      stagedChanges: 0,
+      unstagedChanges: 0,
+      untrackedFiles: 0,
+      conflictCount: 0,
+      dirty: false,
+      staleBranch: false,
+      mergeReadiness: 'unknown',
+      verificationCommands: [],
+      openClawControlUrl: openClawInfo.controlUrl,
+      environment: isDev ? 'development' : 'packaged',
+    }
+  }
+
+  const statusLines = (tryGit(repoPath, ['status', '--porcelain=v1']) ?? '')
+    .split('\n')
+    .filter(Boolean)
+  const branch = tryGit(repoPath, ['branch', '--show-current']) || null
+  const headShortSha = tryGit(repoPath, ['rev-parse', '--short', 'HEAD']) || null
+  const upstream = tryGit(repoPath, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}']) || null
+
+  let aheadCount = 0
+  let behindCount = 0
+  if (upstream) {
+    const counts = tryGit(repoPath, ['rev-list', '--left-right', '--count', '@{upstream}...HEAD'])
+    if (counts) {
+      const [behindRaw, aheadRaw] = counts.split('\t')
+      behindCount = Number.parseInt(behindRaw ?? '0', 10) || 0
+      aheadCount = Number.parseInt(aheadRaw ?? '0', 10) || 0
+    }
+  }
+
+  const stagedChanges = statusLines.filter((line) => line[0] !== ' ' && line[0] !== '?').length
+  const unstagedChanges = statusLines.filter((line) => line[1] !== ' ' && line[0] !== '?').length
+  const untrackedFiles = statusLines.filter((line) => line.startsWith('??')).length
+  const conflictStates = new Set(['DD', 'AU', 'UD', 'UA', 'DU', 'AA', 'UU'])
+  const conflictCount = statusLines.filter((line) => conflictStates.has(line.slice(0, 2))).length
+  const dirty = statusLines.length > 0
+  const staleBranch = branch === null || behindCount > 0 || conflictCount > 0
+
+  let mergeReadiness: CodingRuntimeStatus['mergeReadiness'] = 'ready'
+  if (conflictCount > 0) mergeReadiness = 'conflicted'
+  else if (behindCount > 0) mergeReadiness = 'needs_sync'
+  else if (dirty) mergeReadiness = 'pending_local_changes'
+
+  return {
+    linkedWorkspacePath: openClawInfo.workspacePath,
+    activeRepositoryPath: repoPath,
+    branch,
+    headShortSha,
+    upstream,
+    aheadCount,
+    behindCount,
+    worktreeCount: getWorktreeCount(repoPath),
+    stagedChanges,
+    unstagedChanges,
+    untrackedFiles,
+    conflictCount,
+    dirty,
+    staleBranch,
+    mergeReadiness,
+    verificationCommands: collectVerificationCommands(repoPath),
+    openClawControlUrl: openClawInfo.controlUrl,
+    environment: isDev ? 'development' : 'packaged',
   }
 }
 
@@ -899,6 +1059,13 @@ ipcMain.handle('open-path', (_event, targetPath: string) => {
       success: result.length === 0,
       error: result || undefined,
     }))
+  } catch (e) {
+    return { success: false, error: String(e) }
+  }
+})
+ipcMain.handle('coding-runtime:status', () => {
+  try {
+    return { success: true, status: getCodingRuntimeStatus() }
   } catch (e) {
     return { success: false, error: String(e) }
   }
@@ -1615,6 +1782,16 @@ ipcMain.handle('session:should-show-digest', (_event, lastDigestDate: string | n
 ipcMain.handle('learnings:save', (_event, entry: LearningEntry) => {
   try { return { success: true, filePath: saveLearning(entry) } }
   catch (e) { return { success: false, error: String(e) } }
+})
+
+ipcMain.handle('learnings:list', (_event, limit?: number) => {
+  try { return { success: true, files: listLearningFiles(limit ?? 50) } }
+  catch (e) { return { success: false, files: [], error: String(e) } }
+})
+
+ipcMain.handle('learnings:read', (_event, filePath: string) => {
+  try { return { success: true, content: readLearningFile(filePath) } }
+  catch (e) { return { success: false, content: '', error: String(e) } }
 })
 
 ipcMain.handle('learnings:open-dir', () => {

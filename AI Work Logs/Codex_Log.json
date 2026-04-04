@@ -1006,6 +1006,75 @@
         "Imported layouts are passed through the same workspace sanitizer as persisted state, so invalid or overlapping module placements are repaired before activation.",
         "The package build includes the new layout-transfer IPC and the richer Ollama metadata view."
       ]
+    },
+    {
+      "entry_id": "codex-2026-04-04-040",
+      "date": "2026-04-04",
+      "agent": "Codex",
+      "task_title": "Complete unified WBS Phase 10 — observability depth",
+      "summary": "Completed the observability-depth phase by adding typed execution-state metadata, failure taxonomy, and recovery guidance to ARCOS trace events; strengthening the trace and history panels with machine-grounded summaries, routing confidence, estimated costs, and saved learnings visibility; and adding focused ARC-Memory tests for note normalization, dedupe, result filtering, and Obsidian citation URI generation.",
+      "files_touched": [
+        "documentation/arcos_wbs.md",
+        "arcos/src/renderer/stores/traceStore.ts",
+        "arcos/src/renderer/components/workspace/TracePanel.tsx",
+        "arcos/src/renderer/components/workspace/ExecutionTracePanel.tsx",
+        "arcos/src/renderer/components/workspace/HistoryPanel.tsx",
+        "arcos/src/renderer/components/workspace/RoutingPanel.tsx",
+        "arcos/src/renderer/components/MessageInput.tsx",
+        "arcos/src/main/sessionHistory.ts",
+        "arcos/src/main/main.ts",
+        "arcos/src/preload/preload.ts",
+        "arcos/src/renderer/electron.d.ts",
+        "arcos/memory-service/mcp_server/server.py",
+        "arcos/memory-service/tests/test_obsidian_reader.py",
+        "arcos/memory-service/tests/test_server_filters.py",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npm run lint",
+        "uv run python -m unittest discover -s tests",
+        "npm run build:dir"
+      ],
+      "notes": [
+        "The new unit tests caught a real citation-path edge case in ARC-Memory and that helper was fixed before the phase was closed.",
+        "This phase also closes WBS item 9.2 because citation opening was retested successfully against the configured vault path."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-04-041",
+      "date": "2026-04-04",
+      "agent": "Codex",
+      "task_title": "Complete unified WBS Phase 11 — extensibility",
+      "summary": "Completed the extensibility phase by formalizing plugin manifests around PAI architecture roles, execution boundaries, target stages, and entry surfaces, and by adding a dedicated Runtime panel that exposes structured repo/worktree state, merge readiness, stale-branch signals, and verification scope without relying on raw terminal output.",
+      "files_touched": [
+        "documentation/arcos_prd.json",
+        "documentation/arcos_wbs.md",
+        "arcos/src/main/plugins/loader.ts",
+        "arcos/src/main/main.ts",
+        "arcos/src/preload/preload.ts",
+        "arcos/src/renderer/electron.d.ts",
+        "arcos/src/renderer/stores/types.ts",
+        "arcos/src/renderer/stores/codingRuntimeStore.ts",
+        "arcos/src/renderer/workspace/types.ts",
+        "arcos/src/renderer/workspace/presets.ts",
+        "arcos/src/renderer/components/workspace/WorkspacePanelContent.tsx",
+        "arcos/src/renderer/components/workspace/CodingRuntimePanel.tsx",
+        "arcos/src/renderer/components/workspace/ToolsPanel.tsx",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npm run lint",
+        "uv run python -m unittest discover -s tests",
+        "npm run build:dir"
+      ],
+      "notes": [
+        "The Runtime panel resolves the linked OpenClaw workspace from ~/.openclaw while surfacing structured git metadata for the active repository when ARCOS is running in development.",
+        "Per the push cadence, this phase should be pushed to GitHub after completion."
+      ]
     }
   ]
 }

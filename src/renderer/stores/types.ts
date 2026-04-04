@@ -117,6 +117,10 @@ export type RoutingMode = 'auto' | 'ollama' | 'haiku' | 'arc-sonnet' | 'arc-opus
 export type RoutingAggressiveness = 'cost-first' | 'balanced' | 'quality-first'
 export type AppearanceTheme = 'default' | 'star-wars' | 'lord-of-the-rings' | 'matrix'
 
+export type PluginArchitectureRole = 'prompt-shaper' | 'tool-surface' | 'service-integration' | 'workspace-module'
+export type PluginExecutionBoundary = 'renderer' | 'main' | 'external-service'
+export type PluginStability = 'experimental' | 'stable'
+
 export interface AppSettings {
   // Note: Claude API key is NOT stored here — it lives in main process only.
   // Use window.electron.apiKeySet / apiKeyHas from the renderer.
@@ -147,6 +151,33 @@ export interface Plugin {
   tier: ModelTier
   commands: string[]
   systemPrompt: string
+  architectureRole: PluginArchitectureRole
+  targetStages: string[]
+  entrySurfaces: string[]
+  opensPanels?: string[]
+  executionBoundary: PluginExecutionBoundary
+  stability: PluginStability
+}
+
+export interface CodingRuntimeStatus {
+  linkedWorkspacePath: string
+  activeRepositoryPath: string | null
+  branch: string | null
+  headShortSha: string | null
+  upstream: string | null
+  aheadCount: number
+  behindCount: number
+  worktreeCount: number
+  stagedChanges: number
+  unstagedChanges: number
+  untrackedFiles: number
+  conflictCount: number
+  dirty: boolean
+  staleBranch: boolean
+  mergeReadiness: 'ready' | 'needs_sync' | 'pending_local_changes' | 'conflicted' | 'unknown'
+  verificationCommands: string[]
+  openClawControlUrl: string | null
+  environment: 'development' | 'packaged'
 }
 
 // ── Cost ──────────────────────────────────────────────────────────

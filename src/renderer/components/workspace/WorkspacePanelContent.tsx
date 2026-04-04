@@ -5,6 +5,7 @@ import ModelManager from '../models/ModelManager'
 import AnalyticsPanel from '../cost/AnalyticsPanel'
 import ServicePanel from './ServicePanel'
 import RoutingPanel from './RoutingPanel'
+import CodingRuntimePanel from './CodingRuntimePanel'
 import TracePanel from './TracePanel'
 import ExecutionTracePanel from './ExecutionTracePanel'
 import PromptInspectorPanel from './PromptInspectorPanel'
@@ -32,6 +33,8 @@ export default function WorkspacePanelContent(props: WorkspacePanelContentProps)
       return <ServicePanel />
     case 'routing':
       return <RoutingPanel />
+    case 'runtime':
+      return <CodingRuntimePanel />
     case 'tools':
       return <ToolsPanel />
     case 'prompt_inspector':

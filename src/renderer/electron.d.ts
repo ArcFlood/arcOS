@@ -43,6 +43,7 @@ declare global {
       workspaceRedockPanel?: (panelId: string) => Promise<{ success: boolean }>
       workspaceSyncDetachedPanels?: (panelIds: string[]) => Promise<{ success: boolean }>
       onWorkspaceEvent?: (channel: string, callback: (payload: unknown) => void) => () => void
+      codingRuntimeStatus: () => Promise<{ success: boolean; status?: CodingRuntimeStatus; error?: string }>
       openExternal: (url: string) => Promise<void>
       openPath: (targetPath: string) => Promise<{ success: boolean; error?: string }>
 
@@ -112,6 +113,8 @@ declare global {
         conversationTitle: string
         userTags: string[]
       }) => Promise<{ success: boolean; filePath?: string; error?: string }>
+      learningsList: (limit?: number) => Promise<{ success: boolean; files: SessionFile[]; error?: string }>
+      learningsRead: (filePath: string) => Promise<{ success: boolean; content: string; error?: string }>
       learningsOpenDir: () => Promise<{ success: boolean }>
 
       // Spending CSV export (FR-11)
@@ -250,4 +253,31 @@ type PluginManifest = {
   tier: 'ollama' | 'haiku' | 'arc-sonnet'
   commands: string[]
   systemPrompt: string
+  architectureRole?: 'prompt-shaper' | 'tool-surface' | 'service-integration' | 'workspace-module'
+  targetStages?: string[]
+  entrySurfaces?: string[]
+  opensPanels?: string[]
+  executionBoundary?: 'renderer' | 'main' | 'external-service'
+  stability?: 'experimental' | 'stable'
+}
+
+type CodingRuntimeStatus = {
+  linkedWorkspacePath: string
+  activeRepositoryPath: string | null
+  branch: string | null
+  headShortSha: string | null
+  upstream: string | null
+  aheadCount: number
+  behindCount: number
+  worktreeCount: number
+  stagedChanges: number
+  unstagedChanges: number
+  untrackedFiles: number
+  conflictCount: number
+  dirty: boolean
+  staleBranch: boolean
+  mergeReadiness: 'ready' | 'needs_sync' | 'pending_local_changes' | 'conflicted' | 'unknown'
+  verificationCommands: string[]
+  openClawControlUrl: string | null
+  environment: 'development' | 'packaged'
 }

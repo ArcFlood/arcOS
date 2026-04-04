@@ -65,8 +65,17 @@ export default function ExecutionTracePanel() {
                 {entry.stage && (
                   <p className="mt-2 text-[11px] uppercase tracking-wider text-text-muted">stage: {entry.stage}</p>
                 )}
+                {entry.executionState && (
+                  <p className="mt-2 text-[11px] uppercase tracking-wider text-text-muted">state: {entry.executionState}</p>
+                )}
+                {entry.failureType && (
+                  <p className="mt-2 text-[11px] uppercase tracking-wider text-text-muted">failure: {entry.failureType}</p>
+                )}
                 {entry.entityLabel && (
                   <p className="mt-2 text-[11px] uppercase tracking-wider text-text-muted">{entry.entityLabel}</p>
+                )}
+                {entry.recoveryAction && (
+                  <p className="mt-2 text-xs leading-5 text-text-muted">next: {entry.recoveryAction}</p>
                 )}
                 <div className="mt-3 flex flex-wrap gap-2">
                   {(entry.relatedPanels ?? []).map((panelId) => (

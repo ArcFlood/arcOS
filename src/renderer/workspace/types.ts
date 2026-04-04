@@ -3,6 +3,7 @@ export type WorkspacePanelId =
   | 'chat'
   | 'services'
   | 'routing'
+  | 'runtime'
   | 'tools'
   | 'prompt_inspector'
   | 'memory'

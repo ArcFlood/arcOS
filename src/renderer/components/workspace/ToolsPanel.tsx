@@ -72,12 +72,15 @@ export default function ToolsPanel() {
             <p className="arcos-kicker mb-1">PAI Tools</p>
             <p className="text-sm font-semibold text-text">Fabric, plugins, and execution history</p>
             <p className="text-xs text-text-muted">
-              Run Fabric patterns, manage plugin prompt overrides, and inspect recent tool output without leaving ARCOS.
+              Run Fabric patterns, manage plugin contracts, and inspect recent tool output without leaving ARCOS.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button onClick={() => showPanel('prompt_inspector')} className="arcos-action rounded px-2 py-1 text-[10px] uppercase tracking-wider">
               Prompt
+            </button>
+            <button onClick={() => showPanel('runtime')} className="arcos-action rounded px-2 py-1 text-[10px] uppercase tracking-wider">
+              Runtime
             </button>
             <button onClick={() => showPanel('execution')} className="arcos-action rounded px-2 py-1 text-[10px] uppercase tracking-wider">
               Trace
@@ -250,7 +253,7 @@ export default function ToolsPanel() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="arcos-kicker mb-1">Plugins</p>
-                <p className="text-sm font-semibold text-text">Prompt and routing overrides</p>
+                <p className="text-sm font-semibold text-text">Extension contracts and prompt overrides</p>
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={openPluginsDir} className="arcos-action rounded px-2 py-1 text-[10px] uppercase tracking-wider">
@@ -296,6 +299,12 @@ export default function ToolsPanel() {
                                 Active
                               </span>
                             )}
+                            <span className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wider text-text-muted">
+                              {plugin.architectureRole}
+                            </span>
+                            <span className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wider text-text-muted">
+                              {plugin.executionBoundary}
+                            </span>
                           </div>
                           <p className="mt-1 text-xs leading-5 text-text-muted">{plugin.description}</p>
                           <div className="mt-2 flex flex-wrap gap-1">
@@ -305,6 +314,16 @@ export default function ToolsPanel() {
                               </span>
                             ))}
                           </div>
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {plugin.targetStages.map((stage) => (
+                              <span key={`${plugin.id}-${stage}`} className="rounded border border-border px-1.5 py-0.5 text-[10px] text-text-muted">
+                                {stage}
+                              </span>
+                            ))}
+                          </div>
+                          <p className="mt-2 text-[11px] leading-5 text-text-muted">
+                            Entry surfaces: {plugin.entrySurfaces.join(', ')}. Stability: {plugin.stability}.
+                          </p>
                         </div>
                       </div>
                     </button>
@@ -319,6 +338,9 @@ export default function ToolsPanel() {
               </button>
               <button onClick={() => showPanel('routing')} className="arcos-action rounded px-2 py-1 text-[10px] uppercase tracking-wider">
                 Open Routing
+              </button>
+              <button onClick={() => showPanel('runtime')} className="arcos-action rounded px-2 py-1 text-[10px] uppercase tracking-wider">
+                Open Runtime
               </button>
             </div>
           </div>

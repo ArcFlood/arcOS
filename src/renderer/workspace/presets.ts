@@ -26,6 +26,12 @@ export const WORKSPACE_PANELS: WorkspacePanelDefinition[] = [
     icon: '🧠',
   },
   {
+    id: 'runtime',
+    title: 'Runtime',
+    description: 'Structured coding-runtime status for repo, worktree, and verification scope.',
+    icon: '⑂',
+  },
+  {
     id: 'tools',
     title: 'Tools',
     description: 'Fabric patterns, plugins, and future PAI-native modules.',

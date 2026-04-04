@@ -158,6 +158,7 @@ def _chunk_to_citation(chunk) -> dict:
         )
     except ValueError:
         relative_path = Path(chunk.source_path).name
+    relative_path_str = relative_path.as_posix() if isinstance(relative_path, Path) else str(relative_path)
     return {
         "title": chunk.title,
         "date": chunk.date,
@@ -170,7 +171,7 @@ def _chunk_to_citation(chunk) -> dict:
             "obsidian://open?vault="
             + quote(vault_name, safe="")
             + "&file="
-            + quote(relative_path.as_posix(), safe="/")
+            + quote(relative_path_str, safe="/")
         ),
     }
 

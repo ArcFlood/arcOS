@@ -99,13 +99,28 @@ export default function RoutingPanel() {
             entries.slice(0, 8).map((entry, index) => (
               <div key={`${entry.timestamp}-${index}`} className="rounded-lg border border-border bg-[#12161b] px-3 py-2.5">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-xs font-semibold tracking-wide text-text">{entry.chosenTier}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold tracking-wide text-text">{entry.chosenTier}</span>
+                    <span className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wider text-text-muted">
+                      {Math.round(entry.confidence * 100)}% confidence
+                    </span>
+                    {entry.wasOverridden && (
+                      <span className="rounded-full border border-amber-700/40 px-2 py-0.5 text-[10px] uppercase tracking-wider text-amber-300">
+                        overridden
+                      </span>
+                    )}
+                  </div>
                   <span className="text-[11px] text-text-muted">
                     {new Date(entry.timestamp).toLocaleTimeString()}
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-text-muted">{entry.queryPreview}</p>
                 <p className="mt-1 text-[11px] leading-5 text-text-muted">{entry.reason}</p>
+                {entry.estimatedCost !== undefined && (
+                  <p className="mt-2 text-[11px] uppercase tracking-wider text-text-muted">
+                    est. cost: ${entry.estimatedCost.toFixed(4)}
+                  </p>
+                )}
               </div>
             ))
           )}

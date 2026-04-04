@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld('electron', {
   workspaceDetachPanel: (panelId: string) => ipcRenderer.invoke('workspace:detach-panel', panelId),
   workspaceRedockPanel: (panelId: string) => ipcRenderer.invoke('workspace:redock-panel', panelId),
   workspaceSyncDetachedPanels: (panelIds: string[]) => ipcRenderer.invoke('workspace:sync-detached-panels', panelIds),
+  codingRuntimeStatus: () => ipcRenderer.invoke('coding-runtime:status'),
   onWorkspaceEvent: (channel: string, callback: (payload: unknown) => void) => {
     const allowed = ['workspace:detached-panel-closed']
     if (!allowed.includes(channel)) return () => {}
@@ -94,6 +95,8 @@ contextBridge.exposeInMainWorld('electron', {
 
   // Learnings / bookmarks (FR-11)
   learningsSave: (entry: object) => ipcRenderer.invoke('learnings:save', entry),
+  learningsList: (limit?: number) => ipcRenderer.invoke('learnings:list', limit),
+  learningsRead: (filePath: string) => ipcRenderer.invoke('learnings:read', filePath),
   learningsOpenDir: () => ipcRenderer.invoke('learnings:open-dir'),
 
   // Spending CSV export (FR-11)

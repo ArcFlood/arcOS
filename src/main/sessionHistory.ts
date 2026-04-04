@@ -160,6 +160,37 @@ export function saveLearning(entry: LearningEntry): string {
   return filePath
 }
 
+export function listLearningFiles(limit = 50): Array<{ date: string; path: string; filename: string }> {
+  try {
+    ensureDir(LEARNINGS_ROOT)
+    const months = fs.readdirSync(LEARNINGS_ROOT).filter((d) => /^\d{4}-\d{2}$/.test(d)).sort().reverse()
+    const results: Array<{ date: string; path: string; filename: string }> = []
+
+    for (const month of months) {
+      const dir = path.join(LEARNINGS_ROOT, month)
+      const files = fs.readdirSync(dir)
+        .filter((f) => f.endsWith('_learning.md'))
+        .sort()
+        .reverse()
+      for (const f of files) {
+        results.push({
+          date: f.slice(0, 10),
+          path: path.join(dir, f),
+          filename: f,
+        })
+        if (results.length >= limit) return results
+      }
+    }
+    return results
+  } catch {
+    return []
+  }
+}
+
+export function readLearningFile(filePath: string): string {
+  try { return fs.readFileSync(filePath, 'utf8') } catch { return '' }
+}
+
 // ── Spending CSV export ──────────────────────────────────────────
 
 export interface SpendingCsvRow {
