@@ -49,6 +49,15 @@ export const usePluginStore = create<PluginState>((set, get) => ({
         relatedPanels: ['tools', 'prompt_inspector'],
         entityLabel: plugin.id,
       })
+      // Fire plugin lifecycle hook (Item 18)
+      if (plugin.hooks?.onActivate) {
+        window.electron.pluginRunHook({
+          pluginId: plugin.id,
+          pluginName: plugin.name,
+          hookType: 'onActivate',
+          hookValue: plugin.hooks.onActivate,
+        }).catch(console.error)
+      }
     }
   },
 
@@ -64,6 +73,15 @@ export const usePluginStore = create<PluginState>((set, get) => ({
         relatedPanels: ['tools', 'prompt_inspector'],
         entityLabel: active.id,
       })
+      // Fire plugin lifecycle hook (Item 18)
+      if (active.hooks?.onDeactivate) {
+        window.electron.pluginRunHook({
+          pluginId: active.id,
+          pluginName: active.name,
+          hookType: 'onDeactivate',
+          hookValue: active.hooks.onDeactivate,
+        }).catch(console.error)
+      }
     }
   },
 

@@ -136,10 +136,11 @@ contextBridge.exposeInMainWorld('electron', {
   pluginsList: () => ipcRenderer.invoke('plugins:list'),
   pluginsInstallFile: () => ipcRenderer.invoke('plugins:install-file'),
   pluginsOpenDir: () => ipcRenderer.invoke('plugins:open-dir'),
+  pluginRunHook: (params: object) => ipcRenderer.invoke('plugin:run-hook', params),
 
   // Error / Debug log
-  logAppend: (level: string, message: string, detail?: string) =>
-    ipcRenderer.invoke('log:append', level, message, detail),
+  logAppend: (level: string, message: string, detail?: string, category?: string) =>
+    ipcRenderer.invoke('log:append', level, message, detail, category),
   logGetEntries: () => ipcRenderer.invoke('log:get-entries'),
   logClear: () => ipcRenderer.invoke('log:clear'),
   logOpenFile: () => ipcRenderer.invoke('log:open-file'),
@@ -192,4 +193,12 @@ contextBridge.exposeInMainWorld('electron', {
       set: (key: string, value: string) => ipcRenderer.invoke('db:settings:set', key, value),
     },
   },
+
+  // MCP general client framework (Item 20)
+  mcpCheckHealth: (params: object) => ipcRenderer.invoke('mcp:check-health', params),
+  mcpListTools: (params: object) => ipcRenderer.invoke('mcp:list-tools', params),
+  mcpRegisterServer: (config: object) => ipcRenderer.invoke('mcp:register-server', config),
+
+  // Tool surface registry (Item 21)
+  toolsList: () => ipcRenderer.invoke('tools:list'),
 })

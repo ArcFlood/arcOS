@@ -2138,6 +2138,29 @@ ipcMain.handle('plugins:open-dir', () => {
   return { success: true }
 })
 
+// ── IPC: Plugin Hook Lifecycle (Item 18) ─────────────────────────
+// Fires a hook event for plugin lifecycle transitions.
+// hookType: 'onActivate' | 'onDeactivate' | 'beforeMessage'
+ipcMain.handle('plugin:run-hook', (_event, params: {
+  pluginId: string
+  pluginName: string
+  hookType: 'onActivate' | 'onDeactivate' | 'beforeMessage'
+  hookValue?: string
+}) => {
+  const { pluginId, pluginName, hookType, hookValue } = params
+  ingestHookEvent({
+    eventType: hookType === 'onActivate' ? 'request.accepted'
+              : hookType === 'onDeactivate' ? 'request.accepted'
+              : 'prompt.rebuilt',
+    stage: 'intake',
+    status: 'completed',
+    requestId: `plugin-hook-${Date.now()}`,
+    summary: `Plugin ${hookType}: ${pluginName}`,
+    details: hookValue ?? `${pluginId} lifecycle event`,
+  })
+  return { success: true }
+})
+
 // ── IPC: API Key (main-process-only storage) ──────────────────────
 // The raw API key NEVER flows from main → renderer.
 // Renderer can write via apiKey:set and check existence via apiKey:has.
@@ -2165,9 +2188,11 @@ ipcMain.handle('apiKey:has', () => {
 // ── IPC: Error / Debug Log ────────────────────────────────────────
 
 // Renderer can push its own log entries (JS errors, unhandled rejections)
-ipcMain.handle('log:append', (_event, level: string, message: string, detail?: string) => {
+ipcMain.handle('log:append', (_event, level: string, message: string, detail?: string, category?: string) => {
   const safeLevel = ['info', 'warn', 'error'].includes(level) ? level as 'info' | 'warn' | 'error' : 'error'
-  appendLog(safeLevel, 'renderer', message, detail)
+  const VALID_CATS = ['prompt_delivery','trust_gate','compile','plugin_startup','mcp_startup','mcp_handshake','tool_runtime','infra']
+  const safeCat = VALID_CATS.includes(category ?? '') ? category as import('./logger').LogCategory : undefined
+  appendLog(safeLevel, 'renderer', message, detail, safeCat)
   return { success: true }
 })
 
@@ -2521,4 +2546,86 @@ ipcMain.handle('bug-report:open-dir', () => {
   const dir = getBugReportsDirPath()
   shell.openPath(dir)
   return { success: true }
+})
+
+// ── IPC: MCP General Client Framework (Item 20) ──────────────────
+// Routes MCP health checks and tool listings from renderer to main,
+// avoiding CORS restrictions. Supports HTTP-based MCP servers.
+
+ipcMain.handle('mcp:check-health', async (_event, params: {
+  id: string
+  url: string
+  transport: 'http' | 'stdio'
+}) => {
+  const { url, transport } = params
+  if (transport !== 'http') {
+    return { healthy: false, error: 'Only http transport is supported in this version' }
+  }
+  try {
+    // Standard MCP health: try initialize handshake or a simple fetch to base URL
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 5000)
+    const response = await fetch(url, {
+      method: 'GET',
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timeout))
+    return { healthy: response.ok || response.status < 500, error: undefined }
+  } catch (e) {
+    return { healthy: false, error: String(e) }
+  }
+})
+
+ipcMain.handle('mcp:list-tools', async (_event, params: {
+  id: string
+  url: string
+  transport: 'http' | 'stdio'
+}) => {
+  const { url, transport } = params
+  if (transport !== 'http') {
+    return { tools: [], error: 'Only http transport is supported in this version' }
+  }
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 8000)
+    const response = await fetch(`${url}/tools`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timeout))
+    if (!response.ok) {
+      // Try MCP JSON-RPC style
+      const rpcResp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/list', params: {}, id: 1 }),
+      })
+      if (rpcResp.ok) {
+        const rpcData = await rpcResp.json() as { result?: { tools?: unknown[] } }
+        return { tools: rpcData.result?.tools ?? [] }
+      }
+      return { tools: [], error: `HTTP ${response.status}` }
+    }
+    const data = await response.json() as { tools?: unknown[] }
+    return { tools: data.tools ?? [] }
+  } catch (e) {
+    return { tools: [], error: String(e) }
+  }
+})
+
+ipcMain.handle('mcp:register-server', (_event, config: {
+  id: string; name: string; url: string; transport: 'http' | 'stdio'; description?: string
+}) => {
+  // Main process just acknowledges — state is owned by mcpStore in renderer
+  log.info(`MCP server registered: ${config.name} (${config.id}) @ ${config.url}`)
+  return { success: true }
+})
+
+// ── IPC: Tool Surface Registry (Item 21) ─────────────────────────
+// Returns the canonical list of ARCOS tools. Main process serves this
+// so it can be combined with runtime-discovered MCP tools in the future.
+
+ipcMain.handle('tools:list', () => {
+  // The actual tool definitions live in renderer/utils/tools.ts
+  // Main process returns a success acknowledgement; renderer assembles final list.
+  return { success: true, builtinCount: 20 }
 })

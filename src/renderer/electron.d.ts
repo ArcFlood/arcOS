@@ -227,8 +227,14 @@ declare global {
       pluginsList: () => Promise<{ success: boolean; plugins: PluginManifest[]; error?: string }>
       pluginsInstallFile: () => Promise<{ success: boolean; error?: string }>
       pluginsOpenDir: () => Promise<{ success: boolean }>
+      pluginRunHook: (params: {
+        pluginId: string
+        pluginName: string
+        hookType: 'onActivate' | 'onDeactivate' | 'beforeMessage'
+        hookValue?: string
+      }) => Promise<{ success: boolean }>
 
-      logAppend: (level: string, message: string, detail?: string) => Promise<{ success: boolean }>
+      logAppend: (level: string, message: string, detail?: string, category?: string) => Promise<{ success: boolean }>
       logGetEntries: () => Promise<{ success: boolean; entries: LogEntry[] }>
       logClear: () => Promise<{ success: boolean }>
       logOpenFile: () => Promise<{ success: boolean }>
@@ -303,8 +309,45 @@ declare global {
           set: (key: string, value: string) => Promise<{ success: boolean; error?: string }>
         }
       }
+
+      // MCP general client framework (Item 20)
+      mcpCheckHealth: (params: { id: string; url: string; transport: 'http' | 'stdio' }) => Promise<{
+        healthy: boolean
+        error?: string
+      }>
+      mcpListTools: (params: { id: string; url: string; transport: 'http' | 'stdio' }) => Promise<{
+        tools: McpToolEntry[]
+        error?: string
+      }>
+      mcpRegisterServer: (config: {
+        id: string; name: string; url: string; transport: 'http' | 'stdio'; description?: string
+      }) => Promise<{ success: boolean }>
+
+      // Tool surface registry (Item 21)
+      toolsList: () => Promise<{ tools: ArcToolEntry[] }>
     }
   }
+}
+
+// MCP types (Item 20)
+type McpToolEntry = {
+  name: string
+  description?: string
+  inputSchema?: Record<string, unknown>
+}
+
+// Tool surface registry types (Item 21)
+type ArcToolPermission = 'none' | 'read' | 'write' | 'execute' | 'network'
+type ArcToolSource = 'builtin' | 'mcp' | 'plugin'
+type ArcToolCategory = 'filesystem' | 'memory' | 'ai' | 'system' | 'fabric' | 'runtime'
+type ArcToolEntry = {
+  id: string
+  name: string
+  description: string
+  permissions: ArcToolPermission[]
+  active: boolean
+  source: ArcToolSource
+  category: ArcToolCategory
 }
 
 // Loose row type — actual shapes defined in database/operations.ts

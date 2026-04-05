@@ -58,6 +58,20 @@ export const MODEL_REGISTRY: Record<ModelTier, ModelInfo> = {
 }
 
 // ── Message & Conversation ────────────────────────────────────────
+
+/**
+ * Structured task metadata that can be attached to a message.
+ * Stored as metadata, never embedded in the prompt string.
+ */
+export interface TaskPacket {
+  objective: string
+  scope?: string
+  modelConstraint?: ModelTier | null
+  maxTokens?: number
+  expectedOutputFormat?: 'prose' | 'json' | 'code' | 'list' | 'table'
+  retryPolicy?: 'none' | 'once' | 'twice'
+}
+
 export interface Message {
   id: string
   conversationId: string
@@ -68,7 +82,21 @@ export interface Message {
   timestamp: number
   routingReason?: string
   isStreaming?: boolean
+  /** Optional structured task metadata (Item 19) */
+  taskPacket?: TaskPacket
 }
+
+/**
+ * Conversation status — replaces scattered isLoading booleans.
+ * Enables retry logic on blocked state and proper cleanup on finished.
+ */
+export type ConversationStatus =
+  | 'idle'        // no active request
+  | 'sending'     // request dispatched, awaiting first token
+  | 'streaming'   // receiving token stream
+  | 'blocked'     // request blocked (budget, permission, etc.)
+  | 'error'       // last request ended with an error
+  | 'finished'    // last request completed successfully
 
 export interface Conversation {
   id: string
@@ -78,6 +106,8 @@ export interface Conversation {
   tags: string[]
   totalCost: number
   messages: Message[]
+  /** Session state machine status (Item 16) */
+  status: ConversationStatus
 }
 
 // ── Service ───────────────────────────────────────────────────────
@@ -142,6 +172,14 @@ export interface AppSettings {
 }
 
 // ── Plugin ────────────────────────────────────────────────────────
+
+/** Lifecycle hooks attached to a plugin manifest (Item 18). */
+export interface PluginHooks {
+  onActivate?: string
+  onDeactivate?: string
+  beforeMessage?: string
+}
+
 export interface Plugin {
   id: string
   name: string
@@ -157,6 +195,8 @@ export interface Plugin {
   opensPanels?: string[]
   executionBoundary: PluginExecutionBoundary
   stability: PluginStability
+  /** Optional lifecycle hooks (Item 18) */
+  hooks?: PluginHooks
 }
 
 export interface CodingRuntimeStatus {

@@ -2,6 +2,22 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 
+/**
+ * Optional lifecycle hooks for a plugin (Item 18).
+ *
+ * - onActivate:     shell note or action when plugin is activated
+ * - onDeactivate:   shell note or action when plugin is deactivated
+ * - beforeMessage:  IPC event fired before each message dispatch while the plugin is active
+ *
+ * Values are descriptive strings surfaced in the hook event system.
+ * Executable shell commands can be placed here for future expansion.
+ */
+export interface PluginHooks {
+  onActivate?: string
+  onDeactivate?: string
+  beforeMessage?: string
+}
+
 export interface PluginManifest {
   id: string
   name: string
@@ -17,6 +33,8 @@ export interface PluginManifest {
   opensPanels?: string[]
   executionBoundary?: 'renderer' | 'main' | 'external-service'
   stability?: 'experimental' | 'stable'
+  /** Optional lifecycle hooks (Item 18) */
+  hooks?: PluginHooks
 }
 
 const PLUGINS_DIR = path.join(os.homedir(), '.noah-ai-hub', 'plugins')

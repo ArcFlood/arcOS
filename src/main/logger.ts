@@ -12,6 +12,20 @@ import os from 'os'
 
 export type LogLevel = 'info' | 'warn' | 'error'
 
+/**
+ * Failure category taxonomy (Item 17).
+ * Enables targeted recovery suggestions in ErrorLogPanel.
+ */
+export type LogCategory =
+  | 'prompt_delivery'   // failure sending or streaming a prompt to a model
+  | 'trust_gate'        // blocked by budget, permission, or policy
+  | 'compile'           // TypeScript / build / schema parse error
+  | 'plugin_startup'    // plugin failed to load or activate
+  | 'mcp_startup'       // MCP server failed to start
+  | 'mcp_handshake'     // MCP server connected but tool negotiation failed
+  | 'tool_runtime'      // tool called but execution failed at runtime
+  | 'infra'             // disk I/O, network, process crash, or OS-level error
+
 export interface LogEntry {
   id: string
   level: LogLevel
@@ -19,6 +33,7 @@ export interface LogEntry {
   message: string
   detail?: string
   timestamp: number // unix ms
+  category?: LogCategory
 }
 
 const MAX_ENTRIES = 500
@@ -36,14 +51,16 @@ function ensureLogDir(): void {
 function formatLine(entry: LogEntry): string {
   const ts = new Date(entry.timestamp).toISOString()
   const detail = entry.detail ? ` | ${entry.detail.replace(/\n/g, ' ↵ ')}` : ''
-  return `[${ts}] [${entry.level.toUpperCase()}] [${entry.source}] ${entry.message}${detail}\n`
+  const cat = entry.category ? ` [${entry.category}]` : ''
+  return `[${ts}] [${entry.level.toUpperCase()}]${cat} [${entry.source}] ${entry.message}${detail}\n`
 }
 
 export function appendLog(
   level: LogLevel,
   source: LogEntry['source'],
   message: string,
-  detail?: string
+  detail?: string,
+  category?: LogCategory
 ): LogEntry {
   const entry: LogEntry = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -52,6 +69,7 @@ export function appendLog(
     message,
     detail,
     timestamp: Date.now(),
+    category,
   }
 
   // Keep in memory (cap at MAX_ENTRIES)
@@ -90,7 +108,7 @@ export function getLogFilePath(): string {
 
 // Convenience helpers used throughout main.ts
 export const log = {
-  info: (msg: string, detail?: string) => appendLog('info', 'main', msg, detail),
-  warn: (msg: string, detail?: string) => appendLog('warn', 'main', msg, detail),
-  error: (msg: string, detail?: string) => appendLog('error', 'main', msg, detail),
+  info:  (msg: string, detail?: string, category?: LogCategory) => appendLog('info',  'main', msg, detail, category),
+  warn:  (msg: string, detail?: string, category?: LogCategory) => appendLog('warn',  'main', msg, detail, category),
+  error: (msg: string, detail?: string, category?: LogCategory) => appendLog('error', 'main', msg, detail, category),
 }

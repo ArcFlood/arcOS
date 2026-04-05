@@ -7,6 +7,7 @@ import { usePluginStore } from '../stores/pluginStore'
 import { ModelTier } from '../stores/types'
 import { useTraceStore } from '../stores/traceStore'
 import { sendMessage } from '../services/chatService'
+import type { TaskPacket } from '../stores/types'
 import { executeCanonicalChain } from '../services/canonicalChainService'
 import { routeQuery, TIER_DISPLAY_LABELS } from '../utils/routing'
 import { searchMemory, MemoryCitation, sourceLabel } from '../services/memoryService'
@@ -34,6 +35,11 @@ export default function MessageInput({ conversationId }: Props) {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [memorySearching, setMemorySearching] = useState(false)
+  // Task Mode (Item 19)
+  const [taskModeOpen, setTaskModeOpen] = useState(false)
+  const [taskPacket, setTaskPacket] = useState<Partial<TaskPacket>>({
+    objective: '', scope: '', expectedOutputFormat: 'prose', retryPolicy: 'none',
+  })
   const [memoryError, setMemoryError] = useState<string | null>(null)
   const [stagedMemory, setStagedMemory] = useState<{
     query: string
@@ -48,6 +54,7 @@ export default function MessageInput({ conversationId }: Props) {
   const addMessage = useConversationStore((s) => s.addMessage)
   const updateMessage = useConversationStore((s) => s.updateMessage)
   const activeConversation = useConversationStore((s) => s.activeConversation())
+  const setConversationStatus = useConversationStore((s) => s.setConversationStatus)
 
   const settings = useSettingsStore((s) => s.settings)
   const hasApiKey = useSettingsStore((s) => s.hasApiKey)
@@ -162,6 +169,9 @@ export default function MessageInput({ conversationId }: Props) {
     setError(null)
     setSending(true)
     setText('')
+    // Drive session state machine → sending
+    const earlyConvId = conversationId
+    if (earlyConvId) setConversationStatus(earlyConvId, 'sending')
 
     // ── Slash command detection ────────────────────────────────
     // If the message starts with a known plugin command, auto-activate it
@@ -192,12 +202,24 @@ export default function MessageInput({ conversationId }: Props) {
     }))
 
     // Add user message to store (show original text including command)
+    // Build task packet if Task Mode is active (Item 19)
+    const activeTaskPacket: TaskPacket | undefined =
+      taskModeOpen && taskPacket.objective?.trim()
+        ? {
+            objective: taskPacket.objective!.trim(),
+            scope: taskPacket.scope?.trim() || undefined,
+            expectedOutputFormat: taskPacket.expectedOutputFormat ?? 'prose',
+            retryPolicy: taskPacket.retryPolicy ?? 'none',
+          }
+        : undefined
+
     addMessage(convId, {
       role: 'user',
       content: displayContent,
       model: null,
       cost: 0,
       timestamp: Date.now(),
+      taskPacket: activeTaskPacket,
     })
 
     if (stagedMemory && stagedMemory.citations.length > 0) {
@@ -361,6 +383,16 @@ export default function MessageInput({ conversationId }: Props) {
       entityLabel: effectiveTier,
     })
 
+    // Fire plugin beforeMessage hook if active plugin has one (Item 18)
+    if (resolvedPlugin?.hooks?.beforeMessage) {
+      window.electron.pluginRunHook({
+        pluginId: resolvedPlugin.id,
+        pluginName: resolvedPlugin.name,
+        hookType: 'beforeMessage',
+        hookValue: resolvedPlugin.hooks.beforeMessage,
+      }).catch(console.error)
+    }
+
     await sendMessage({
       content: canonicalChain.rebuiltUserPrompt,
       tier: effectiveTier,
@@ -380,6 +412,10 @@ export default function MessageInput({ conversationId }: Props) {
           content: accumulatedContent,
           isStreaming: true,
         })
+        // Transition to streaming on first token
+        if (accumulatedContent.length === token.length) {
+          setConversationStatus(convId, 'streaming')
+        }
       },
       onComplete: (fullText, cost) => {
         updateMessage(convId, assistantMsg.id, {
@@ -387,6 +423,7 @@ export default function MessageInput({ conversationId }: Props) {
           cost,
           isStreaming: false,
         })
+        setConversationStatus(convId, 'finished')
         appendTraceEntry({
           source: 'chat',
           level: 'success',
@@ -459,6 +496,7 @@ export default function MessageInput({ conversationId }: Props) {
           error: err.message,
           cost: 0,
         })
+        setConversationStatus(convId, 'error')
         setError(err.message)
         setSending(false)
       },
@@ -468,6 +506,7 @@ export default function MessageInput({ conversationId }: Props) {
   const handleStop = () => {
     abortRef.current?.abort()
     setSending(false)
+    if (conversationId) setConversationStatus(conversationId, 'idle')
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -566,8 +605,70 @@ export default function MessageInput({ conversationId }: Props) {
         </div>
       )}
 
+      {/* Task Mode panel (Item 19) */}
+      {taskModeOpen && (
+        <div className="rounded-lg border border-violet-700/40 bg-violet-950/20 px-3 py-2 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-violet-300 uppercase tracking-wider">Task Mode</span>
+            <button
+              onClick={() => setTaskModeOpen(false)}
+              className="text-[11px] text-slate-500 hover:text-slate-300"
+            >
+              ✕ Close
+            </button>
+          </div>
+          <input
+            type="text"
+            placeholder="Objective (required for task packet)"
+            value={taskPacket.objective ?? ''}
+            onChange={(e) => setTaskPacket((p) => ({ ...p, objective: e.target.value }))}
+            className="w-full bg-slate-800/60 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-violet-500"
+          />
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Scope (optional)"
+              value={taskPacket.scope ?? ''}
+              onChange={(e) => setTaskPacket((p) => ({ ...p, scope: e.target.value }))}
+              className="flex-1 bg-slate-800/60 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-violet-500"
+            />
+            <select
+              value={taskPacket.expectedOutputFormat ?? 'prose'}
+              onChange={(e) => setTaskPacket((p) => ({ ...p, expectedOutputFormat: e.target.value as TaskPacket['expectedOutputFormat'] }))}
+              className="bg-slate-800/60 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-violet-500"
+            >
+              <option value="prose">Prose</option>
+              <option value="json">JSON</option>
+              <option value="code">Code</option>
+              <option value="list">List</option>
+              <option value="table">Table</option>
+            </select>
+            <select
+              value={taskPacket.retryPolicy ?? 'none'}
+              onChange={(e) => setTaskPacket((p) => ({ ...p, retryPolicy: e.target.value as TaskPacket['retryPolicy'] }))}
+              className="bg-slate-800/60 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-violet-500"
+            >
+              <option value="none">No retry</option>
+              <option value="once">Retry ×1</option>
+              <option value="twice">Retry ×2</option>
+            </select>
+          </div>
+        </div>
+      )}
+
       {/* Input box */}
-      <div className={`flex items-end gap-3 bg-surface border rounded-xl p-3 transition-colors ${sending ? 'border-accent/50' : 'border-border'}`}>
+      <div className={`flex items-end gap-3 bg-surface border rounded-xl p-3 transition-colors ${sending ? 'border-accent/50' : taskModeOpen ? 'border-violet-700/60' : 'border-border'}`}>
+        <button
+          onClick={() => setTaskModeOpen((v) => !v)}
+          title="Toggle Task Mode — attach a structured task packet to this message"
+          className={`flex-shrink-0 w-7 h-7 flex items-center justify-center rounded text-xs transition-colors ${
+            taskModeOpen
+              ? 'bg-violet-700/40 text-violet-300 border border-violet-600/60'
+              : 'bg-transparent text-slate-600 hover:text-slate-400 border border-transparent'
+          }`}
+        >
+          ⊞
+        </button>
         <textarea
           ref={textareaRef}
           value={text}

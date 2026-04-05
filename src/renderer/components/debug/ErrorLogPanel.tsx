@@ -7,6 +7,10 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 
+type LogCategory =
+  | 'prompt_delivery' | 'trust_gate' | 'compile' | 'plugin_startup'
+  | 'mcp_startup' | 'mcp_handshake' | 'tool_runtime' | 'infra'
+
 interface LogEntry {
   id: string
   level: 'info' | 'warn' | 'error'
@@ -14,6 +18,29 @@ interface LogEntry {
   message: string
   detail?: string
   timestamp: number
+  category?: LogCategory
+}
+
+const CATEGORY_LABELS: Record<LogCategory, string> = {
+  prompt_delivery: 'Prompt',
+  trust_gate:      'Trust',
+  compile:         'Compile',
+  plugin_startup:  'Plugin',
+  mcp_startup:     'MCP Boot',
+  mcp_handshake:   'MCP Hand.',
+  tool_runtime:    'Tool',
+  infra:           'Infra',
+}
+
+const CATEGORY_RECOVERY: Record<LogCategory, string> = {
+  prompt_delivery: 'Check the active model tier and API key. Try resending or switching to a local model.',
+  trust_gate:      'Review budget limits in Settings or confirm the API key has adequate permissions.',
+  compile:         'A schema or build error. Check recent plugin/manifest changes or restart ARCOS.',
+  plugin_startup:  'Check the plugin JSON for invalid fields. Reinstall from the Tools panel.',
+  mcp_startup:     'The MCP server process failed to start. Check its config and logs, then retry from Services.',
+  mcp_handshake:   'The MCP server started but tool negotiation failed. Verify server version compatibility.',
+  tool_runtime:    'A tool execution failed mid-call. Check argument types and service availability.',
+  infra:           'Disk, network, or OS error. Check free space, file permissions, or restart the process.',
 }
 
 interface Props {
@@ -42,6 +69,7 @@ const SOURCE_BADGE: Record<LogEntry['source'], string> = {
 export default function ErrorLogPanel({ open, onClose, onOpenBugReport }: Props) {
   const [entries, setEntries] = useState<LogEntry[]>([])
   const [filter, setFilter] = useState<'all' | 'error' | 'warn' | 'info'>('all')
+  const [categoryFilter, setCategoryFilter] = useState<LogCategory | 'all'>('all')
   const [search, setSearch] = useState('')
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [copying, setCopying] = useState(false)
@@ -98,15 +126,22 @@ export default function ErrorLogPanel({ open, onClose, onOpenBugReport }: Props)
 
   const filtered = entries.filter((e) => {
     if (filter !== 'all' && e.level !== filter) return false
+    if (categoryFilter !== 'all' && e.category !== categoryFilter) return false
     if (search) {
       const q = search.toLowerCase()
       return (
         e.message.toLowerCase().includes(q) ||
-        (e.detail?.toLowerCase().includes(q) ?? false)
+        (e.detail?.toLowerCase().includes(q) ?? false) ||
+        (e.category?.toLowerCase().includes(q) ?? false)
       )
     }
     return true
   })
+
+  // Recovery hints: unique categories present in the current filtered error/warn entries
+  const activeErrorCategories = Array.from(
+    new Set(filtered.filter((e) => e.level !== 'info' && e.category).map((e) => e.category!))
+  )
 
   const counts = {
     error: entries.filter((e) => e.level === 'error').length,
@@ -182,7 +217,7 @@ export default function ErrorLogPanel({ open, onClose, onOpenBugReport }: Props)
           </div>
         </div>
 
-        {/* Filter bar */}
+        {/* Filter bar — level */}
         <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-700/40 shrink-0">
           {(['all', 'error', 'warn', 'info'] as const).map((lvl) => (
             <button
@@ -206,6 +241,38 @@ export default function ErrorLogPanel({ open, onClose, onOpenBugReport }: Props)
           />
         </div>
 
+        {/* Filter bar — category */}
+        <div className="flex items-center gap-1.5 px-4 py-1.5 border-b border-slate-700/30 shrink-0 flex-wrap">
+          <span className="text-[10px] text-slate-500 mr-1 shrink-0">Category:</span>
+          {(['all', 'prompt_delivery', 'trust_gate', 'compile', 'plugin_startup', 'mcp_startup', 'mcp_handshake', 'tool_runtime', 'infra'] as const).map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setCategoryFilter(cat)}
+              className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
+                categoryFilter === cat
+                  ? 'bg-violet-700 border-violet-500 text-white'
+                  : 'bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              {cat === 'all' ? 'All' : CATEGORY_LABELS[cat]}
+            </button>
+          ))}
+        </div>
+
+        {/* Recovery hints */}
+        {activeErrorCategories.length > 0 && (
+          <div className="px-4 py-2 border-b border-slate-700/30 shrink-0 space-y-1">
+            {activeErrorCategories.map((cat) => (
+              <div key={cat} className="flex items-start gap-2 text-[11px]">
+                <span className="shrink-0 px-1.5 py-0 rounded bg-amber-900/40 border border-amber-700/40 text-amber-400 font-medium">
+                  {CATEGORY_LABELS[cat]}
+                </span>
+                <span className="text-slate-400">{CATEGORY_RECOVERY[cat]}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Log entries */}
         <div className="flex-1 overflow-y-auto font-mono text-xs px-2 py-2 space-y-1">
           {filtered.length === 0 ? (
@@ -228,6 +295,11 @@ export default function ErrorLogPanel({ open, onClose, onOpenBugReport }: Props)
                   <span className={`px-1.5 py-0 rounded text-[10px] font-medium shrink-0 ${SOURCE_BADGE[entry.source]}`}>
                     {entry.source}
                   </span>
+                  {entry.category && (
+                    <span className="px-1.5 py-0 rounded text-[10px] font-medium shrink-0 bg-slate-700/60 text-slate-400 border border-slate-600/40">
+                      {CATEGORY_LABELS[entry.category]}
+                    </span>
+                  )}
                   <span className="text-slate-200 break-all">{entry.message}</span>
                 </div>
                 {entry.detail && (

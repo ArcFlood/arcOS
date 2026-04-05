@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { Conversation, Message } from './types'
+import { Conversation, ConversationStatus, Message } from './types'
 
 function generateId(): string {
   return crypto.randomUUID()
@@ -43,6 +43,7 @@ function dbToConv(row: Record<string, unknown>): Omit<Conversation, 'messages'> 
     updatedAt: row.updated_at as number,
     tags: (() => { try { return JSON.parse((row.tags as string) || '[]') as string[] } catch { return [] } })(),
     totalCost: row.total_cost as number,
+    status: 'idle',  // always reset to idle on load; in-flight state doesn't persist
   }
 }
 
@@ -82,6 +83,7 @@ interface ConversationStore {
   addMessage: (conversationId: string, msg: Omit<Message, 'id' | 'conversationId'>) => Message
   updateMessage: (conversationId: string, messageId: string, updates: Partial<Message>) => void
   updateConversationTitle: (id: string, title: string) => void
+  setConversationStatus: (id: string, status: ConversationStatus) => void
   addTag: (id: string, tag: string) => void
   removeTag: (id: string, tag: string) => void
   setSearchQuery: (q: string) => void
@@ -162,6 +164,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       tags: [],
       totalCost: 0,
       messages: [],
+      status: 'idle',
     }
     set((s) => ({
       conversations: [conversation, ...s.conversations],
@@ -260,6 +263,14 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     }))
     const conv = get().conversations.find((c) => c.id === id)
     if (conv) window.electron.db.conversations.save(convToDb(conv)).catch(console.error)
+  },
+
+  setConversationStatus: (id, status) => {
+    set((s) => ({
+      conversations: s.conversations.map((c) =>
+        c.id === id ? { ...c, status } : c
+      ),
+    }))
   },
 
   setSearchQuery: (searchQuery) => set({ searchQuery }),
