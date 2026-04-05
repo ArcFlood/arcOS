@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('electron', {
   loadArcPrompts: () => ipcRenderer.invoke('load-arc-prompts'),
   openClawContext: () => ipcRenderer.invoke('openclaw-context'),
   openClawAnalyze: (params: object) => ipcRenderer.invoke('openclaw:analyze', params),
+  chainCaptureSave: (params: object) => ipcRenderer.invoke('chain:capture-save', params),
 
   // Ollama
   ollamaListModels: () => ipcRenderer.invoke('ollama-list-models'),

@@ -7,8 +7,10 @@ type Verbosity = 'minimal' | 'standard' | 'detailed' | 'debug'
 
 export default function ExecutionTracePanel() {
   const entries = useTraceStore((s) => s.entries)
+  const executionSummary = useTraceStore((s) => s.executionSummary)
   const showPanel = useWorkspaceStore((s) => s.showPanel)
   const [verbosity, setVerbosity] = useState<Verbosity>('standard')
+  const summary = executionSummary()
 
   const filteredEntries = entries.filter((entry) => {
     if (verbosity === 'debug') return true
@@ -18,6 +20,7 @@ export default function ExecutionTracePanel() {
   })
 
   const panelTitle = (panelId: string) => WORKSPACE_PANELS.find((panel) => panel.id === panelId)?.title ?? panelId
+  const formatChainPath = (value: string) => value.replace(/-/g, ' ')
 
   return (
     <div className="space-y-4 p-4">
@@ -37,6 +40,15 @@ export default function ExecutionTracePanel() {
           <option value="detailed">Detailed</option>
           <option value="debug">Debug</option>
         </select>
+      </div>
+
+      <div className="rounded-xl border border-border bg-[#12161b] px-3 py-3">
+        <p className="arcos-kicker mb-2">Resolved Path</p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <ExecutionStat label="Chain Path" value={formatChainPath(summary.chainPath)} />
+          <ExecutionStat label="Lifecycle" value={summary.lifecycleState} />
+          <ExecutionStat label="Current Phase" value={summary.currentPhase} />
+        </div>
       </div>
 
       <div className="space-y-3">
@@ -71,6 +83,9 @@ export default function ExecutionTracePanel() {
                 {entry.failureType && (
                   <p className="mt-2 text-[11px] uppercase tracking-wider text-text-muted">failure: {entry.failureType}</p>
                 )}
+                {entry.chainPath && (
+                  <p className="mt-2 text-[11px] uppercase tracking-wider text-text-muted">path: {formatChainPath(entry.chainPath)}</p>
+                )}
                 {entry.entityLabel && (
                   <p className="mt-2 text-[11px] uppercase tracking-wider text-text-muted">{entry.entityLabel}</p>
                 )}
@@ -93,6 +108,15 @@ export default function ExecutionTracePanel() {
           ))
         )}
       </div>
+    </div>
+  )
+}
+
+function ExecutionStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-[#0f1318] px-3 py-2">
+      <p className="text-[10px] uppercase tracking-wider text-text-muted">{label}</p>
+      <p className="mt-1 text-xs font-medium text-text">{value}</p>
     </div>
   )
 }

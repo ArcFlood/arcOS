@@ -1,7 +1,8 @@
 import { loadArcPrompt } from './arcLoader'
+import { FabricPatternResolution, listFabricPatterns, resolveFabricPatternSelection, runFabricPatternForChain } from './fabricService'
 import { MemoryCitation, sourceLabel } from './memoryService'
 import { ModelTier, Plugin } from '../stores/types'
-import { TraceEntry, useTraceStore } from '../stores/traceStore'
+import { ChainPath, TraceEntry, useTraceStore } from '../stores/traceStore'
 
 export interface CanonicalChainOptions {
   prompt: string
@@ -9,6 +10,7 @@ export interface CanonicalChainOptions {
   conversationHistory: Array<{ role: string; content: string }>
   memoryCitations: MemoryCitation[]
   plugin: Plugin | null
+  preferredLocalModel: string
   services: {
     openClawRunning: boolean
     fabricRunning: boolean
@@ -20,9 +22,42 @@ export interface CanonicalChainResult {
   rebuiltSystemPrompt: string
   routingPrompt: string
   openClawTierOverride?: ModelTier
+  diagnostics: {
+    chainPath: ChainPath
+    openClawAnalysis?: unknown
+    openClawRaw?: string
+    openClawError?: string | null
+    openClawContextFiles: string[]
+    fabric: FabricPatternResolution & {
+      executed: boolean
+      mode?: 'server' | 'cli'
+      stage?: string
+      output?: string
+      error?: string | null
+    }
+  }
 }
 
 const appendTrace = (entry: Omit<TraceEntry, 'id' | 'timestamp'>) => useTraceStore.getState().appendEntry(entry)
+
+function buildResponseComposerInstruction(fabricExecuted: boolean): string {
+  if (fabricExecuted) {
+    return [
+      'You are in the ARCOS Response Composer stage.',
+      'Do not perform a fresh full analysis if Fabric output is already present.',
+      'Treat the Fabric output as the authoritative intermediate result for this request.',
+      'Preserve the substance, priorities, and concrete findings from Fabric.',
+      'Your job is to translate that material into the required PAI response structure without weakening it.',
+      'If you add anything beyond Fabric, it must be a minimal clarification and must not contradict or dilute Fabric findings.',
+    ].join('\n')
+  }
+
+  return [
+    'You are in the ARCOS Response Composer stage.',
+    'Assemble the final answer from the available PAI core context, OpenClaw analysis, memory context, and user request.',
+    'Produce the answer in the required PAI response structure.',
+  ].join('\n')
+}
 
 function buildMemorySection(memoryCitations: MemoryCitation[]): string {
   if (memoryCitations.length === 0) return 'No ARC-Memory citations staged for this request.'
@@ -112,8 +147,15 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
     : openClawFiles.map((file) => `# ${file.name}\n${file.content}`).join('\n\n')
 
   let openClawAnalysisBlock = 'No live OpenClaw gateway analysis was available.'
+  let openClawRaw = ''
+  let openClawAnalysis: Record<string, unknown> | undefined
+  let openClawError: string | null = null
   let openClawTierOverride: ModelTier | undefined
   let fabricPatternSuggestion: string | null = null
+  let fabricIntentSuggestion: string | null = null
+  let fabricOutputBlock = 'No Fabric transformation was applied.'
+  let chainPath: ChainPath = 'direct-pass-through'
+  const installedFabricPatterns = opts.services.fabricRunning ? await listFabricPatterns() : []
 
   if (opts.services.openClawRunning) {
     const analysisResult = await window.electron.openClawAnalyze({
@@ -125,9 +167,13 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
     })
 
     if (analysisResult.success && analysisResult.analysis) {
+      chainPath = 'openclaw-only'
       const analysis = analysisResult.analysis
+      openClawRaw = analysisResult.raw ?? ''
+      openClawAnalysis = analysis as Record<string, unknown>
       openClawTierOverride = mapOpenClawTier(analysis.recommended_tier)
       fabricPatternSuggestion = analysis.should_use_fabric ? (analysis.fabric_pattern ?? null) : null
+      fabricIntentSuggestion = analysis.should_use_fabric ? (analysis.fabric_intent ?? null) : null
       openClawAnalysisBlock = [
         `Summary: ${analysis.summary ?? 'n/a'}`,
         `Intent: ${analysis.intent ?? 'n/a'}`,
@@ -135,6 +181,7 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
         `Recommended tier: ${analysis.recommended_tier ?? 'none'}`,
         `Recommended model: ${analysis.recommended_model ?? 'none'}`,
         `Fabric: ${analysis.should_use_fabric ? `yes${analysis.fabric_pattern ? ` (${analysis.fabric_pattern})` : ''}` : 'no'}`,
+        `Fabric intent: ${analysis.fabric_intent ?? 'none'}`,
         `Confidence: ${analysis.confidence ?? 'n/a'}`,
         `Reasoning: ${analysis.reasoning ?? 'n/a'}`,
         analysis.notes && analysis.notes.length > 0 ? `Notes: ${analysis.notes.join(' | ')}` : '',
@@ -148,6 +195,7 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
           analysis.summary ?? 'No summary returned.',
           openClawTierOverride ? `Tier recommendation: ${openClawTierOverride}.` : '',
           fabricPatternSuggestion ? `Fabric suggestion: ${fabricPatternSuggestion}.` : '',
+          !fabricPatternSuggestion && fabricIntentSuggestion ? `Fabric intent: ${fabricIntentSuggestion}.` : '',
         ].filter(Boolean).join(' '),
         conversationId: opts.conversationId,
         stage: 'OpenClaw',
@@ -155,6 +203,8 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
         relatedPanels: ['services', 'runtime', 'transparency', 'execution'],
       })
     } else {
+      chainPath = 'degraded-fallback'
+      openClawError = analysisResult.error ?? 'OpenClaw did not return a usable orchestration result.'
       appendTrace({
         source: 'service',
         level: 'warn',
@@ -166,8 +216,12 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
         relatedPanels: ['services', 'runtime', 'transparency'],
         degraded: true,
         failureType: 'service_health',
+        chainPath: 'degraded-fallback',
       })
     }
+  } else {
+    chainPath = 'degraded-fallback'
+    openClawError = 'OpenClaw service is not running.'
   }
 
   appendTrace({
@@ -184,35 +238,174 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
     degraded: !openClawContext.success,
   })
 
+  const fabricResolution = resolveFabricPatternSelection(
+    fabricPatternSuggestion,
+    fabricIntentSuggestion,
+    installedFabricPatterns
+  )
+  const fabricDiagnostics: CanonicalChainResult['diagnostics']['fabric'] = {
+    ...fabricResolution,
+    executed: false,
+    error: null,
+  }
+
   appendTrace({
     source: 'fabric',
-    level: opts.services.fabricRunning ? (fabricPatternSuggestion ? 'success' : 'info') : 'warn',
+    level: opts.services.fabricRunning
+      ? (fabricResolution.strategy === 'unresolved' ? 'warn' : fabricResolution.resolvedPattern ? 'success' : 'info')
+      : 'warn',
     title: opts.services.fabricRunning
-      ? (fabricPatternSuggestion ? 'Fabric skill suggested' : 'Fabric stage evaluated')
+      ? (fabricResolution.resolvedPattern ? 'Fabric skill resolved' : fabricPatternSuggestion || fabricIntentSuggestion ? 'Fabric skill unresolved' : 'Fabric stage evaluated')
       : 'Fabric stage degraded',
     detail: opts.services.fabricRunning
-      ? (fabricPatternSuggestion
-          ? `OpenClaw suggested the Fabric pattern "${fabricPatternSuggestion}" for this request. ARCOS is recording the recommendation, but automatic Fabric execution is not wired into chat yet.`
+      ? (fabricResolution.resolvedPattern
+          ? `OpenClaw suggested ${fabricPatternSuggestion ? `"${fabricPatternSuggestion}"` : `"${fabricIntentSuggestion}"`} and ARCOS resolved it to installed Fabric pattern "${fabricResolution.resolvedPattern}" via ${fabricResolution.strategy} matching.`
+          : fabricResolution.strategy === 'unresolved'
+          ? `${fabricResolution.reason} Requested pattern: ${fabricPatternSuggestion ?? 'none'}. Requested intent: ${fabricIntentSuggestion ?? 'none'}.`
           : 'Fabric is participating in the chain as a shaping checkpoint for this request. No Fabric pattern was selected.')
       : 'Fabric is offline. The chain continues with a direct pass-through at the Fabric stage.',
     conversationId: opts.conversationId,
     stage: 'Fabric',
     executionState: 'tool_running',
     relatedPanels: ['tools', 'services', 'transparency'],
-    degraded: !opts.services.fabricRunning,
+    degraded: !opts.services.fabricRunning || fabricResolution.strategy === 'unresolved',
+  })
+
+  if (opts.services.fabricRunning && (fabricPatternSuggestion || fabricIntentSuggestion) && !fabricResolution.resolvedPattern) {
+    chainPath = 'degraded-fallback'
+    fabricOutputBlock = [
+      'Fabric selection could not be resolved to an installed pattern.',
+      `Requested pattern: ${fabricResolution.requestedPattern ?? 'none'}`,
+      `Requested intent: ${fabricResolution.requestedIntent ?? 'none'}`,
+      `Reason: ${fabricResolution.reason}`,
+    ].join('\n')
+
+    appendTrace({
+      source: 'fabric',
+      level: 'warn',
+      title: 'Fabric selection could not be resolved',
+      detail: fabricResolution.reason,
+      conversationId: opts.conversationId,
+      stage: 'Fabric',
+      executionState: 'degraded',
+      relatedPanels: ['tools', 'execution', 'transparency'],
+      entityLabel: fabricPatternSuggestion ?? fabricIntentSuggestion ?? 'fabric',
+      failureType: 'tool_runtime',
+      chainPath,
+      degraded: true,
+    })
+  }
+
+  if (opts.services.fabricRunning && fabricResolution.resolvedPattern) {
+    chainPath = 'openclaw-plus-fabric'
+    appendTrace({
+      source: 'fabric',
+      level: 'info',
+      title: `Running Fabric pattern ${fabricResolution.resolvedPattern}`,
+      detail: `Executing the Fabric stage during normal chat after resolving the OpenClaw selection via ${fabricResolution.strategy} matching.`,
+      conversationId: opts.conversationId,
+      stage: 'Fabric',
+      executionState: 'tool_running',
+      relatedPanels: ['tools', 'execution', 'transparency', 'prompt_inspector'],
+      entityLabel: fabricResolution.resolvedPattern,
+      chainPath,
+    })
+
+    try {
+      const fabricInput = [
+        opts.prompt,
+        '',
+        '## Recent Conversation Context',
+        conversationSection,
+        '',
+        '## Memory Context',
+        memorySection,
+      ].join('\n')
+
+      const fabricResult = await runFabricPatternForChain(
+        fabricResolution.resolvedPattern,
+        fabricInput,
+        undefined,
+        opts.preferredLocalModel
+      )
+      fabricOutputBlock = [
+        `Requested pattern: ${fabricResolution.requestedPattern ?? 'none'}`,
+        `Requested intent: ${fabricResolution.requestedIntent ?? 'none'}`,
+        `Resolved pattern: ${fabricResolution.resolvedPattern}`,
+        `Resolution strategy: ${fabricResolution.strategy}`,
+        `Mode: ${fabricResult.mode ?? 'unknown'}`,
+        `Stage: ${fabricResult.stage ?? 'Fabric'}`,
+        '',
+        fabricResult.output,
+      ].join('\n')
+
+      appendTrace({
+        source: 'fabric',
+        level: 'success',
+        title: `Fabric pattern ${fabricResolution.resolvedPattern} completed`,
+        detail: `${fabricResult.output.length} characters returned via ${fabricResult.mode ?? 'unknown'} execution.`,
+        conversationId: opts.conversationId,
+        stage: fabricResult.stage ?? 'Fabric',
+        executionState: 'completed',
+        relatedPanels: ['tools', 'execution', 'prompt_inspector', 'transparency'],
+        entityLabel: fabricResolution.resolvedPattern,
+        chainPath,
+      })
+      fabricDiagnostics.executed = true
+      fabricDiagnostics.mode = fabricResult.mode
+      fabricDiagnostics.stage = fabricResult.stage
+      fabricDiagnostics.output = fabricResult.output
+    } catch (error) {
+      chainPath = 'degraded-fallback'
+      appendTrace({
+        source: 'fabric',
+        level: 'error',
+        title: `Fabric pattern ${fabricResolution.resolvedPattern} failed`,
+        detail: String(error),
+        conversationId: opts.conversationId,
+        stage: 'Fabric',
+        executionState: 'failed',
+        relatedPanels: ['tools', 'execution', 'services', 'transparency'],
+        entityLabel: fabricResolution.resolvedPattern,
+        failureType: 'tool_runtime',
+        chainPath,
+      })
+      fabricOutputBlock = `Pattern ${fabricResolution.resolvedPattern} failed: ${String(error)}`
+      fabricDiagnostics.error = String(error)
+    }
+  }
+
+  appendTrace({
+    source: 'system',
+    level: chainPath === 'degraded-fallback' ? 'warn' : 'info',
+    title: 'Execution path resolved',
+    detail:
+      chainPath === 'openclaw-plus-fabric'
+        ? 'Request path: PAI core context -> OpenClaw runtime -> Fabric execution -> Response Composer -> model.'
+        : chainPath === 'openclaw-only'
+        ? 'Request path: PAI core context -> OpenClaw runtime -> Response Composer -> model.'
+        : chainPath === 'degraded-fallback'
+        ? 'Request path degraded: ARCOS continued without the full intended OpenClaw/Fabric runtime path.'
+        : 'Request path: PAI core context -> Response Composer -> model.',
+    conversationId: opts.conversationId,
+    stage: 'execution path',
+    executionState: chainPath === 'degraded-fallback' ? 'degraded' : 'routing',
+    relatedPanels: ['transparency', 'execution', 'routing', 'prompt_inspector'],
+    chainPath,
   })
 
   appendTrace({
     source: 'chat',
     level: 'info',
-    title: 'Rebuilding final prompt',
-    detail: 'ARCOS is merging PAI core context, OpenClaw context, memory citations, and the user request into a final model-ready prompt.',
+    title: 'Composing final response package',
+    detail: 'ARCOS is assembling the final response package from PAI core context, OpenClaw context, memory citations, Fabric output, and the user request.',
     conversationId: opts.conversationId,
-    stage: 'prompt rebuilder',
+    stage: 'Response Composer',
     executionState: 'model_dispatch',
     relatedPanels: ['prompt_inspector', 'transparency', 'execution'],
   })
 
+  const responseComposerInstruction = buildResponseComposerInstruction(fabricDiagnostics.executed)
   const rebuiltSystemPrompt = [
     arcPrompt,
     '',
@@ -233,6 +426,12 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
     '### OpenClaw Gateway Analysis',
     openClawAnalysisBlock,
     '',
+    '### Fabric Output',
+    fabricOutputBlock,
+    '',
+    '## Response Composer Instruction',
+    responseComposerInstruction,
+    '',
     '## Execution Requirement',
     'You are responding through the ARCOS canonical execution chain. Respect the PAI context above when producing the response.',
     opts.plugin ? `## Active Plugin Override\n${opts.plugin.systemPrompt}` : '',
@@ -243,17 +442,17 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
   const rebuiltUserPrompt = [
     opts.prompt,
     '',
-    '## Request Handling Note',
-    'The response must remain consistent with the PAI core context, OpenClaw workspace context, and any staged memory supplied above.',
+    '## Response Format Requirement',
+    'Return the final answer using the required PAI structure and preserve the strongest validated upstream findings.',
   ].join('\n')
 
   appendTrace({
     source: 'chat',
     level: 'success',
-    title: 'Prompt rebuilt',
+    title: 'Response package composed',
     detail: `Final system prompt size: ${rebuiltSystemPrompt.length} chars. Final user payload size: ${rebuiltUserPrompt.length} chars.`,
     conversationId: opts.conversationId,
-    stage: 'prompt rebuilder',
+    stage: 'Response Composer',
     executionState: 'model_dispatch',
     relatedPanels: ['prompt_inspector', 'transparency', 'execution'],
   })
@@ -267,7 +466,20 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
       memorySection,
       '',
       openClawAnalysisBlock,
+      '',
+      fabricOutputBlock,
     ].join('\n'),
     openClawTierOverride,
+    diagnostics: {
+      chainPath,
+      openClawAnalysis,
+      openClawRaw,
+      openClawError,
+      openClawContextFiles: openClawFiles.map((file) => file.name),
+      fabric: {
+        ...fabricDiagnostics,
+        output: fabricDiagnostics.output ?? fabricOutputBlock,
+      },
+    },
   }
 }

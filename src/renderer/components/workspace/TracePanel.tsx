@@ -28,6 +28,7 @@ export default function TracePanel() {
   })
 
   const panelTitle = (panelId: string) => WORKSPACE_PANELS.find((panel) => panel.id === panelId)?.title ?? panelId
+  const formatChainPath = (value: string) => value.replace(/-/g, ' ')
 
   return (
     <div className="space-y-4 p-4">
@@ -65,6 +66,7 @@ export default function TracePanel() {
             <SummaryStat label="Lifecycle" value={summary.lifecycleState} />
             <SummaryStat label="Last Good Checkpoint" value={summary.lastSuccessfulCheckpoint} />
             <SummaryStat label="Mode" value={summary.degradedMode ? 'Degraded' : 'Normal'} />
+            <SummaryStat label="Chain Path" value={formatChainPath(summary.chainPath)} />
           </div>
           {(summary.activeBlocker || summary.recommendedRecoveryAction) && (
             <div className="mt-3 rounded-lg border border-amber-700/40 bg-amber-950/10 px-3 py-2">
@@ -104,6 +106,9 @@ export default function TracePanel() {
               )}
               {entry.failureType && (
                 <p className="mt-2 text-[11px] uppercase tracking-wider opacity-70">failure: {entry.failureType}</p>
+              )}
+              {entry.chainPath && (
+                <p className="mt-2 text-[11px] uppercase tracking-wider opacity-70">path: {formatChainPath(entry.chainPath)}</p>
               )}
               {entry.entityLabel && (
                 <p className="mt-2 text-[11px] uppercase tracking-wider opacity-70">{entry.entityLabel}</p>

@@ -4,11 +4,27 @@
  * Fabric server runs at http://localhost:8080 (fabric --serve).
  */
 
+import { useSettingsStore } from '../stores/settingsStore'
+
 export interface FabricStreamCallbacks {
   onMeta?: (meta: { mode: 'server' | 'cli'; stage?: string }) => void
   onToken: (token: string) => void
   onComplete: (fullText: string) => void
   onError: (err: Error) => void
+}
+
+export interface FabricChainResult {
+  output: string
+  mode?: 'server' | 'cli'
+  stage?: string
+}
+
+export interface FabricPatternResolution {
+  requestedPattern: string | null
+  requestedIntent: string | null
+  resolvedPattern: string | null
+  strategy: 'exact' | 'alias' | 'keyword' | 'none' | 'unresolved'
+  reason: string
 }
 
 // ── Pattern list ──────────────────────────────────────────────────
@@ -23,6 +39,118 @@ export async function listFabricPatterns(): Promise<string[]> {
   }
 }
 
+function normalizePatternId(value: string | null | undefined): string {
+  return (value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+const FABRIC_INTENT_ALIASES: Record<string, string[]> = {
+  code_review: ['review_code', 'explain_code', 'coding_master'],
+  review_code: ['review_code', 'explain_code', 'coding_master'],
+  prompt_rebuilder: ['improve_prompt', 'summarize_prompt', 'create_pattern'],
+  prompt_rebuild: ['improve_prompt', 'summarize_prompt', 'create_pattern'],
+  improve_prompt: ['improve_prompt', 'summarize_prompt'],
+  summarize_prompt: ['summarize_prompt', 'improve_prompt'],
+  summarize: ['summarize', 'create_summary', 'create_micro_summary'],
+  summary: ['summarize', 'create_summary', 'create_micro_summary'],
+  extract_insights: ['extract_insights', 'extract_wisdom', 'extract_ideas'],
+  extract_wisdom: ['extract_wisdom', 'extract_insights', 'extract_ideas'],
+  design_review: ['review_design', 'refine_design_document', 'create_design_document'],
+  prd: ['create_prd', 'create_design_document'],
+  user_story: ['create_user_story', 'agility_story'],
+  git_summary: ['summarize_git_diff', 'summarize_git_changes', 'create_git_diff_commit'],
+}
+
+function resolveByKeyword(candidates: string[], installedPatterns: string[]): string | null {
+  const installedSet = new Set(installedPatterns.map((pattern) => normalizePatternId(pattern)))
+  for (const candidate of candidates) {
+    const normalizedCandidate = normalizePatternId(candidate)
+    const tokens = normalizedCandidate.split('_').filter((token) => token.length > 2)
+    const exactTokenMatch = installedPatterns.find((pattern) => {
+      const normalizedInstalled = normalizePatternId(pattern)
+      return tokens.every((token) => normalizedInstalled.includes(token))
+    })
+    if (exactTokenMatch && installedSet.has(normalizePatternId(exactTokenMatch))) {
+      return exactTokenMatch
+    }
+  }
+  return null
+}
+
+export function resolveFabricPatternSelection(
+  requestedPattern: string | null | undefined,
+  requestedIntent: string | null | undefined,
+  installedPatterns: string[]
+): FabricPatternResolution {
+  const normalizedInstalled = new Map(
+    installedPatterns.map((pattern) => [normalizePatternId(pattern), pattern] as const)
+  )
+  const normalizedRequestedPattern = normalizePatternId(requestedPattern)
+  const normalizedRequestedIntent = normalizePatternId(requestedIntent)
+
+  if (!requestedPattern && !requestedIntent) {
+    return {
+      requestedPattern: requestedPattern ?? null,
+      requestedIntent: requestedIntent ?? null,
+      resolvedPattern: null,
+      strategy: 'none',
+      reason: 'OpenClaw did not request a Fabric pattern for this prompt.',
+    }
+  }
+
+  if (normalizedRequestedPattern && normalizedInstalled.has(normalizedRequestedPattern)) {
+    return {
+      requestedPattern: requestedPattern ?? null,
+      requestedIntent: requestedIntent ?? null,
+      resolvedPattern: normalizedInstalled.get(normalizedRequestedPattern) ?? null,
+      strategy: 'exact',
+      reason: 'OpenClaw selected an installed Fabric pattern directly.',
+    }
+  }
+
+  const aliasCandidates = [
+    ...(normalizedRequestedPattern ? FABRIC_INTENT_ALIASES[normalizedRequestedPattern] ?? [] : []),
+    ...(normalizedRequestedIntent ? FABRIC_INTENT_ALIASES[normalizedRequestedIntent] ?? [] : []),
+  ]
+  for (const alias of aliasCandidates) {
+    const resolved = normalizedInstalled.get(normalizePatternId(alias))
+    if (resolved) {
+      return {
+        requestedPattern: requestedPattern ?? null,
+        requestedIntent: requestedIntent ?? null,
+        resolvedPattern: resolved,
+        strategy: 'alias',
+        reason: `Mapped the OpenClaw Fabric selection to installed pattern "${resolved}".`,
+      }
+    }
+  }
+
+  const keywordResolved = resolveByKeyword(
+    [requestedPattern ?? '', requestedIntent ?? ''],
+    installedPatterns
+  )
+  if (keywordResolved) {
+    return {
+      requestedPattern: requestedPattern ?? null,
+      requestedIntent: requestedIntent ?? null,
+      resolvedPattern: keywordResolved,
+      strategy: 'keyword',
+      reason: `Resolved the OpenClaw Fabric selection to "${keywordResolved}" by keyword overlap against installed patterns.`,
+    }
+  }
+
+  return {
+    requestedPattern: requestedPattern ?? null,
+    requestedIntent: requestedIntent ?? null,
+    resolvedPattern: null,
+    strategy: 'unresolved',
+    reason: 'No installed Fabric pattern matched the OpenClaw selection.',
+  }
+}
+
 // ── Pattern execution ─────────────────────────────────────────────
 
 /**
@@ -34,7 +162,8 @@ export function runFabricPattern(
   pattern: string,
   input: string,
   callbacks: FabricStreamCallbacks,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  model?: string
 ): void {
   const streamId = crypto.randomUUID()
 
@@ -63,9 +192,49 @@ export function runFabricPattern(
   }
 
   // Fire the IPC call (non-blocking)
-  window.electron.fabricRunPattern({ streamId, pattern, input }).catch((e: unknown) => {
+  const selectedModel = model ?? useSettingsStore.getState().settings.ollamaModel
+  window.electron.fabricRunPattern({ streamId, pattern, input, model: selectedModel }).catch((e: unknown) => {
     cleanup()
     callbacks.onError(new Error(String(e)))
+  })
+}
+
+export function runFabricPatternForChain(
+  pattern: string,
+  input: string,
+  signal?: AbortSignal,
+  model?: string
+): Promise<FabricChainResult> {
+  return new Promise((resolve, reject) => {
+    let mode: 'server' | 'cli' | undefined
+    let stage: string | undefined
+    let accumulated = ''
+
+    runFabricPattern(
+      pattern,
+      input,
+      {
+        onMeta: (meta) => {
+          mode = meta.mode
+          stage = meta.stage
+        },
+        onToken: (token) => {
+          accumulated += token
+        },
+        onComplete: (fullText) => {
+          resolve({
+            output: fullText || accumulated,
+            mode,
+            stage,
+          })
+        },
+        onError: (err) => {
+          reject(err)
+        },
+      },
+      signal,
+      model
+    )
   })
 }
 

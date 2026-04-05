@@ -22,6 +22,13 @@ const TIER_COLORS: Record<ModelTier, string> = {
   'arc-opus': 'text-pink-400',
 }
 
+function modelIdForTier(tier: ModelTier, ollamaModel: string): string {
+  if (tier === 'ollama') return ollamaModel
+  if (tier === 'haiku') return 'claude-haiku-4-5-20251001'
+  if (tier === 'arc-opus') return 'claude-opus-4-6'
+  return 'claude-sonnet-4-6'
+}
+
 export default function MessageInput({ conversationId }: Props) {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
@@ -43,6 +50,7 @@ export default function MessageInput({ conversationId }: Props) {
   const activeConversation = useConversationStore((s) => s.activeConversation())
 
   const settings = useSettingsStore((s) => s.settings)
+  const hasApiKey = useSettingsStore((s) => s.hasApiKey)
   const ollamaRunning = useServiceStore((s) => s.getService('ollama')?.running ?? false)
   const memoryRunning = useServiceStore((s) => s.getService('arc-memory')?.running ?? false)
   const openClawRunning = useServiceStore((s) => s.getService('openclaw')?.running ?? false)
@@ -210,6 +218,7 @@ export default function MessageInput({ conversationId }: Props) {
       conversationHistory: history,
       memoryCitations: stagedMemory?.citations ?? [],
       plugin: resolvedPlugin,
+      preferredLocalModel: settings.ollamaModel,
       services: {
         openClawRunning,
         fabricRunning,
@@ -220,12 +229,17 @@ export default function MessageInput({ conversationId }: Props) {
     const { tier, reason } = routeQuery(canonicalChain.routingPrompt, settings.routingMode, settings.routingAggressiveness, ollamaRunning, spendingToday, settings.dailyBudgetLimit)
 
     // Effective tier — plugin overrides router
-    const effectiveTier = resolvedPlugin ? resolvedPlugin.tier : (canonicalChain.openClawTierOverride ?? tier)
-    const effectiveReason = resolvedPlugin
+    const routedTier = resolvedPlugin ? resolvedPlugin.tier : (canonicalChain.openClawTierOverride ?? tier)
+    const routedReason = resolvedPlugin
       ? `Plugin: ${resolvedPlugin.name} → ${TIER_DISPLAY_LABELS[resolvedPlugin.tier]}`
       : canonicalChain.openClawTierOverride
       ? `OpenClaw gateway → ${TIER_DISPLAY_LABELS[canonicalChain.openClawTierOverride]}`
       : reason
+    const shouldFallbackToLocal = routedTier !== 'ollama' && !hasApiKey && ollamaRunning
+    const effectiveTier = shouldFallbackToLocal ? 'ollama' : routedTier
+    const effectiveReason = shouldFallbackToLocal
+      ? `${routedReason} · Claude API key missing, falling back to ${TIER_DISPLAY_LABELS.ollama}`
+      : routedReason
 
     const estimatedInputTokens = estimateTokens(
       [
@@ -252,7 +266,7 @@ export default function MessageInput({ conversationId }: Props) {
       chosenTier: effectiveTier,
       reason: effectiveReason,
       confidence: resolvedPlugin ? 1 : 0.72,
-      wasOverridden: settings.routingMode !== 'auto' || Boolean(resolvedPlugin),
+      wasOverridden: settings.routingMode !== 'auto' || Boolean(resolvedPlugin) || shouldFallbackToLocal,
       conversationId: convId,
       estimatedCost,
     }).catch?.(() => {})
@@ -282,6 +296,54 @@ export default function MessageInput({ conversationId }: Props) {
     // Stream the response
     abortRef.current = new AbortController()
     let accumulatedContent = ''
+    const finalModelId = modelIdForTier(effectiveTier, settings.ollamaModel)
+    const saveChainArtifact = (params: {
+      status: 'completed' | 'failed'
+      response?: string
+      error?: string
+      cost: number
+    }) => {
+      return window.electron.chainCaptureSave?.({
+        savedAt: new Date().toISOString(),
+        conversationId: convId,
+        messageId: assistantMsg.id,
+        userPrompt: resolvedContent,
+        displayedUserPrompt: displayContent,
+        conversationHistoryCount: history.length,
+        memoryCitationCount: stagedMemory?.citations.length ?? 0,
+        activePlugin: resolvedPlugin
+          ? { id: resolvedPlugin.id, name: resolvedPlugin.name, tier: resolvedPlugin.tier }
+          : null,
+        routing: {
+          initialTier: routedTier,
+          initialReason: routedReason,
+          effectiveTier,
+          effectiveReason,
+          fallbackToLocal: shouldFallbackToLocal,
+          estimatedCost,
+        },
+        chain: {
+          path: canonicalChain.diagnostics.chainPath,
+          openClawTierOverride: canonicalChain.openClawTierOverride,
+          openClawAnalysis: canonicalChain.diagnostics.openClawAnalysis,
+          openClawRaw: canonicalChain.diagnostics.openClawRaw,
+          openClawError: canonicalChain.diagnostics.openClawError,
+          openClawContextFiles: canonicalChain.diagnostics.openClawContextFiles,
+          fabric: canonicalChain.diagnostics.fabric,
+          rebuiltSystemPrompt: canonicalChain.rebuiltSystemPrompt,
+          rebuiltUserPrompt: canonicalChain.rebuiltUserPrompt,
+          routingPrompt: canonicalChain.routingPrompt,
+        },
+        dispatch: {
+          modelTier: effectiveTier,
+          modelId: finalModelId,
+          status: params.status,
+          response: params.response,
+          error: params.error,
+          cost: params.cost,
+        },
+      }).catch?.(() => {})
+    }
 
     appendTraceEntry({
       source: 'chat',
@@ -335,6 +397,11 @@ export default function MessageInput({ conversationId }: Props) {
         if (cost > 0) {
           addRecord({ id: crypto.randomUUID(), amount: cost, model: effectiveTier, conversationId: convId })
         }
+        saveChainArtifact({
+          status: 'completed',
+          response: fullText,
+          cost,
+        })
         const conversationForVault = useConversationStore.getState().conversations.find((conversation) => conversation.id === convId)
         if (conversationForVault) {
           saveConversationToVault(conversationForVault)
@@ -382,6 +449,11 @@ export default function MessageInput({ conversationId }: Props) {
           executionState: 'failed',
           relatedPanels: ['chat', 'execution', 'services'],
           entityLabel: effectiveTier,
+        })
+        saveChainArtifact({
+          status: 'failed',
+          error: err.message,
+          cost: 0,
         })
         setError(err.message)
         setSending(false)

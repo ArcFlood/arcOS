@@ -3,6 +3,7 @@ import { useConversationStore } from '../../stores/conversationStore'
 import { useCostStore } from '../../stores/costStore'
 import { useServiceStore } from '../../stores/serviceStore'
 import { useSettingsStore } from '../../stores/settingsStore'
+import { useTraceStore } from '../../stores/traceStore'
 import { routeQuery, TIER_DISPLAY_LABELS } from '../../utils/routing'
 
 type RoutingEntry = {
@@ -21,7 +22,10 @@ export default function RoutingPanel() {
   const activeConversation = useConversationStore((s) => s.activeConversation())
   const spendingToday = useCostStore((s) => s.getSummary().today)
   const ollamaRunning = useServiceStore((s) => s.getService('ollama')?.running ?? false)
+  const executionSummary = useTraceStore((s) => s.executionSummary)
   const [entries, setEntries] = useState<RoutingEntry[]>([])
+  const summary = executionSummary(activeConversation?.id ?? null)
+  const chainPathLabel = summary.chainPath.replace(/-/g, ' ')
 
   useEffect(() => {
     const load = async () => {
@@ -64,6 +68,7 @@ export default function RoutingPanel() {
           <Stat label="Aggressiveness" value={settings.routingAggressiveness} />
           <Stat label="Daily Budget" value={`$${settings.dailyBudgetLimit.toFixed(2)}`} />
           <Stat label="Ollama" value={ollamaRunning ? 'Online' : 'Offline'} />
+          <Stat label="Chain Path" value={chainPathLabel} />
         </div>
       </section>
 

@@ -25,6 +25,12 @@ export type FailureType =
   | 'infra'
   | 'chat'
 
+export type ChainPath =
+  | 'direct-pass-through'
+  | 'openclaw-only'
+  | 'openclaw-plus-fabric'
+  | 'degraded-fallback'
+
 export interface TraceEntry {
   id: string
   timestamp: number
@@ -40,6 +46,7 @@ export interface TraceEntry {
   conversationId?: string
   relatedPanels?: WorkspacePanelId[]
   entityLabel?: string
+  chainPath?: ChainPath
 }
 
 export interface ExecutionSummary {
@@ -50,6 +57,7 @@ export interface ExecutionSummary {
   recommendedRecoveryAction: string | null
   degradedMode: boolean
   latestConversationId: string | null
+  chainPath: ChainPath | 'unknown'
 }
 
 interface TraceStore {
@@ -69,6 +77,7 @@ const DEFAULT_SUMMARY: ExecutionSummary = {
   recommendedRecoveryAction: null,
   degradedMode: false,
   latestConversationId: null,
+  chainPath: 'unknown',
 }
 
 function inferExecutionState(entry: Omit<TraceEntry, 'id' | 'timestamp'>): ExecutionLifecycleState {
@@ -158,6 +167,7 @@ function summarize(entries: TraceEntry[], conversationId?: string | null): Execu
     recommendedRecoveryAction: blocker?.recoveryAction ?? null,
     degradedMode: scoped.some((entry) => entry.degraded || entry.level === 'warn'),
     latestConversationId: latest.conversationId ?? null,
+    chainPath: scoped.find((entry) => entry.chainPath)?.chainPath ?? 'unknown',
   }
 }
 

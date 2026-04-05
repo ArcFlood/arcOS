@@ -32,12 +32,66 @@ declare global {
           recommended_model?: string
           should_use_fabric?: boolean
           fabric_pattern?: string | null
+          fabric_intent?: string | null
           confidence?: number | null
           reasoning?: string
           notes?: string[]
         }
         error?: string
       }>
+      chainCaptureSave: (params: {
+        savedAt: string
+        conversationId: string
+        messageId: string
+        userPrompt: string
+        displayedUserPrompt?: string
+        conversationHistoryCount: number
+        memoryCitationCount: number
+        activePlugin?: {
+          id: string
+          name: string
+          tier: string
+        } | null
+        routing: {
+          initialTier: string
+          initialReason: string
+          effectiveTier: string
+          effectiveReason: string
+          fallbackToLocal: boolean
+          estimatedCost: number
+        }
+        chain: {
+          path: string
+          openClawTierOverride?: string
+          openClawAnalysis?: unknown
+          openClawRaw?: string
+          openClawError?: string | null
+          openClawContextFiles?: string[]
+          fabric?: {
+            requestedPattern: string | null
+            requestedIntent: string | null
+            resolvedPattern: string | null
+            strategy: string
+            reason: string
+            executed: boolean
+            mode?: string
+            stage?: string
+            output?: string
+            error?: string | null
+          }
+          rebuiltSystemPrompt: string
+          rebuiltUserPrompt: string
+          routingPrompt: string
+        }
+        dispatch: {
+          modelTier: string
+          modelId: string
+          status: 'completed' | 'failed'
+          response?: string
+          error?: string
+          cost: number
+        }
+      }) => Promise<{ success: boolean; filePath?: string; error?: string }>
 
       ollamaListModels: () => Promise<{ success: boolean; models: string[] }>
       ollamaListModelDetails: () => Promise<{ success: boolean; models: LocalModelInfo[] }>
@@ -83,6 +137,7 @@ declare global {
         streamId: string
         pattern: string
         input: string
+        model?: string
       }) => Promise<void>
 
       saveConversationMd: (params: {

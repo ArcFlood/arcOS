@@ -798,7 +798,7 @@
       "entry_id": "codex-2026-04-04-031",
       "date": "2026-04-04",
       "agent": "Codex",
-      "task_title": "Complete unified WBS Phase 5 \u2014 Fabric reliability and chain role",
+      "task_title": "Complete unified WBS Phase 5 — Fabric reliability and chain role",
       "summary": "Completed the first remaining phase from the unified ARCOS WBS by tightening Fabric execution reliability and making Fabric-stage participation explicit in the UI. The main-process Fabric runner now tries multiple server route shapes before falling back cleanly to the Fabric CLI, eliminating the lingering 404-style packaged failure path. I also added explicit Fabric-stage metadata to the trace model, surfaced execution mode and stage labels in the Tools panel, and updated trace/execution panels so Fabric now reads as a visible workflow stage in the PAI chain rather than just a generic tool run.",
       "files_touched": [
         "documentation/arcos_wbs.md",
@@ -826,7 +826,7 @@
       "entry_id": "codex-2026-04-04-032",
       "date": "2026-04-04",
       "agent": "Codex",
-      "task_title": "Complete unified WBS Phase 6 \u2014 OpenClaw runtime integration",
+      "task_title": "Complete unified WBS Phase 6 — OpenClaw runtime integration",
       "summary": "Inserted an explicit OpenClaw phase into the unified ARCOS plan and implemented the first real OpenClaw integration slice in the app. ARCOS now treats OpenClaw as a first-class service in the runtime panel, inspects the live ~/.openclaw configuration boundary to determine gateway state and paths, and exposes direct entry points to the OpenClaw control UI, workspace, logs, and config without cloning the OpenClaw codebase into ARCOS.",
       "files_touched": [
         "documentation/arcos_prd.json",
@@ -871,7 +871,7 @@
       "entry_id": "codex-2026-04-04-034",
       "date": "2026-04-04",
       "agent": "Codex",
-      "task_title": "Complete unified WBS Phase 7 \u2014 memory in active prompt composition",
+      "task_title": "Complete unified WBS Phase 7 — memory in active prompt composition",
       "summary": "Implemented `/memory` directly in the ARCOS message composer. The composer now runs ARC-Memory searches from `/memory <query>`, shows inline loading and error states, stages retrieved citations above the input, supports per-citation removal and direct Obsidian opening, and injects the retained memory context into the next outgoing prompt without changing the user-visible message text.",
       "files_touched": [
         "documentation/arcos_wbs.md",
@@ -982,7 +982,7 @@
       "entry_id": "codex-2026-04-04-039",
       "date": "2026-04-04",
       "agent": "Codex",
-      "task_title": "Complete unified WBS Phase 9 \u2014 layout portability and local model management",
+      "task_title": "Complete unified WBS Phase 9 — layout portability and local model management",
       "summary": "Implemented the remaining Phase 9 portability and operations work in ARCOS. Workspace layouts can now be exported and imported through native file dialogs with sanitizer-backed validation, and the model-management surface now includes installed-model metadata such as disk usage, family, parameter size, quantization, active model state, and recommendation notes while preserving in-app pull and delete actions.",
       "files_touched": [
         "documentation/arcos_wbs.md",
@@ -1011,7 +1011,7 @@
       "entry_id": "codex-2026-04-04-040",
       "date": "2026-04-04",
       "agent": "Codex",
-      "task_title": "Complete unified WBS Phase 10 \u2014 observability depth",
+      "task_title": "Complete unified WBS Phase 10 — observability depth",
       "summary": "Completed the observability-depth phase by adding typed execution-state metadata, failure taxonomy, and recovery guidance to ARCOS trace events; strengthening the trace and history panels with machine-grounded summaries, routing confidence, estimated costs, and saved learnings visibility; and adding focused ARC-Memory tests for note normalization, dedupe, result filtering, and Obsidian citation URI generation.",
       "files_touched": [
         "documentation/arcos_wbs.md",
@@ -1046,7 +1046,7 @@
       "entry_id": "codex-2026-04-04-041",
       "date": "2026-04-04",
       "agent": "Codex",
-      "task_title": "Complete unified WBS Phase 11 \u2014 extensibility",
+      "task_title": "Complete unified WBS Phase 11 — extensibility",
       "summary": "Completed the extensibility phase by formalizing plugin manifests around PAI architecture roles, execution boundaries, target stages, and entry surfaces, and by adding a dedicated Runtime panel that exposes structured repo/worktree state, merge readiness, stale-branch signals, and verification scope without relying on raw terminal output.",
       "files_touched": [
         "documentation/arcos_prd.json",
@@ -1239,6 +1239,268 @@
       "notes": [
         "OpenClaw now materially affects the chain by returning structured orchestration output and an optional routing-tier recommendation.",
         "Fabric is still passive in normal chat. The remaining gaps are 18.6 through 18.9: active Fabric selection, explicit path distinctions, and end-to-end validation."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-04-049",
+      "date": "2026-04-04",
+      "agent": "Codex",
+      "task_title": "Activate Fabric execution inside the normal ARCOS chat chain",
+      "summary": "Made Fabric active during normal chat when the OpenClaw stage selects a pattern. ARCOS now executes the suggested Fabric pattern during the canonical chain, records the result in transparency/execution, and injects the Fabric output into prompt rebuilding instead of treating Fabric as pass-through only.",
+      "files_touched": [
+        "arcos/src/renderer/services/fabricService.ts",
+        "arcos/src/renderer/services/canonicalChainService.ts",
+        "documentation/arcos_wbs.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npm run lint",
+        "npm run build:dir"
+      ],
+      "notes": [
+        "This completes the runtime step where OpenClaw can select a Fabric pattern and ARCOS will actually execute it during the chat chain.",
+        "The remaining refinement items are 18.7 through 18.9: stronger selection logic, clearer path distinction in UI, and end-to-end validation with captured stage outputs."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-04-050",
+      "date": "2026-04-04",
+      "agent": "Codex",
+      "task_title": "Expose explicit execution-path labels in ARCOS transparency surfaces",
+      "summary": "Added structured chain-path metadata to the trace model and surfaced it in the Transparency, Execution, and Routing panels. ARCOS now explicitly labels whether a request used direct pass-through, OpenClaw-only, OpenClaw-plus-Fabric, or degraded fallback instead of requiring the user to infer the path from scattered stage messages.",
+      "files_touched": [
+        "arcos/src/renderer/stores/traceStore.ts",
+        "arcos/src/renderer/services/canonicalChainService.ts",
+        "arcos/src/renderer/components/workspace/TracePanel.tsx",
+        "arcos/src/renderer/components/workspace/ExecutionTracePanel.tsx",
+        "arcos/src/renderer/components/workspace/RoutingPanel.tsx",
+        "documentation/arcos_wbs.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npm run lint",
+        "npm run build:dir"
+      ],
+      "notes": [
+        "This closes the UI distinction gap between runtime stages and the overall chain path taken by a request.",
+        "The remaining open item in this refinement block is 18.9: end-to-end validation with captured stage outputs, plus stronger Fabric selection logic under 18.7 if needed."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-04-051",
+      "date": "2026-04-04",
+      "agent": "Codex",
+      "task_title": "Add a reusable ARCOS chain validation harness and identify the live OpenClaw blocker",
+      "summary": "Added a repo-local validation harness intended to exercise the real ARCOS chain through OpenClaw, Fabric, prompt rebuilding, and the local model. The harness revealed that the current OpenClaw gateway integration is not yet operational for write-capable ARCOS calls: direct WebSocket attempts, the installed OpenClaw gateway helper, and CLI gateway calls all close before `chat.send` completes.",
+      "files_touched": [
+        "arcos/scripts/validate-chain.mjs",
+        "arcos/package.json",
+        "documentation/arcos_wbs.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npm run lint"
+      ],
+      "notes": [
+        "The live failure is `gateway closed (1006 abnormal closure (no close frame))` against `ws://127.0.0.1:18789` before `chat.send` completes.",
+        "OpenClaw method-scope metadata confirms `chat.send` and `agent.wait` require `operator.write`, while `chat.history` only requires `operator.read`.",
+        "The current OpenClaw config also contains unsupported timeout keys under `agents.defaults.model` and `agents.defaults.models.ollama/qwen3:8b`; OpenClaw now flags those as invalid.",
+        "Result: 18.9 remains open. The next fix is to establish a valid ARCOS/OpenClaw operator-write auth path and clean up the OpenClaw config schema."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-04-052",
+      "date": "2026-04-04",
+      "agent": "Codex",
+      "task_title": "Complete live ARCOS chain validation and capture the remaining Fabric integration gap",
+      "summary": "Corrected the OpenClaw config schema, fixed the chain-validation harness to use the working local gateway path, and completed end-to-end validation through OpenClaw analysis, prompt rebuilding, and local model dispatch. The captured results show the remaining gap clearly: the chain now degrades at the Fabric stage because OpenClaw is selecting patterns that are not present in the local Fabric install.",
+      "files_touched": [
+        "arcos/scripts/validate-chain.mjs",
+        "arcos/docs/CHAIN_VALIDATION_LATEST.json",
+        "arcos/docs/CHAIN_VALIDATION_LATEST.md",
+        "documentation/arcos_wbs.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm run validate:chain",
+        "npm run lint"
+      ],
+      "notes": [
+        "The validator now reaches the live OpenClaw gateway successfully; the earlier 1006 failures were caused by the sandboxed/origin-invalid harness path rather than a persistent runtime auth failure.",
+        "Two real cases were captured end-to-end. Both degraded at the Fabric stage because the selected patterns `code_review` and `prompt_rebuilder` are not installed locally.",
+        "Result: refinement item 18.9 is complete. The next real integration task is 18.7: improve Fabric selection and map OpenClaw-selected intents to installed Fabric patterns."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-04-053",
+      "date": "2026-04-04",
+      "agent": "Codex",
+      "task_title": "Implement installed-pattern validation and Fabric intent mapping for the ARCOS chain",
+      "summary": "Hardened the Fabric selection stage so ARCOS no longer attempts to execute invented pattern names. OpenClaw now receives the installed Fabric pattern list and is asked to return either an exact installed pattern or a conceptual fabric_intent, and ARCOS resolves the result through exact-match, alias, and keyword-overlap mapping before execution.",
+      "files_touched": [
+        "arcos/src/main/main.ts",
+        "arcos/src/renderer/electron.d.ts",
+        "arcos/src/renderer/services/fabricService.ts",
+        "arcos/src/renderer/services/canonicalChainService.ts",
+        "documentation/arcos_wbs.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npm run lint",
+        "npm run build:dir"
+      ],
+      "notes": [
+        "The chain now distinguishes between exact installed-pattern selection, mapped selection, and unresolved Fabric requests in transparency and execution surfaces.",
+        "This closes refinement item 18.7 at the application level. The next useful live check is to verify real ARCOS prompts now resolve OpenClaw Fabric requests onto installed local patterns such as `review_code` or `improve_prompt` instead of degrading on nonexistent names."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-04-054",
+      "date": "2026-04-04",
+      "agent": "Codex",
+      "task_title": "Fall back to Ollama when Claude is not configured",
+      "summary": "Patched the ARCOS send path so a missing Claude API key no longer hard-blocks messages when Ollama is available. If routing or OpenClaw recommends a cloud tier but Claude credentials are absent, ARCOS now falls back to the local Ollama tier and records that override in the routing reason.",
+      "files_touched": [
+        "arcos/src/renderer/components/MessageInput.tsx",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npm run lint"
+      ],
+      "notes": [
+        "Selecting an Ollama model was never enough to force local execution while routing mode remained auto; the bug was that ARCOS still attempted a Claude tier and surfaced the missing-key error.",
+        "ARCOS now degrades to local execution instead of failing the send when Claude is unconfigured and Ollama is running."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-04-055",
+      "date": "2026-04-04",
+      "agent": "Codex",
+      "task_title": "Persist per-message chain artifacts for durable ARCOS request inspection",
+      "summary": "Added a durable chain-capture path so each ARCOS message can write a structured artifact to disk with the routing decision, OpenClaw analysis, Fabric resolution, rebuilt prompts, and final dispatch result. This closes the gap where transparency data was visible only in-memory and not inspectable after the request finished.",
+      "files_touched": [
+        "arcos/src/main/chainHistory.ts",
+        "arcos/src/main/main.ts",
+        "arcos/src/preload/preload.ts",
+        "arcos/src/renderer/electron.d.ts",
+        "arcos/src/renderer/services/canonicalChainService.ts",
+        "arcos/src/renderer/components/MessageInput.tsx",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npm run lint",
+        "npm run build:dir"
+      ],
+      "notes": [
+        "Artifacts are written under ~/.noah-ai-hub/history/chains/YYYY-MM/ and include both stage diagnostics and the final dispatch outcome for each saved message.",
+        "The next live check is to send one new ARCOS message and then inspect the newly created chain artifact to verify OpenClaw analysis and Fabric resolution for that exact request."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-04-056",
+      "date": "2026-04-04",
+      "agent": "Codex",
+      "task_title": "Unify ARCOS onto the validated OpenClaw gateway path and persist OpenClaw failure reasons",
+      "summary": "Replaced the app-only custom OpenClaw WebSocket client with the same local CLI gateway call path that already worked in validation. ARCOS now uses a single proven OpenClaw transport path, and saved chain artifacts now include the OpenClaw failure reason when analysis is missing.",
+      "files_touched": [
+        "arcos/src/main/main.ts",
+        "arcos/src/main/chainHistory.ts",
+        "arcos/src/renderer/electron.d.ts",
+        "arcos/src/renderer/services/canonicalChainService.ts",
+        "arcos/src/renderer/components/MessageInput.tsx",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npm run lint",
+        "npm run build:dir"
+      ],
+      "notes": [
+        "This removes the mismatch where validation used one OpenClaw path but the app used another.",
+        "The next live check is to resend the same code-review prompt and inspect the new chain artifact for actual OpenClaw analysis and Fabric selection data."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-04-057",
+      "date": "2026-04-04",
+      "agent": "Codex",
+      "task_title": "Fix OpenClaw main-process blocking regression that caused ARCOS beachballing",
+      "summary": "Replaced the synchronous OpenClaw gateway subprocess calls with asynchronous subprocess execution in the Electron main process. This removes the UI-thread blockage that caused ARCOS to beachball when sending prompts through the unified OpenClaw path.",
+      "files_touched": [
+        "arcos/src/main/main.ts",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npm run lint",
+        "npm run build:dir"
+      ],
+      "notes": [
+        "The regression was caused by spawnSync-based OpenClaw gateway calls in the Electron main process, which blocked the app event loop during analysis.",
+        "ARCOS now uses the same unified OpenClaw path without freezing the UI."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-04-058",
+      "date": "2026-04-04",
+      "agent": "Codex",
+      "task_title": "Force ARCOS Fabric execution to use the active local model and longer Ollama timeout",
+      "summary": "Patched the Fabric execution path so ARCOS no longer relies on Fabric's misconfigured local defaults. ARCOS now passes the active selected Ollama model into Fabric runs and sets a longer Ollama HTTP timeout for the Fabric CLI fallback, which removes the immediate bad-default-model failure mode from the ARCOS chain.",
+      "files_touched": [
+        "arcos/src/main/main.ts",
+        "arcos/src/renderer/electron.d.ts",
+        "arcos/src/renderer/services/fabricService.ts",
+        "arcos/src/renderer/services/canonicalChainService.ts",
+        "arcos/src/renderer/components/MessageInput.tsx",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npm run lint",
+        "npm run build:dir"
+      ],
+      "notes": [
+        "The Fabric CLI fallback now invokes fabric with the current ARCOS-selected Ollama model instead of inheriting Fabric's standalone DEFAULT_MODEL setting.",
+        "ARCOS also forces OLLAMA_HTTP_TIMEOUT=300s for the Fabric child process so slow local model startup does not fail at Fabric's shorter default timeout."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-04-059",
+      "date": "2026-04-04",
+      "agent": "Codex",
+      "task_title": "Convert prompt rebuilder behavior into Response Composer preservation mode",
+      "summary": "Changed the final chain stage to behave as a Response Composer rather than a second full reasoning pass. ARCOS now instructs Fabric-backed requests to preserve Fabric as the authoritative intermediate result and reformat it into the PAI response structure instead of re-deriving the answer from scratch.",
+      "files_touched": [
+        "arcos/src/renderer/services/canonicalChainService.ts",
+        "arcos/src/main/plugins/loader.ts",
+        "documentation/ARCOS Architecture Plan.txt",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npm run lint",
+        "npm run build:dir"
+      ],
+      "notes": [
+        "The visible stage label is now Response Composer in trace language and architecture documentation, while stored field names remain stable for compatibility.",
+        "The main behavioral change is that Fabric-backed requests now carry explicit preservation instructions so the final model stage should format strong upstream output instead of diluting it."
       ]
     }
   ]
