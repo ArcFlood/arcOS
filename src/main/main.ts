@@ -390,12 +390,91 @@ function extractOpenClawMessageText(message: unknown): string {
 
 function extractJsonObject(text: string): string | null {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)
-  if (fenced?.[1]) return fenced[1].trim()
+  if (fenced?.[1]) {
+    const fencedContent = fenced[1].trim()
+    if (fencedContent.startsWith('{') && fencedContent.endsWith('}')) return fencedContent
+  }
 
   const firstBrace = text.indexOf('{')
   const lastBrace = text.lastIndexOf('}')
   if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) return null
   return text.slice(firstBrace, lastBrace + 1).trim()
+}
+
+function looksLikeOpenClawAnalysis(value: unknown): value is OpenClawAnalysisPayload {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Record<string, unknown>
+  return typeof candidate.summary === 'string'
+    && typeof candidate.intent === 'string'
+    && typeof candidate.workflow === 'string'
+    && typeof candidate.reasoning === 'string'
+}
+
+function extractBalancedJsonObjects(text: string): string[] {
+  const results: string[] = []
+  let start = -1
+  let depth = 0
+  let inString = false
+  let escaped = false
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]
+
+    if (escaped) {
+      escaped = false
+      continue
+    }
+
+    if (char === '\\') {
+      escaped = true
+      continue
+    }
+
+    if (char === '"') {
+      inString = !inString
+      continue
+    }
+
+    if (inString) continue
+
+    if (char === '{') {
+      if (depth === 0) start = index
+      depth += 1
+    } else if (char === '}') {
+      if (depth === 0) continue
+      depth -= 1
+      if (depth === 0 && start !== -1) {
+        results.push(text.slice(start, index + 1).trim())
+        start = -1
+      }
+    }
+  }
+
+  return results
+}
+
+function parseOpenClawAnalysis(text: string): { rawJson: string; analysis: OpenClawAnalysisPayload } | null {
+  const candidates: string[] = []
+  const direct = extractJsonObject(text)
+  if (direct) candidates.push(direct)
+  candidates.push(...extractBalancedJsonObjects(text))
+
+  const uniqueCandidates = [...new Set(candidates.map((candidate) => candidate.trim()).filter(Boolean))]
+  for (const candidate of uniqueCandidates) {
+    try {
+      const parsed = JSON.parse(candidate) as unknown
+      if (looksLikeOpenClawAnalysis(parsed)) {
+        return {
+          rawJson: candidate,
+          analysis: parsed,
+        }
+      }
+    } catch {
+      // Try the next candidate object.
+    }
+  }
+
+  return null
 }
 
 function compareOpenClawSemverDesc(a: string, b: string): number {
@@ -569,8 +648,8 @@ async function analyzeWithOpenClaw(request: OpenClawAnalysisRequest): Promise<{
     .reverse()
     .find((entry) => (entry && typeof entry === 'object' && (entry as { role?: string }).role === 'assistant'))
   const raw = extractOpenClawMessageText(lastAssistant)
-  const jsonText = extractJsonObject(raw)
-  if (!jsonText) {
+  const parsed = parseOpenClawAnalysis(raw)
+  if (!parsed) {
     throw new Error('OpenClaw returned no parseable JSON analysis')
   }
 
@@ -578,7 +657,7 @@ async function analyzeWithOpenClaw(request: OpenClawAnalysisRequest): Promise<{
     sessionKey,
     runId,
     raw,
-    analysis: JSON.parse(jsonText) as OpenClawAnalysisPayload,
+    analysis: parsed.analysis,
   }
 }
 

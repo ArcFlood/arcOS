@@ -23,7 +23,7 @@ OpenClaw is the gateway between `PAI core context` and the rest of the ARCOS exe
 
 Default chain:
 
-`ARCOS app -> user prompt -> PAI core context -> OpenClaw -> Fabric -> prompt rebuilder -> local model`
+`ARCOS app -> user prompt -> PAI core context -> OpenClaw -> Fabric -> Response Composer -> local model`
 
 Your job in this workspace is to:
 

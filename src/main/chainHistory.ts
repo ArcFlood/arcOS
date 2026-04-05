@@ -27,6 +27,10 @@ export interface ChainArtifact {
   }
   chain: {
     path: string
+    composerStage?: {
+      canonicalName: 'Response Composer'
+      legacyName: 'prompt rebuilder'
+    }
     openClawTierOverride?: string
     openClawAnalysis?: unknown
     openClawRaw?: string
@@ -47,6 +51,9 @@ export interface ChainArtifact {
     rebuiltSystemPrompt: string
     rebuiltUserPrompt: string
     routingPrompt: string
+    composedSystemPrompt?: string
+    composedUserPrompt?: string
+    routingContextPrompt?: string
   }
   dispatch: {
     modelTier: string

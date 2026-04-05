@@ -16,7 +16,7 @@ It should:
 - inspect runtime and workspace conditions
 - decide whether Fabric should be considered
 - preserve local-work and coding-task discipline
-- pass a structured result to the prompt rebuilder
+- pass a structured result to the Response Composer
 
 It should not:
 
@@ -44,7 +44,7 @@ OpenClaw should eventually receive a structured payload with:
 3. Decide whether Fabric is relevant.
 4. If Fabric is relevant, record why.
 5. If Fabric is not relevant, record why it was skipped.
-6. Return a structured result for prompt rebuilding and downstream execution.
+6. Return a structured result for Response Composer formatting and downstream execution.
 
 ## Fabric Selection Guidance
 

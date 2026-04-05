@@ -1502,6 +1502,96 @@
         "The visible stage label is now Response Composer in trace language and architecture documentation, while stored field names remain stable for compatibility.",
         "The main behavioral change is that Fabric-backed requests now carry explicit preservation instructions so the final model stage should format strong upstream output instead of diluting it."
       ]
+    },
+    {
+      "entry_id": "codex-2026-04-04-060",
+      "date": "2026-04-04",
+      "agent": "Codex",
+      "task_title": "Add Response Composer compatibility aliases to chain schema",
+      "summary": "Added a non-breaking compatibility layer for the Response Composer rename. ARCOS now stores canonical Response Composer metadata and alias fields alongside the legacy prompt-rebuilder field names so existing code and saved artifacts remain valid while newer code can adopt the new terminology.",
+      "files_touched": [
+        "arcos/src/renderer/services/canonicalChainService.ts",
+        "arcos/src/renderer/components/MessageInput.tsx",
+        "arcos/src/renderer/electron.d.ts",
+        "arcos/src/main/chainHistory.ts",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npm run lint"
+      ],
+      "notes": [
+        "Legacy fields such as rebuiltSystemPrompt and rebuiltUserPrompt remain in place for compatibility.",
+        "New alias fields now travel with each saved chain artifact: composedSystemPrompt, composedUserPrompt, routingContextPrompt, and composerStage metadata."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-04-061",
+      "date": "2026-04-04",
+      "agent": "Codex",
+      "task_title": "Harden OpenClaw analysis parsing against wrapped JSON responses",
+      "summary": "Replaced the fragile single-slice OpenClaw JSON extractor with a candidate-based parser that can recover fenced JSON and balanced embedded objects. This reduces false degraded fallbacks when OpenClaw returns a valid analysis object wrapped in markdown or mixed text.",
+      "files_touched": [
+        "arcos/src/main/main.ts",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npm run lint",
+        "npm run build:dir"
+      ],
+      "notes": [
+        "ARCOS now validates parsed candidates against the expected OpenClaw analysis shape instead of trusting the first brace-to-last-brace slice.",
+        "The packaged app was rebuilt after this parser fix, so the next retest should use the latest ARCOS.app bundle."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-04-062",
+      "date": "2026-04-04",
+      "agent": "Codex",
+      "task_title": "Enforce full PAI response sections and code preservation in Response Composer",
+      "summary": "Strengthened the Response Composer instructions so Fabric-backed requests must preserve corrected code blocks and include every required PAI response section exactly once. The composer now explicitly treats upstream code fixes as material that should be carried into RESULTS rather than dropped during final formatting.",
+      "files_touched": [
+        "arcos/src/renderer/services/canonicalChainService.ts",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npm run lint",
+        "npm run build:dir"
+      ],
+      "notes": [
+        "The composer prompt now explicitly lists SUMMARY, ANALYSIS, ACTIONS, RESULTS, STATUS, CAPTURE, NEXT, and COMPLETED as mandatory final headers.",
+        "If a corrected code block exists in upstream Fabric output, the composer is now explicitly instructed to include it under RESULTS."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-04-063",
+      "date": "2026-04-04",
+      "agent": "Codex",
+      "task_title": "Clean remaining live docs and templates to Response Composer terminology",
+      "summary": "Updated the active PRD, WBS, README, OpenClaw setup docs, OpenClaw workspace templates, and validation harness text so Response Composer is now the normal user-facing term across the live planning and setup surfaces.",
+      "files_touched": [
+        "documentation/arcos_prd.json",
+        "documentation/arcos_wbs.md",
+        "arcos/README.md",
+        "arcos/docs/OPENCLAW_SETUP.md",
+        "arcos/openclaw-template/workspace/BOOTSTRAP.md",
+        "arcos/openclaw-template/workspace/ARCOS_RUNTIME.md",
+        "arcos/scripts/validate-chain.mjs",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "terminology scan complete"
+      ],
+      "notes": [
+        "Explicit legacy compatibility references remain in chain schema metadata by design.",
+        "Generated validation output files and historical logs were left untouched as historical artifacts rather than rewritten manually."
+      ]
     }
   ]
 }

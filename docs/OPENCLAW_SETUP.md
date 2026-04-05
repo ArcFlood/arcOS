@@ -98,10 +98,10 @@ Only commit sanitized templates and docs.
 
 ARCOS is not meant to operate as an isolated Electron app. The intended architecture is:
 
-`ARCOS app -> user prompt -> PAI core context -> OpenClaw -> Fabric -> prompt rebuilder -> local model`
+`ARCOS app -> user prompt -> PAI core context -> OpenClaw -> Fabric -> Response Composer -> local model`
 
 Without OpenClaw and Fabric, a user may still run parts of ARCOS, but they are not running the intended system.
 
 ## Current Limitation
 
-At the time of writing, the repo contains the OpenClaw template contract and boot-validation path, but ARCOS is still being refined toward a full live OpenClaw request handoff and automatic Fabric selection.
+At the time of writing, the repo contains the OpenClaw template contract and boot-validation path, and the live ARCOS chain already performs OpenClaw handoff and Fabric selection. Remaining work is in refinement: stronger runtime event plumbing and better Response Composer fidelity.

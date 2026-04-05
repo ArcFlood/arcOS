@@ -50,7 +50,7 @@ const validationCases = [
     prompt: [
       'Extract the key ideas, summarize the argument, and pull the most actionable insights from the following design note.',
       '',
-      'ARCOS is the operating surface for PAI. Requests should move through PAI core context, OpenClaw, Fabric when appropriate, prompt rebuilding, and then the local model. The goal is not a generic chat app. The goal is a visible control plane where runtime stages are inspectable and corrections are easy to make.',
+      'ARCOS is the operating surface for PAI. Requests should move through PAI core context, OpenClaw, Fabric when appropriate, the Response Composer, and then the local model. The goal is not a generic chat app. The goal is a visible control plane where runtime stages are inspectable and corrections are easy to make.',
     ].join('\n'),
   },
 ]

@@ -2,7 +2,7 @@
 
 ARCOS is the desktop operating surface for PAI. It is not just a chat shell. It is a local-first control plane for the execution chain:
 
-`ARCOS app -> user prompt -> PAI core context -> OpenClaw -> Fabric -> prompt rebuilder -> local model`
+`ARCOS app -> user prompt -> PAI core context -> OpenClaw -> Fabric -> Response Composer -> local model`
 
 ## What You Need
 
@@ -108,6 +108,6 @@ ARCOS has the main structural pieces in place:
 - canonical staged chat path inside ARCOS
 
 What is still being refined:
-- real ARCOS -> OpenClaw runtime handoff
-- automatic Fabric selection for normal chat requests
+- Response Composer fidelity so Fabric-backed requests preserve upstream quality more literally
 - execution surfaces fed by emitted runtime events instead of staged UI logic
+- continued OpenClaw/Fabric refinement based on live use

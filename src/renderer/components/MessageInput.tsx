@@ -324,6 +324,7 @@ export default function MessageInput({ conversationId }: Props) {
         },
         chain: {
           path: canonicalChain.diagnostics.chainPath,
+          composerStage: canonicalChain.composerStage,
           openClawTierOverride: canonicalChain.openClawTierOverride,
           openClawAnalysis: canonicalChain.diagnostics.openClawAnalysis,
           openClawRaw: canonicalChain.diagnostics.openClawRaw,
@@ -333,6 +334,9 @@ export default function MessageInput({ conversationId }: Props) {
           rebuiltSystemPrompt: canonicalChain.rebuiltSystemPrompt,
           rebuiltUserPrompt: canonicalChain.rebuiltUserPrompt,
           routingPrompt: canonicalChain.routingPrompt,
+          composedSystemPrompt: canonicalChain.composedSystemPrompt,
+          composedUserPrompt: canonicalChain.composedUserPrompt,
+          routingContextPrompt: canonicalChain.routingContextPrompt,
         },
         dispatch: {
           modelTier: effectiveTier,

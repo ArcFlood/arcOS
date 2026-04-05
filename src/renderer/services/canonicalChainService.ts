@@ -21,6 +21,13 @@ export interface CanonicalChainResult {
   rebuiltUserPrompt: string
   rebuiltSystemPrompt: string
   routingPrompt: string
+  composedUserPrompt: string
+  composedSystemPrompt: string
+  routingContextPrompt: string
+  composerStage: {
+    canonicalName: 'Response Composer'
+    legacyName: 'prompt rebuilder'
+  }
   openClawTierOverride?: ModelTier
   diagnostics: {
     chainPath: ChainPath
@@ -49,6 +56,10 @@ function buildResponseComposerInstruction(fabricExecuted: boolean): string {
       'Preserve the substance, priorities, and concrete findings from Fabric.',
       'Your job is to translate that material into the required PAI response structure without weakening it.',
       'If you add anything beyond Fabric, it must be a minimal clarification and must not contradict or dilute Fabric findings.',
+      'You must preserve corrected code blocks, concrete fixes, and prioritized recommendations from Fabric whenever they are present.',
+      'Do not omit a corrected code example if Fabric already produced one.',
+      'Every final response must include all required PAI sections exactly once: SUMMARY, ANALYSIS, ACTIONS, RESULTS, STATUS, CAPTURE, NEXT, COMPLETED.',
+      'RESULTS should contain the corrected code block when the upstream Fabric output includes a corrected implementation.',
     ].join('\n')
   }
 
@@ -56,6 +67,7 @@ function buildResponseComposerInstruction(fabricExecuted: boolean): string {
     'You are in the ARCOS Response Composer stage.',
     'Assemble the final answer from the available PAI core context, OpenClaw analysis, memory context, and user request.',
     'Produce the answer in the required PAI response structure.',
+    'Every final response must include all required PAI sections exactly once: SUMMARY, ANALYSIS, ACTIONS, RESULTS, STATUS, CAPTURE, NEXT, COMPLETED.',
   ].join('\n')
 }
 
@@ -444,6 +456,16 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
     '',
     '## Response Format Requirement',
     'Return the final answer using the required PAI structure and preserve the strongest validated upstream findings.',
+    'Use these section headers exactly once and in this order:',
+    'SUMMARY:',
+    'ANALYSIS:',
+    'ACTIONS:',
+    'RESULTS:',
+    'STATUS:',
+    'CAPTURE:',
+    'NEXT:',
+    'COMPLETED:',
+    'If a corrected code block exists in the upstream material, include it under RESULTS.',
   ].join('\n')
 
   appendTrace({
@@ -460,6 +482,8 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
   return {
     rebuiltUserPrompt,
     rebuiltSystemPrompt,
+    composedUserPrompt: rebuiltUserPrompt,
+    composedSystemPrompt: rebuiltSystemPrompt,
     routingPrompt: [
       opts.prompt,
       '',
@@ -469,6 +493,19 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
       '',
       fabricOutputBlock,
     ].join('\n'),
+    routingContextPrompt: [
+      opts.prompt,
+      '',
+      memorySection,
+      '',
+      openClawAnalysisBlock,
+      '',
+      fabricOutputBlock,
+    ].join('\n'),
+    composerStage: {
+      canonicalName: 'Response Composer',
+      legacyName: 'prompt rebuilder',
+    },
     openClawTierOverride,
     diagnostics: {
       chainPath,
