@@ -66,11 +66,70 @@ contextBridge.exposeInMainWorld('electron', {
 
   // Menu events (main → renderer)
   onMenuEvent: (channel: string, callback: () => void) => {
-    const allowed = ['menu:new-chat', 'menu:open-settings', 'menu:export-conversation', 'menu:open-log', 'menu:open-history']
+    const allowed = ['menu:new-chat', 'menu:open-settings', 'menu:export-conversation', 'menu:open-log', 'menu:open-history', 'menu:open-bug-report']
     if (!allowed.includes(channel)) return () => {}
     const handler = () => callback()
     ipcRenderer.on(channel, handler)
     return () => ipcRenderer.off(channel, handler)
+  },
+
+  // Bug reports (Item 11)
+  bugReportSubmit: (params: { title: string; description: string }) =>
+    ipcRenderer.invoke('bug-report:submit', params),
+  bugReportOpenDir: () => ipcRenderer.invoke('bug-report:open-dir'),
+
+  // Discord integration (Item 6)
+  discordConnect: (token: string) => ipcRenderer.invoke('discord:connect', token),
+  discordDisconnect: () => ipcRenderer.invoke('discord:disconnect'),
+  discordStatus: () => ipcRenderer.invoke('discord:status'),
+  discordChannelHistory: (channelId: string, limit?: number) => ipcRenderer.invoke('discord:channel-history', channelId, limit),
+  discordSend: (channelId: string, content: string) => ipcRenderer.invoke('discord:send', channelId, content),
+  discordSetMapping: (mapping: object) => ipcRenderer.invoke('discord:set-mapping', mapping),
+  discordSetMonitored: (channelIds: string[]) => ipcRenderer.invoke('discord:set-monitored', channelIds),
+  discordSetAutoRespond: (enabled: boolean) => ipcRenderer.invoke('discord:set-auto-respond', enabled),
+  discordSubscribe: () => ipcRenderer.invoke('discord:subscribe'),
+  discordUnsubscribe: () => ipcRenderer.invoke('discord:unsubscribe'),
+  discordOnStatus: (callback: (status: object) => void) => {
+    const handler = (_ipcEvent: Electron.IpcRendererEvent, status: object) => callback(status)
+    ipcRenderer.on('discord:status', handler)
+    return () => ipcRenderer.off('discord:status', handler)
+  },
+  discordOnMessage: (callback: (data: object) => void) => {
+    const handler = (_ipcEvent: Electron.IpcRendererEvent, data: object) => callback(data)
+    ipcRenderer.on('discord:message', handler)
+    return () => ipcRenderer.off('discord:message', handler)
+  },
+
+  // Audit engine (Item 9)
+  auditRun: () => ipcRenderer.invoke('audit:run'),
+  auditList: (limit?: number) => ipcRenderer.invoke('audit:list', limit),
+  auditRead: (filePath: string) => ipcRenderer.invoke('audit:read', filePath),
+  auditOpenDir: () => ipcRenderer.invoke('audit:open-dir'),
+
+  // Service watchdog (Item 7)
+  watchdogStatus: () => ipcRenderer.invoke('watchdog:status'),
+  watchdogSweep: () => ipcRenderer.invoke('watchdog:sweep'),
+  watchdogSubscribe: () => ipcRenderer.invoke('watchdog:subscribe'),
+  watchdogUnsubscribe: () => ipcRenderer.invoke('watchdog:unsubscribe'),
+  watchdogOnStatus: (callback: (status: object) => void) => {
+    const handler = (_ipcEvent: Electron.IpcRendererEvent, status: object) => callback(status)
+    ipcRenderer.on('watchdog:status', handler)
+    return () => ipcRenderer.off('watchdog:status', handler)
+  },
+
+  // Hook events (Item 5)
+  hookEmit: (event: object) => ipcRenderer.invoke('hook:emit', event),
+  hookGetRecent: (limit?: number) => ipcRenderer.invoke('hook:get-recent', limit),
+  hookGetByType: (eventType: string, limit?: number) => ipcRenderer.invoke('hook:get-by-type', eventType, limit),
+  hookGetRegistry: () => ipcRenderer.invoke('hook:get-registry'),
+  hookGetStats: () => ipcRenderer.invoke('hook:get-stats'),
+  hookListLogDates: () => ipcRenderer.invoke('hook:list-log-dates'),
+  hookSubscribe: () => ipcRenderer.invoke('hook:subscribe'),
+  hookUnsubscribe: () => ipcRenderer.invoke('hook:unsubscribe'),
+  hookOnEvent: (callback: (event: object) => void) => {
+    const handler = (_ipcEvent: Electron.IpcRendererEvent, event: object) => callback(event)
+    ipcRenderer.on('hook:event', handler)
+    return () => ipcRenderer.off('hook:event', handler)
   },
 
   // Plugins

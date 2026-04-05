@@ -176,6 +176,54 @@ declare global {
 
       onMenuEvent: (channel: string, callback: () => void) => () => void
 
+      // Discord integration (Item 6)
+      discordConnect?: (token: string) => Promise<{ success: boolean; error?: string }>
+      discordDisconnect?: () => Promise<{ success: boolean }>
+      discordStatus?: () => Promise<{ success: boolean; status?: DiscordGatewayStatus }>
+      discordChannelHistory?: (channelId: string, limit?: number) => Promise<{ success: boolean; messages?: DiscordMessage[]; error?: string }>
+      discordSend?: (channelId: string, content: string) => Promise<{ success: boolean; error?: string }>
+      discordSetMapping?: (mapping: Record<string, string>) => Promise<{ success: boolean; error?: string }>
+      discordSetMonitored?: (channelIds: string[]) => Promise<{ success: boolean; error?: string }>
+      discordSetAutoRespond?: (enabled: boolean) => Promise<{ success: boolean; error?: string }>
+      discordSubscribe?: () => Promise<{ success: boolean }>
+      discordUnsubscribe?: () => Promise<{ success: boolean }>
+      discordOnStatus?: (callback: (status: DiscordGatewayStatus) => void) => () => void
+      discordOnMessage?: (callback: (data: { message: DiscordMessage; projectName: string }) => void) => () => void
+
+      // Audit engine (Item 9)
+      auditRun?: () => Promise<{ success: boolean; report?: AuditReport; error?: string }>
+      auditList?: (limit?: number) => Promise<{ success: boolean; reports?: AuditReportMeta[]; error?: string }>
+      auditRead?: (filePath: string) => Promise<{ success: boolean; report?: AuditReport; error?: string }>
+      auditOpenDir?: () => Promise<{ success: boolean }>
+
+      // Service watchdog (Item 7)
+      watchdogStatus?: () => Promise<{ success: boolean; status?: WatchdogStatus; error?: string }>
+      watchdogSweep?: () => Promise<{ success: boolean; error?: string }>
+      watchdogSubscribe?: () => Promise<{ success: boolean }>
+      watchdogUnsubscribe?: () => Promise<{ success: boolean }>
+      watchdogOnStatus?: (callback: (status: WatchdogStatus) => void) => () => void
+
+      // Hook events (Item 5)
+      hookEmit?: (event: HookEvent) => Promise<{ success: boolean; error?: string }>
+      hookGetRecent?: (limit?: number) => Promise<{ success: boolean; events?: HookEvent[]; error?: string }>
+      hookGetByType?: (eventType: string, limit?: number) => Promise<{ success: boolean; events?: HookEvent[]; error?: string }>
+      hookGetRegistry?: () => Promise<{ success: boolean; hooks?: HookRegistryEntry[]; error?: string }>
+      hookGetStats?: () => Promise<{ success: boolean; stats?: HookStats; error?: string }>
+      hookListLogDates?: () => Promise<{ success: boolean; dates?: string[]; error?: string }>
+      hookSubscribe?: () => Promise<{ success: boolean }>
+      hookUnsubscribe?: () => Promise<{ success: boolean }>
+      hookOnEvent?: (callback: (event: HookEvent) => void) => () => void
+
+      // Bug reports (Item 11)
+      bugReportSubmit: (params: { title: string; description: string }) => Promise<{
+        success: boolean
+        method: 'github' | 'file'
+        filePath?: string
+        issueUrl?: string
+        error?: string
+      }>
+      bugReportOpenDir: () => Promise<{ success: boolean }>
+
       pluginsList: () => Promise<{ success: boolean; plugins: PluginManifest[]; error?: string }>
       pluginsInstallFile: () => Promise<{ success: boolean; error?: string }>
       pluginsOpenDir: () => Promise<{ success: boolean }>
@@ -373,4 +421,120 @@ type CodingRuntimeStatus = {
   verificationCommands: string[]
   openClawControlUrl: string | null
   environment: 'development' | 'packaged'
+}
+
+// Discord types (Item 6)
+type DiscordConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error'
+type DiscordMessage = {
+  id: string
+  channelId: string
+  authorId: string
+  authorName: string
+  content: string
+  timestamp: string
+  isBot: boolean
+}
+type DiscordChannel = {
+  id: string
+  name: string
+  type: number
+  guildId: string
+}
+type DiscordGuild = {
+  id: string
+  name: string
+}
+type DiscordGatewayStatus = {
+  state: DiscordConnectionState
+  botUserId: string | null
+  guilds: DiscordGuild[]
+  channels: DiscordChannel[]
+  projectMapping: Record<string, string>
+  monitoredChannels: string[]
+  autoRespond: boolean
+  error: string | null
+}
+
+// Audit types (Item 9)
+type AuditStatus = 'pass' | 'warn' | 'fail' | 'skip'
+type AuditCheckResult = {
+  name: string
+  status: AuditStatus
+  summary: string
+  details?: string
+  recommendation?: string
+}
+type AuditReport = {
+  id: string
+  date: string
+  runAt: string
+  durationMs: number
+  overall: AuditStatus
+  checks: AuditCheckResult[]
+}
+type AuditReportMeta = {
+  date: string
+  filePath: string
+  overall?: AuditStatus
+}
+
+// Watchdog types (Item 7)
+type WatchdogServiceState = 'unknown' | 'healthy' | 'degraded' | 'failed' | 'recovering'
+type WatchdogServiceEntry = {
+  name: string
+  displayName: string
+  probeUrl: string
+  state: WatchdogServiceState
+  consecutiveFailures: number
+  recoveryAttempts: number
+  lastChecked: string | null
+  lastHealthy: string | null
+  hint: string
+}
+type WatchdogStatus = {
+  running: boolean
+  lastSweep: string | null
+  services: WatchdogServiceEntry[]
+}
+
+// Hook event types (Item 5 — mirrors src/renderer/stores/hookTypes.ts)
+type HookEventType =
+  | 'request.accepted' | 'pai_context.loaded' | 'openclaw.started' | 'openclaw.completed'
+  | 'fabric.considered' | 'fabric.selected' | 'fabric.skipped' | 'prompt.rebuilt'
+  | 'model.dispatch.started' | 'model.dispatch.completed'
+  | 'tool.action' | 'file.action' | 'runtime.degraded' | 'runtime.failed'
+
+type HookStage = 'intake' | 'context' | 'routing' | 'fabric' | 'dispatch' | 'tool' | 'system'
+type HookEventStatus = 'started' | 'completed' | 'skipped' | 'failed'
+
+type HookEvent = {
+  id: string
+  eventType: HookEventType
+  stage: HookStage
+  status: HookEventStatus
+  timestamp: string
+  requestId: string
+  summary: string
+  details?: string
+  selectedFabricPattern?: string
+  skipReason?: string
+  modelTarget?: string
+  toolName?: string
+  filePath?: string
+  failureClass?: string
+  recoveryHint?: string
+}
+
+type HookRegistryEntry = {
+  name: string
+  description: string
+  subscribedEvents: HookEventType[]
+  active: boolean
+}
+
+type HookStats = {
+  totalEvents: number
+  byType: Record<string, number>
+  byStatus: Record<string, number>
+  recentFailures: number
 }

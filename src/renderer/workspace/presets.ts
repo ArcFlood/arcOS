@@ -85,6 +85,24 @@ export const WORKSPACE_PANELS: WorkspacePanelDefinition[] = [
     description: 'Compatibility launchers and transitional ARCOS actions.',
     icon: '⌘',
   },
+  {
+    id: 'hooks',
+    title: 'Hooks',
+    description: 'Live chain event stream — all 14 canonical hook events.',
+    icon: '⚡',
+  },
+  {
+    id: 'audit',
+    title: 'Audit',
+    description: 'Scheduled workspace integrity and chain quality audits.',
+    icon: '🔍',
+  },
+  {
+    id: 'discord',
+    title: 'Discord',
+    description: 'Discord server integration — channel-based project comms.',
+    icon: '💬',
+  },
 ]
 
 export const DEFAULT_WORKSPACE_LAYOUT: WorkspaceLayout = {

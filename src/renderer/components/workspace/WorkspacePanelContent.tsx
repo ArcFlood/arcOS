@@ -12,6 +12,9 @@ import PromptInspectorPanel from './PromptInspectorPanel'
 import MemoryWorkspacePanel from './MemoryWorkspacePanel'
 import HistoryPanel from './HistoryPanel'
 import ToolsPanel from './ToolsPanel'
+import HooksPanel from './HooksPanel'
+import AuditPanel from './AuditPanel'
+import DiscordPanel from './DiscordPanel'
 import { WorkspacePanelId } from '../../workspace/types'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 
@@ -53,23 +56,29 @@ export default function WorkspacePanelContent(props: WorkspacePanelContentProps)
       return <ExecutionTracePanel />
     case 'utilities':
       return <UtilitiesPanel {...props} />
+    case 'hooks':
+      return <HooksPanel />
+    case 'audit':
+      return <AuditPanel />
+    case 'discord':
+      return <DiscordPanel />
     default:
       return null
   }
 }
 
-function UtilitiesPanel({ onOpenHistory, onOpenMemory, onOpenLog, onOpenSettings }: Omit<WorkspacePanelContentProps, 'panelId'>) {
+function UtilitiesPanel({ onOpenSettings }: Pick<WorkspacePanelContentProps, 'onOpenSettings'>) {
   const showPanel = useWorkspaceStore((s) => s.showPanel)
 
   return (
     <div className="space-y-3 p-4">
-      <UtilityButton label="Open Memory Panel" description="Dock the native memory workspace surface." onClick={() => showPanel('memory')} />
-      <UtilityButton label="Open History Panel" description="Dock sessions and routing logs into the workspace." onClick={() => showPanel('history')} />
-      <UtilityButton label="Open Prompt Inspector" description="Inspect A.R.C. prompt layers and context inputs." onClick={() => showPanel('prompt_inspector')} />
-      <UtilityButton label="Open Legacy Memory" description="Launch the older memory drawer while the panel transition settles." onClick={onOpenMemory} />
-      <UtilityButton label="Open Legacy History" description="Open the older session-history modal for comparison." onClick={onOpenHistory} />
-      <UtilityButton label="Open Error Log" description="Inspect renderer and main-process logs." onClick={onOpenLog} />
-      <UtilityButton label="Open Settings" description="Adjust budgets, routing, and API configuration." onClick={onOpenSettings} />
+      <UtilityButton label="Open Memory" description="Dock the native memory module into the current workspace." onClick={() => showPanel('memory')} />
+      <UtilityButton label="Open History" description="Dock sessions, learnings, and routing logs into the workspace." onClick={() => showPanel('history')} />
+      <UtilityButton label="Open Prompt Inspector" description="Inspect ARC prompt layers, provenance, and context inputs." onClick={() => showPanel('prompt_inspector')} />
+      <UtilityButton label="Open Services" description="Check runtime health and control PAI services." onClick={() => showPanel('services')} />
+      <UtilityButton label="Open Routing" description="Inspect model-path decisions, confidence, and overrides." onClick={() => showPanel('routing')} />
+      <UtilityButton label="Open Transparency" description="Bring the latest chain outputs and observability feed forward." onClick={() => showPanel('transparency')} />
+      <UtilityButton label="Open Settings" description="Adjust routing, appearance, budgets, and local runtime settings." onClick={onOpenSettings} />
     </div>
   )
 }

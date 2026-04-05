@@ -13,6 +13,9 @@ export type WorkspacePanelId =
   | 'transparency'
   | 'execution'
   | 'utilities'
+  | 'hooks'
+  | 'audit'
+  | 'discord'
 
 export interface WorkspaceGridModule {
   id: string

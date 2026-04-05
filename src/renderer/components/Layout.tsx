@@ -4,6 +4,7 @@ import ErrorLogPanel from './debug/ErrorLogPanel'
 import SessionHistoryPanel from './history/SessionHistoryPanel'
 import WeeklyDigest from './history/WeeklyDigest'
 import MemoryPanel from './memory/MemoryPanel'
+import BugReportDialog from './debug/BugReportDialog'
 import WorkspaceShell from './workspace/WorkspaceShell'
 import WorkspaceTopBar from './workspace/WorkspaceTopBar'
 import { useSettingsStore } from '../stores/settingsStore'
@@ -24,6 +25,7 @@ export default function Layout() {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [memoryOpen, setMemoryOpen] = useState(false)
   const [showDigest, setShowDigest] = useState(false)
+  const [bugReportOpen, setBugReportOpen] = useState(false)
 
   useAppBootstrap()
 
@@ -103,6 +105,7 @@ export default function Layout() {
       cleanups.push(window.electron.onMenuEvent('menu:open-settings', () => openSettings()))
       cleanups.push(window.electron.onMenuEvent('menu:open-log', () => setLogOpen(true)))
       cleanups.push(window.electron.onMenuEvent('menu:open-history', () => setHistoryOpen(true)))
+      cleanups.push(window.electron.onMenuEvent('menu:open-bug-report', () => setBugReportOpen(true)))
     }
     return () => cleanups.forEach((fn) => fn())
   // Stable refs — safe to omit
@@ -132,10 +135,11 @@ export default function Layout() {
 
       {/* Modals */}
       {settingsPanelOpen && <SettingsPanel />}
-      <ErrorLogPanel open={logOpen} onClose={() => setLogOpen(false)} />
+      <ErrorLogPanel open={logOpen} onClose={() => setLogOpen(false)} onOpenBugReport={() => { setLogOpen(false); setBugReportOpen(true) }} />
       <SessionHistoryPanel open={historyOpen} onClose={() => setHistoryOpen(false)} />
       <MemoryPanel open={memoryOpen} onClose={() => setMemoryOpen(false)} />
       {showDigest && <WeeklyDigest onDismiss={() => setShowDigest(false)} />}
+      <BugReportDialog open={bugReportOpen} onClose={() => setBugReportOpen(false)} />
     </div>
   )
 }

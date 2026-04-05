@@ -20,6 +20,47 @@ import {
   SessionSummaryData, LearningEntry, SpendingCsvRow,
 } from './sessionHistory'
 import { writeChainArtifact, ChainArtifact } from './chainHistory'
+import { submitBugReport, getBugReportsDirPath } from './bugReport'
+import {
+  ingestHookEvent,
+  getRecentHookEvents,
+  getHookEventsByType,
+  getRegisteredHooks,
+  getHookStats,
+  listHookLogDates,
+  subscribeWindow,
+  unsubscribeWindow,
+} from './hooks/hookRegistry'
+import type { HookEvent, HookEventType } from '../renderer/stores/hookTypes'
+import {
+  startWatchdog,
+  stopWatchdog,
+  getWatchdogStatus,
+  triggerSweep,
+  subscribeWatchdogWindow,
+  unsubscribeWatchdogWindow,
+} from './watchdog/serviceWatchdog'
+import {
+  runAudit,
+  listAuditReports,
+  readAuditReport,
+  startAuditScheduler,
+  stopAuditScheduler,
+  getAuditDir,
+} from './audit/auditEngine'
+import {
+  connectDiscord,
+  disconnectDiscord,
+  fetchChannelHistory,
+  sendMessage as discordSendMessage,
+  setProjectMapping,
+  setMonitoredChannels,
+  setAutoRespond,
+  getDiscordStatus,
+  subscribeDiscordWindow,
+  unsubscribeDiscordWindow,
+  setAutoRespondHandler,
+} from './discord/discordGateway'
 
 // app.isPackaged is the reliable Electron way to detect production.
 // process.env.NODE_ENV is NOT set by electron-builder at runtime, so
@@ -907,6 +948,12 @@ function buildAppMenu(win: BrowserWindow): void {
         },
         { type: 'separator' },
         {
+          label: 'Report a Bug…',
+          accelerator: 'CmdOrCtrl+Shift+B',
+          click: () => win.webContents.send('menu:open-bug-report'),
+        },
+        { type: 'separator' },
+        {
           label: 'Open Plugins Folder',
           click: () => shell.openPath(path.join(os.homedir(), '.noah-ai-hub', 'plugins')),
         },
@@ -993,6 +1040,48 @@ app.whenReady().then(() => {
   })
   buildAppMenu(win)
   buildTray(win)
+  // Subscribe main window to hook event pushes
+  subscribeWindow(win)
+  // Subscribe main window to Discord events
+  subscribeDiscordWindow(win)
+  // Subscribe main window to watchdog status broadcasts
+  subscribeWatchdogWindow(win)
+  // Start the service watchdog
+  startWatchdog()
+  // Start daily audit scheduler
+  startAuditScheduler()
+
+  // Set up Discord lightweight auto-respond pipeline
+  setAutoRespondHandler(async (message, _channelId, projectName) => {
+    try {
+      // Lightweight chain: direct Ollama call with PAI context
+      const systemPrompt = [
+        `You are A.R.C. (AI Reasoning Companion), a personal AI assistant embedded in the ARCOS workspace.`,
+        `You are responding to a Discord message in the project channel: "${projectName}".`,
+        `Keep your response concise and actionable. Respond in plain text (no markdown formatting).`,
+        `This is a lightweight channel response — be brief.`,
+      ].join('\n')
+
+      const ollamaRes = await fetch('http://localhost:11434/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'qwen3:8b',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: message.content },
+          ],
+          stream: false,
+        }),
+        signal: AbortSignal.timeout(30000),
+      })
+      if (!ollamaRes.ok) return null
+      const data = await ollamaRes.json() as { message?: { content?: string } }
+      return data.message?.content ?? null
+    } catch {
+      return null
+    }
+  })
   app.on('activate', () => {
     if (!mainWindow || mainWindow.isDestroyed()) {
       const w = createWindow()
@@ -1006,6 +1095,8 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+  stopWatchdog()
+  stopAuditScheduler()
   Object.values(serviceProcesses).forEach((p) => {
     try {
       p.kill()
@@ -2210,4 +2301,224 @@ ipcMain.handle('spending:export-csv', (_event, params: { records: SpendingCsvRow
   } catch (e) {
     return { success: false, error: String(e) }
   }
+})
+
+// ── IPC: Hook Events (Item 5) ─────────────────────────────────────
+
+ipcMain.handle('hook:emit', (_event, hookEvent: HookEvent) => {
+  try {
+    ingestHookEvent(hookEvent)
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: String(e) }
+  }
+})
+
+ipcMain.handle('hook:get-recent', (_event, limit?: number) => {
+  try {
+    return { success: true, events: getRecentHookEvents(limit ?? 100) }
+  } catch (e) {
+    return { success: false, events: [], error: String(e) }
+  }
+})
+
+ipcMain.handle('hook:get-by-type', (_event, eventType: HookEventType, limit?: number) => {
+  try {
+    return { success: true, events: getHookEventsByType(eventType, limit ?? 50) }
+  } catch (e) {
+    return { success: false, events: [], error: String(e) }
+  }
+})
+
+ipcMain.handle('hook:get-registry', () => {
+  try {
+    return { success: true, hooks: getRegisteredHooks() }
+  } catch (e) {
+    return { success: false, hooks: [], error: String(e) }
+  }
+})
+
+ipcMain.handle('hook:get-stats', () => {
+  try {
+    return { success: true, stats: getHookStats() }
+  } catch (e) {
+    return { success: false, error: String(e) }
+  }
+})
+
+ipcMain.handle('hook:list-log-dates', () => {
+  try {
+    return { success: true, dates: listHookLogDates() }
+  } catch (e) {
+    return { success: false, dates: [], error: String(e) }
+  }
+})
+
+ipcMain.handle('hook:subscribe', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (win) subscribeWindow(win)
+  return { success: true }
+})
+
+ipcMain.handle('hook:unsubscribe', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (win) unsubscribeWindow(win)
+  return { success: true }
+})
+
+// ── IPC: Service Watchdog (Item 7) ───────────────────────────────
+
+ipcMain.handle('watchdog:status', () => {
+  try {
+    return { success: true, status: getWatchdogStatus() }
+  } catch (e) {
+    return { success: false, error: String(e) }
+  }
+})
+
+ipcMain.handle('watchdog:sweep', () => {
+  try {
+    triggerSweep()
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: String(e) }
+  }
+})
+
+ipcMain.handle('watchdog:subscribe', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (win) subscribeWatchdogWindow(win)
+  return { success: true }
+})
+
+ipcMain.handle('watchdog:unsubscribe', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (win) unsubscribeWatchdogWindow(win)
+  return { success: true }
+})
+
+// ── IPC: Discord Integration (Item 6) ────────────────────────────
+
+ipcMain.handle('discord:connect', async (_event, token: string) => {
+  try {
+    return await connectDiscord(token)
+  } catch (e) {
+    return { success: false, error: String(e) }
+  }
+})
+
+ipcMain.handle('discord:disconnect', () => {
+  disconnectDiscord()
+  return { success: true }
+})
+
+ipcMain.handle('discord:status', () => {
+  return { success: true, status: getDiscordStatus() }
+})
+
+ipcMain.handle('discord:channel-history', async (_event, channelId: string, limit?: number) => {
+  try {
+    const messages = await fetchChannelHistory(channelId, limit ?? 50)
+    return { success: true, messages }
+  } catch (e) {
+    return { success: false, messages: [], error: String(e) }
+  }
+})
+
+ipcMain.handle('discord:send', async (_event, channelId: string, content: string) => {
+  try {
+    const ok = await discordSendMessage(channelId, content)
+    return { success: ok }
+  } catch (e) {
+    return { success: false, error: String(e) }
+  }
+})
+
+ipcMain.handle('discord:set-mapping', (_event, mapping: Record<string, string>) => {
+  try {
+    setProjectMapping(mapping)
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: String(e) }
+  }
+})
+
+ipcMain.handle('discord:set-monitored', (_event, channelIds: string[]) => {
+  try {
+    setMonitoredChannels(channelIds)
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: String(e) }
+  }
+})
+
+ipcMain.handle('discord:set-auto-respond', (_event, enabled: boolean) => {
+  try {
+    setAutoRespond(enabled)
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: String(e) }
+  }
+})
+
+ipcMain.handle('discord:subscribe', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (win) subscribeDiscordWindow(win)
+  return { success: true }
+})
+
+ipcMain.handle('discord:unsubscribe', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (win) unsubscribeDiscordWindow(win)
+  return { success: true }
+})
+
+// ── IPC: Audit Engine (Item 9) ────────────────────────────────────
+
+ipcMain.handle('audit:run', async () => {
+  try {
+    const report = await runAudit()
+    return { success: true, report }
+  } catch (e) {
+    return { success: false, error: String(e) }
+  }
+})
+
+ipcMain.handle('audit:list', (_event, limit?: number) => {
+  try {
+    return { success: true, reports: listAuditReports(limit ?? 30) }
+  } catch (e) {
+    return { success: false, reports: [], error: String(e) }
+  }
+})
+
+ipcMain.handle('audit:read', (_event, filePath: string) => {
+  try {
+    const report = readAuditReport(filePath)
+    return { success: !!report, report }
+  } catch (e) {
+    return { success: false, error: String(e) }
+  }
+})
+
+ipcMain.handle('audit:open-dir', () => {
+  shell.openPath(getAuditDir())
+  return { success: true }
+})
+
+// ── IPC: Bug Reports (Item 11) ────────────────────────────────────
+
+ipcMain.handle('bug-report:submit', async (_event, params: { title: string; description: string }) => {
+  try {
+    const result = await submitBugReport(params.title, params.description)
+    return result
+  } catch (e) {
+    return { success: false, method: 'file' as const, error: String(e) }
+  }
+})
+
+ipcMain.handle('bug-report:open-dir', () => {
+  const dir = getBugReportsDirPath()
+  shell.openPath(dir)
+  return { success: true }
 })

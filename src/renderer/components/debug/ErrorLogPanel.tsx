@@ -19,6 +19,7 @@ interface LogEntry {
 interface Props {
   open: boolean
   onClose: () => void
+  onOpenBugReport?: () => void
 }
 
 const LEVEL_STYLES: Record<LogEntry['level'], string> = {
@@ -38,7 +39,7 @@ const SOURCE_BADGE: Record<LogEntry['source'], string> = {
   renderer: 'bg-sky-700 text-white',
 }
 
-export default function ErrorLogPanel({ open, onClose }: Props) {
+export default function ErrorLogPanel({ open, onClose, onOpenBugReport }: Props) {
   const [entries, setEntries] = useState<LogEntry[]>([])
   const [filter, setFilter] = useState<'all' | 'error' | 'warn' | 'info'>('all')
   const [search, setSearch] = useState('')
@@ -156,6 +157,15 @@ export default function ErrorLogPanel({ open, onClose }: Props) {
             >
               Open file
             </button>
+            {onOpenBugReport && (
+              <button
+                onClick={onOpenBugReport}
+                className="text-xs px-2 py-1 rounded border border-orange-800/50 bg-orange-950/30 text-orange-400 hover:text-orange-200 transition-colors"
+                title="Report a bug to the team"
+              >
+                Report Bug
+              </button>
+            )}
             <button
               onClick={handleClear}
               className="text-xs px-2 py-1 rounded border border-red-800/50 bg-red-950/30 text-red-400 hover:text-red-200 transition-colors"
