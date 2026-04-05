@@ -292,6 +292,22 @@ function getOpenClawServiceInfo(): OpenClawServiceInfo {
   }
 }
 
+function loadOpenClawContext(): {
+  workspacePath: string
+  files: Array<{ name: string; path: string; content: string }>
+} {
+  const info = getOpenClawServiceInfo()
+  const workspacePath = info.workspacePath
+  const contextFiles = ['AGENTS.md', 'SOUL.md', 'MEMORY.md', 'HEARTBEAT.md']
+  const files = contextFiles.flatMap((fileName) => {
+    const filePath = path.join(workspacePath, fileName)
+    if (!fs.existsSync(filePath)) return []
+    const content = fs.readFileSync(filePath, 'utf8').slice(0, 4000)
+    return [{ name: fileName, path: filePath, content }]
+  })
+  return { workspacePath, files }
+}
+
 async function isHttpEndpointReachable(url: string, timeoutMs = 1200): Promise<boolean> {
   try {
     const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) })
@@ -1052,6 +1068,13 @@ ipcMain.handle('service-stop', (_event, name: string) => {
 })
 
 ipcMain.handle('open-external', (_event, url: string) => { shell.openExternal(url) })
+ipcMain.handle('openclaw-context', () => {
+  try {
+    return { success: true, ...loadOpenClawContext() }
+  } catch (e) {
+    return { success: false, error: String(e) }
+  }
+})
 ipcMain.handle('open-path', (_event, targetPath: string) => {
   try {
     const error = shell.openPath(targetPath)

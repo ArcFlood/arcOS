@@ -1,201 +1,113 @@
 # ARCOS
 
-**A.R.C. (AI Reasoning Companion) Hub** is a personal AI desktop app for macOS — an Electron + React interface that routes your queries across local and cloud models automatically, integrates with Fabric patterns, and keeps all your data local.
+ARCOS is the desktop operating surface for PAI. It is not just a chat shell. It is a local-first control plane for the execution chain:
 
----
+`ARCOS app -> user prompt -> PAI core context -> OpenClaw -> Fabric -> prompt rebuilder -> local model`
 
-## Features
+## What You Need
 
-- **3-tier smart routing** — queries automatically routed to Ollama (free local), Claude Haiku ($1/M), or Claude Sonnet ($3/M) based on complexity, length, and your daily budget
-- **Plugin system** — install JSON-manifest plugins with custom system prompts; activate via the TopBar picker or slash commands (`/review`, `/debug`, etc.)
-- **Fabric integration** — browse and run any Fabric pattern through the REST API; streaming output rendered live in chat
-- **SQLite persistence** — all conversations, messages, cost records, and settings stored in `~/.noah-ai-hub/conversations.db`
-- **Conversation tags** — tag conversations, filter the list by tag, click any tag to search
-- **Usage analytics** — 7-day spend chart, per-tier breakdown, message count stats
-- **Prompt caching** — A.R.C. system prompt cached with `cache_control: ephemeral` — ~90% cost reduction on repeat messages
-- **Ollama model manager** — pull models with live progress, delete, and get suggestions
-- **Conversation export** — export any conversation to Markdown via the native Save dialog
-- **Native Mac integration** — custom menu bar, system tray, titlebar buttons, keyboard shortcuts
+ARCOS depends on more than the Electron app itself.
 
----
+Required:
+- Node.js 20+
+- Ollama
+- OpenClaw
+- Fabric
 
-## Requirements
+Optional but expected for the full local stack:
+- ARC-Memory
+- Obsidian vault for memory ingestion/write-back
 
-| Dependency | Version | Purpose |
-|------------|---------|---------|
-| Node.js | 20+ | Build toolchain |
-| Electron | 28 | Desktop shell |
-| Ollama | Any | Local inference |
-| Fabric | Any | Pattern runner |
+## Important Architecture Note
 
----
+If someone downloads ARCOS without also setting up OpenClaw and Fabric, they are not running the intended product.
 
-## Setup
+ARCOS is the UI and control surface.
+OpenClaw is the gateway/orchestration layer.
+Fabric is the prompt-skill layer.
+Ollama is the default local inference layer.
+
+## Quick Start
 
 ```bash
-# 1. Clone and install
 git clone <repo-url>
 cd arcos
 npm install
-
-# 2. Start in dev mode
-npm run dev
-
-# 3. (Optional) Start Ollama and Fabric
-ollama serve
-fabric --serve
 ```
 
-On first launch the app:
-- Creates `~/.noah-ai-hub/` with `conversations.db` and `plugins/`
-- Seeds 5 sample plugins in `~/.noah-ai-hub/plugins/`
-- Auto-detects any installed Ollama models
+Then complete the runtime setup in:
 
----
+- [OPENCLAW_SETUP.md](/Users/noahpowell/Documents/AI%20Project/arcos/docs/OPENCLAW_SETUP.md)
 
-## Configuration
-
-Open **Settings** (⌘,) to configure:
-
-| Setting | Description |
-|---------|-------------|
-| Claude API Key | Required for Haiku and A.R.C. Sonnet tiers |
-| Daily budget | Routing falls back to local Ollama when limit is reached |
-| Routing mode | Auto (default), or force a specific tier |
-| Routing aggressiveness | Cost-first / Balanced / Quality-first |
-| Ollama model | Auto-detected from installed models |
-
----
-
-## Keyboard Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| ⌘K | New chat |
-| ⌘, | Open / close Settings |
-| Esc | Close Settings |
-| Enter | Send message |
-| Shift+Enter | New line in message |
-| ⌘+Shift+E | Export active conversation |
-
----
-
-## Plugin System
-
-Plugins live in `~/.noah-ai-hub/plugins/` as `.json` files.
-
-### Manifest format
-
-```json
-{
-  "id": "my-plugin",
-  "name": "My Plugin",
-  "description": "What it does",
-  "version": "1.0.0",
-  "icon": "🔧",
-  "tier": "arc-sonnet",
-  "commands": ["/myplugin", "/mp"],
-  "systemPrompt": "You are a specialized assistant that..."
-}
-```
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | Unique identifier (filename-safe) |
-| `name` | string | Display name |
-| `tier` | `ollama` \| `haiku` \| `arc-sonnet` | Preferred model tier |
-| `commands` | string[] | Slash commands that auto-activate this plugin |
-| `systemPrompt` | string | Replaces the A.R.C. prompt when plugin is active |
-
-### Using plugins
-
-- Click **🔌 Plugins** in the TopBar to browse and activate
-- Type a slash command (e.g. `/review`) in the message box — the matching plugin activates automatically and the command prefix is stripped before sending
-- Deactivate via the **✕** in the TopBar pill
-
-### Pre-installed plugins
-
-| Plugin | Commands | Tier |
-|--------|----------|------|
-| Code Reviewer | `/review`, `/cr` | A.R.C. |
-| Writing Coach | `/write`, `/edit` | Haiku |
-| SQL Assistant | `/sql`, `/query` | Haiku |
-| Brainstorm | `/brainstorm`, `/ideas` | Local |
-| Debugger | `/debug`, `/fix` | A.R.C. |
-
----
-
-## Data Storage
-
-All data is local to `~/.noah-ai-hub/`:
-
-```
-~/.noah-ai-hub/
-├── conversations.db    ← SQLite: conversations, messages, spending, settings
-└── plugins/
-    ├── code-reviewer.json
-    ├── writing-coach.json
-    ├── sql-assistant.json
-    ├── brainstorm.json
-    └── debugger.json
-```
-
----
-
-## Building
+After that:
 
 ```bash
-# Development
+# terminal 1
+ollama serve
+
+# terminal 2
+fabric --serve
+
+# terminal 3
 npm run dev
+```
 
-# Package as macOS .app (universal arm64 + x64)
-npm run build:mac
+## OpenClaw and Fabric Setup
 
-# Package without DMG (faster, for testing)
+This repo includes safe template files for the OpenClaw sidecar workspace under:
+
+- [openclaw-template](/Users/noahpowell/Documents/AI%20Project/arcos/openclaw-template)
+
+That template includes:
+- workspace bootstrap files required by ARCOS
+- runtime contract files
+- hook/event contract files
+- a sanitized example `openclaw.example.json`
+
+Do not copy your real `~/.openclaw/openclaw.json` into Git.
+
+## Repo Setup Files
+
+OpenClaw templates:
+- [openclaw-template/openclaw.example.json](/Users/noahpowell/Documents/AI%20Project/arcos/openclaw-template/openclaw.example.json)
+- [openclaw-template/workspace/BOOTSTRAP.md](/Users/noahpowell/Documents/AI%20Project/arcos/openclaw-template/workspace/BOOTSTRAP.md)
+- [openclaw-template/workspace/ARCOS_RUNTIME.md](/Users/noahpowell/Documents/AI%20Project/arcos/openclaw-template/workspace/ARCOS_RUNTIME.md)
+- [openclaw-template/workspace/HOOKS.md](/Users/noahpowell/Documents/AI%20Project/arcos/openclaw-template/workspace/HOOKS.md)
+- [openclaw-template/workspace/AGENTS.md](/Users/noahpowell/Documents/AI%20Project/arcos/openclaw-template/workspace/AGENTS.md)
+- [openclaw-template/workspace/TOOLS.md](/Users/noahpowell/Documents/AI%20Project/arcos/openclaw-template/workspace/TOOLS.md)
+- [openclaw-template/workspace/IDENTITY.example.md](/Users/noahpowell/Documents/AI%20Project/arcos/openclaw-template/workspace/IDENTITY.example.md)
+- [openclaw-template/workspace/USER.example.md](/Users/noahpowell/Documents/AI%20Project/arcos/openclaw-template/workspace/USER.example.md)
+- [openclaw-template/workspace/SOUL.example.md](/Users/noahpowell/Documents/AI%20Project/arcos/openclaw-template/workspace/SOUL.example.md)
+
+Setup docs:
+- [docs/OPENCLAW_SETUP.md](/Users/noahpowell/Documents/AI%20Project/arcos/docs/OPENCLAW_SETUP.md)
+
+Validation helper:
+- [scripts/openclaw-boot.sh](/Users/noahpowell/Documents/AI%20Project/arcos/scripts/openclaw-boot.sh)
+
+## Development
+
+```bash
+npm run dev
+```
+
+Build the packaged app:
+
+```bash
 npm run build:dir
 ```
 
-The packaged `.app` and `.dmg` are written to `dist/`.
+## Current Status
 
----
+ARCOS has the main structural pieces in place:
+- pocket-grid modular workspace
+- saved layouts and detached panels
+- ARC-Memory integration and write-back
+- observability/history panels
+- OpenClaw visibility in the app
+- canonical staged chat path inside ARCOS
 
-## Architecture
-
-```
-src/
-├── main/                    ← Electron main process (Node.js)
-│   ├── main.ts              ← IPC handlers, app menu, tray
-│   ├── database/
-│   │   ├── db.ts            ← SQLite singleton (better-sqlite3)
-│   │   ├── schema.ts        ← Table definitions
-│   │   └── operations.ts    ← CRUD helpers
-│   └── plugins/
-│       └── loader.ts        ← Plugin discovery + seed
-├── preload/
-│   └── preload.ts           ← contextBridge security bridge
-└── renderer/                ← React app (Vite)
-    ├── stores/              ← Zustand stores (conversation, settings, service, cost, plugin)
-    ├── services/            ← API clients (ollama, claude, fabric, chat router)
-    └── components/          ← UI components
-```
-
-**Key patterns:**
-- All HTTP calls (Ollama, Claude, Fabric API) run in the main process — no renderer CORS issues
-- Tokens streamed back to renderer via `event.sender.send(`stream-${streamId}`, data)`
-- Zustand mutations are synchronous (instant UI); DB writes are fire-and-forget async
-- Messages only written to DB when `isStreaming` transitions to `false`
-
----
-
-## Version History
-
-| Version | Notes |
-|---------|-------|
-| 1.0.0 | Conversation tags, native menu, system tray |
-| 0.7.0 | Plugin system with slash commands |
-| 0.6.0 | SQLite persistence for all stores |
-| 0.5.0 | Advanced features: analytics, model manager, onboarding |
-| 0.4.0 | Polish: keyboard shortcuts, export, electron-builder |
-| 0.3.0 | Fabric REST integration |
-| 0.2.0 | Claude + Ollama streaming, smart routing |
-| 0.1.0 | Initial scaffold |
+What is still being refined:
+- real ARCOS -> OpenClaw runtime handoff
+- automatic Fabric selection for normal chat requests
+- execution surfaces fed by emitted runtime events instead of staged UI logic

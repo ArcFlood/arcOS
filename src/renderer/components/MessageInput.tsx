@@ -7,6 +7,7 @@ import { usePluginStore } from '../stores/pluginStore'
 import { ModelTier } from '../stores/types'
 import { useTraceStore } from '../stores/traceStore'
 import { sendMessage } from '../services/chatService'
+import { executeCanonicalChain } from '../services/canonicalChainService'
 import { routeQuery, TIER_DISPLAY_LABELS } from '../utils/routing'
 import { searchMemory, MemoryCitation, sourceLabel } from '../services/memoryService'
 import { saveConversationToVault } from '../utils/exportConversation'
@@ -44,6 +45,8 @@ export default function MessageInput({ conversationId }: Props) {
   const settings = useSettingsStore((s) => s.settings)
   const ollamaRunning = useServiceStore((s) => s.getService('ollama')?.running ?? false)
   const memoryRunning = useServiceStore((s) => s.getService('arc-memory')?.running ?? false)
+  const openClawRunning = useServiceStore((s) => s.getService('openclaw')?.running ?? false)
+  const fabricRunning = useServiceStore((s) => s.getService('fabric')?.running ?? false)
   const addRecord = useCostStore((s) => s.addRecord)
   const spendingToday = useCostStore((s) => s.getSummary().today)
 
@@ -190,21 +193,31 @@ export default function MessageInput({ conversationId }: Props) {
     })
 
     if (stagedMemory && stagedMemory.citations.length > 0) {
-      const memoryContextBlock = buildMemoryContextBlock(stagedMemory.citations)
-      resolvedContent = `${resolvedContent}\n\n${memoryContextBlock}`
       appendTraceEntry({
         source: 'memory',
         level: 'info',
-        title: 'Injected staged memory into prompt',
-        detail: `${stagedMemory.citations.length} citations from "${stagedMemory.query}" were included.`,
+        title: 'Prepared staged memory for canonical chain',
+        detail: `${stagedMemory.citations.length} citations from "${stagedMemory.query}" were queued for the PAI core context stage.`,
         conversationId: convId,
         relatedPanels: ['memory', 'chat', 'prompt_inspector'],
         entityLabel: stagedMemory.query,
       })
     }
 
+    const canonicalChain = await executeCanonicalChain({
+      prompt: resolvedContent,
+      conversationId: convId,
+      conversationHistory: history,
+      memoryCitations: stagedMemory?.citations ?? [],
+      plugin: resolvedPlugin,
+      services: {
+        openClawRunning,
+        fabricRunning,
+      },
+    })
+
     // Route decision (may be overridden by plugin tier below)
-    const { tier, reason } = routeQuery(resolvedContent, settings.routingMode, settings.routingAggressiveness, ollamaRunning, spendingToday, settings.dailyBudgetLimit)
+    const { tier, reason } = routeQuery(canonicalChain.routingPrompt, settings.routingMode, settings.routingAggressiveness, ollamaRunning, spendingToday, settings.dailyBudgetLimit)
 
     // Effective tier — plugin overrides router
     const effectiveTier = resolvedPlugin ? resolvedPlugin.tier : tier
@@ -215,10 +228,10 @@ export default function MessageInput({ conversationId }: Props) {
     const estimatedInputTokens = estimateTokens(
       [
         ...history.map((message) => message.content),
-        resolvedContent,
+        canonicalChain.routingPrompt,
       ].join('\n')
     )
-    const estimatedOutputTokens = Math.max(estimateTokens(resolvedContent), 384)
+    const estimatedOutputTokens = Math.max(estimateTokens(canonicalChain.rebuiltUserPrompt), 384)
     const estimatedCost = estimateCost(effectiveTier, estimatedInputTokens, estimatedOutputTokens)
 
     appendTraceEntry({
@@ -233,7 +246,7 @@ export default function MessageInput({ conversationId }: Props) {
 
     window.electron.routingAppend?.({
       timestamp: new Date().toISOString(),
-      queryPreview: resolvedContent.slice(0, 80),
+      queryPreview: canonicalChain.routingPrompt.slice(0, 80),
       chosenTier: effectiveTier,
       reason: effectiveReason,
       confidence: resolvedPlugin ? 1 : 0.72,
@@ -274,20 +287,23 @@ export default function MessageInput({ conversationId }: Props) {
       title: 'Started assistant response',
       detail: `Conversation ${convId} is now streaming from ${TIER_DISPLAY_LABELS[effectiveTier]}.`,
       conversationId: convId,
-      relatedPanels: ['chat', 'execution', 'prompt_inspector'],
+      stage: 'local model',
+      executionState: 'model_dispatch',
+      relatedPanels: ['chat', 'execution', 'prompt_inspector', 'transparency'],
       entityLabel: effectiveTier,
     })
 
     await sendMessage({
-      content: resolvedContent,
+      content: canonicalChain.rebuiltUserPrompt,
       tier: effectiveTier,
-      conversationHistory: [...history, { role: 'user', content: resolvedContent }],
+      conversationHistory: [...history, { role: 'user', content: canonicalChain.rebuiltUserPrompt }],
       settings: {
         ollamaModel: settings.ollamaModel,
         extendedThinking: settings.extendedThinking,
       },
       signal: abortRef.current.signal,
       // Plugin system prompt override
+      prebuiltSystemPrompt: canonicalChain.rebuiltSystemPrompt,
       systemPromptOverride: resolvedPlugin?.systemPrompt,
       tierOverride: resolvedPlugin?.tier,
       onToken: (token) => {
@@ -309,6 +325,8 @@ export default function MessageInput({ conversationId }: Props) {
           title: 'Completed assistant response',
           detail: `Received ${fullText.length} characters${cost > 0 ? ` at cost $${cost.toFixed(4)}` : ' with no cloud cost'}.`,
           conversationId: convId,
+          stage: 'local model',
+          executionState: 'completed',
           relatedPanels: ['chat', 'execution', 'cost'],
           entityLabel: effectiveTier,
         })
@@ -358,6 +376,8 @@ export default function MessageInput({ conversationId }: Props) {
           title: 'Assistant response failed',
           detail: err.message,
           conversationId: convId,
+          stage: 'local model',
+          executionState: 'failed',
           relatedPanels: ['chat', 'execution', 'services'],
           entityLabel: effectiveTier,
         })
@@ -512,14 +532,4 @@ export default function MessageInput({ conversationId }: Props) {
       </div>
     </div>
   )
-}
-
-function buildMemoryContextBlock(citations: MemoryCitation[]): string {
-  const entries = citations.map((citation, index) => {
-    const title = citation.title.trim() || 'Untitled note'
-    const excerpt = citation.excerpt.replace(/\s+/g, ' ').trim()
-    return `[${index + 1}] ${title} (${sourceLabel(citation.source_type)}, ${citation.date})\n${excerpt}`
-  })
-
-  return `Relevant memory context:\n${entries.join('\n\n')}`
 }

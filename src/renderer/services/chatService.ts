@@ -24,6 +24,7 @@ export interface SendOptions {
   signal?: AbortSignal
   // Plugin overrides — when a plugin is active, these replace the defaults
   systemPromptOverride?: string
+  prebuiltSystemPrompt?: string
   tierOverride?: ModelTier
 }
 
@@ -31,7 +32,7 @@ export async function sendMessage(opts: SendOptions): Promise<void> {
   const {
     conversationHistory, settings,
     onToken, onComplete, onError, signal,
-    systemPromptOverride, tierOverride,
+    systemPromptOverride, prebuiltSystemPrompt, tierOverride,
   } = opts
 
   // Plugin overrides take precedence over router's tier decision
@@ -54,9 +55,13 @@ export async function sendMessage(opts: SendOptions): Promise<void> {
       useSettingsStore.getState().setOllamaModel(chatModel)
     }
 
+    const ollamaMessages = prebuiltSystemPrompt
+      ? [{ role: 'system', content: prebuiltSystemPrompt }, ...chatHistory]
+      : chatHistory
+
     await streamOllamaChat(
       chatModel,
-      chatHistory,
+      ollamaMessages,
       {
         onToken,
         onComplete: (text) => onComplete(text, 0),
@@ -73,7 +78,10 @@ export async function sendMessage(opts: SendOptions): Promise<void> {
 
   // Use plugin systemPrompt if provided, otherwise load A.R.C. prompt
   let systemPrompt: string
-  if (systemPromptOverride) {
+  if (prebuiltSystemPrompt) {
+    systemPrompt = prebuiltSystemPrompt
+    console.log('[Chat] Using prebuilt canonical chain prompt')
+  } else if (systemPromptOverride) {
     systemPrompt = systemPromptOverride
     console.log('[Chat] Using plugin system prompt override')
   } else {

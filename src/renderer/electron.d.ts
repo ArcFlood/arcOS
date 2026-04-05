@@ -7,6 +7,12 @@ declare global {
       getPlatform: () => Promise<string>
 
       loadArcPrompts: () => Promise<{ success: boolean; content?: string; source?: string; error?: string }>
+      openClawContext: () => Promise<{
+        success: boolean
+        workspacePath?: string
+        files?: Array<{ name: string; path: string; content: string }>
+        error?: string
+      }>
 
       ollamaListModels: () => Promise<{ success: boolean; models: string[] }>
       ollamaListModelDetails: () => Promise<{ success: boolean; models: LocalModelInfo[] }>
