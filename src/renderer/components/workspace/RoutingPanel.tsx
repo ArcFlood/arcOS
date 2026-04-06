@@ -76,8 +76,8 @@ export default function RoutingPanel() {
         <p className="arcos-kicker">Preview</p>
         {preview ? (
           <div className="mt-3 space-y-2">
-            <div className="text-sm font-medium text-text">{TIER_DISPLAY_LABELS[preview.tier]}</div>
-            <p className="text-xs leading-5 text-text-muted">{preview.reason}</p>
+            <div className="break-words text-sm font-medium text-text">{TIER_DISPLAY_LABELS[preview.tier]}</div>
+            <p className="break-words text-xs leading-5 text-text-muted">{preview.reason}</p>
           </div>
         ) : (
           <p className="mt-3 text-xs text-text-muted">Send a message to start collecting routing context.</p>
@@ -103,9 +103,9 @@ export default function RoutingPanel() {
           ) : (
             entries.slice(0, 8).map((entry, index) => (
               <div key={`${entry.timestamp}-${index}`} className="rounded-lg border border-border bg-[#12161b] px-3 py-2.5">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold tracking-wide text-text">{entry.chosenTier}</span>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex flex-wrap items-center gap-2">
+                    <span className="break-words text-xs font-semibold tracking-wide text-text">{entry.chosenTier}</span>
                     <span className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wider text-text-muted">
                       {Math.round(entry.confidence * 100)}% confidence
                     </span>
@@ -119,8 +119,8 @@ export default function RoutingPanel() {
                     {new Date(entry.timestamp).toLocaleTimeString()}
                   </span>
                 </div>
-                <p className="mt-1 text-xs text-text-muted">{entry.queryPreview}</p>
-                <p className="mt-1 text-[11px] leading-5 text-text-muted">{entry.reason}</p>
+                <p className="mt-1 break-words text-xs text-text-muted">{entry.queryPreview}</p>
+                <p className="mt-1 break-words text-[11px] leading-5 text-text-muted">{entry.reason}</p>
                 {entry.estimatedCost !== undefined && (
                   <p className="mt-2 text-[11px] uppercase tracking-wider text-text-muted">
                     est. cost: ${entry.estimatedCost.toFixed(4)}
@@ -139,7 +139,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-border bg-[#12161b] px-3 py-2.5">
       <p className="arcos-kicker">{label}</p>
-      <p className="mt-1 text-sm font-medium text-text">{value}</p>
+      <p className="mt-1 break-words text-sm font-medium text-text">{value}</p>
     </div>
   )
 }

@@ -58,7 +58,7 @@ export default function PromptInspectorPanel() {
           <p className="arcos-kicker">Current User Prompt</p>
           <span className="text-[11px] text-text-muted">{estimateTokens(currentUserPrompt)} tokens est.</span>
         </div>
-        <div className="mt-3 rounded-lg border border-border bg-[#12161b] px-3 py-3 text-xs leading-6 text-text-muted whitespace-pre-wrap">
+        <div className="mt-3 rounded-lg border border-border bg-[#12161b] px-3 py-3 whitespace-pre-wrap break-words text-xs leading-6 text-text-muted">
           {currentUserPrompt || 'No active user prompt yet.'}
         </div>
       </section>
@@ -73,7 +73,7 @@ export default function PromptInspectorPanel() {
             {expanded ? 'Collapse' : 'Expand'}
           </button>
         </div>
-        <div className="mt-3 rounded-lg border border-border bg-[#12161b] px-3 py-3 text-xs leading-6 text-text-muted whitespace-pre-wrap">
+        <div className="mt-3 rounded-lg border border-border bg-[#12161b] px-3 py-3 whitespace-pre-wrap break-words text-xs leading-6 text-text-muted">
           {expanded ? activeSystemPrompt : `${activeSystemPrompt.slice(0, 600)}${activeSystemPrompt.length > 600 ? '…' : ''}`}
         </div>
       </section>
@@ -83,7 +83,7 @@ export default function PromptInspectorPanel() {
           <p className="arcos-kicker">Recent Conversation Context</p>
           <span className="text-[11px] text-text-muted">{estimateTokens(conversationContext)} tokens est.</span>
         </div>
-        <div className="mt-3 rounded-lg border border-border bg-[#12161b] px-3 py-3 text-xs leading-6 text-text-muted whitespace-pre-wrap">
+        <div className="mt-3 rounded-lg border border-border bg-[#12161b] px-3 py-3 whitespace-pre-wrap break-words text-xs leading-6 text-text-muted">
           {conversationContext || 'No recent conversation context yet.'}
         </div>
       </section>
@@ -95,8 +95,7 @@ function InspectorStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-border bg-[#12161b] px-3 py-2.5">
       <p className="arcos-kicker">{label}</p>
-      <p className="mt-1 text-sm font-medium text-text">{value}</p>
+      <p className="mt-1 break-words text-sm font-medium text-text">{value}</p>
     </div>
   )
 }
-

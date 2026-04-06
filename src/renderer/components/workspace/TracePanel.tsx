@@ -29,6 +29,9 @@ export default function TracePanel() {
 
   const panelTitle = (panelId: string) => WORKSPACE_PANELS.find((panel) => panel.id === panelId)?.title ?? panelId
   const formatChainPath = (value: string) => value.replace(/-/g, ' ')
+  const latestOpenClaw = entries.find((entry) => entry.stage === 'OpenClaw' && entry.level === 'success')
+  const latestFabric = entries.find((entry) => entry.stage === 'Fabric' && (entry.level === 'success' || entry.level === 'error'))
+  const latestComposer = entries.find((entry) => entry.stage === 'Response Composer')
 
   return (
     <div className="space-y-4 p-4">
@@ -78,6 +81,27 @@ export default function TracePanel() {
           )}
         </div>
 
+        <div className="rounded-xl border border-border bg-[#12161b] px-3 py-3">
+          <p className="arcos-kicker mb-2">Latest Chain Outputs</p>
+          <div className="grid gap-3 lg:grid-cols-3">
+            <ChainOutputCard
+              label="OpenClaw"
+              title={latestOpenClaw?.title ?? 'No successful OpenClaw analysis yet'}
+              detail={latestOpenClaw?.detail}
+            />
+            <ChainOutputCard
+              label="Fabric"
+              title={latestFabric?.title ?? 'No Fabric execution recorded yet'}
+              detail={latestFabric?.detail}
+            />
+            <ChainOutputCard
+              label="Response Composer"
+              title={latestComposer?.title ?? 'No Response Composer checkpoint yet'}
+              detail={latestComposer?.detail}
+            />
+          </div>
+        </div>
+
         {filteredEntries.length === 0 ? (
           <div className="arcos-subpanel rounded-xl px-4 py-6 text-xs text-text-muted">
             No trace entries yet. Send a message or start/stop a service to populate the feed.
@@ -89,14 +113,14 @@ export default function TracePanel() {
               className={`rounded-xl border px-3 py-3 ${LEVEL_STYLES[entry.level]}`}
             >
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-medium">{entry.title}</p>
+                <p className="min-w-0 break-words text-sm font-medium">{entry.title}</p>
                 <span className="text-[11px] opacity-70">
                   {new Date(entry.timestamp).toLocaleTimeString()}
                 </span>
               </div>
               <p className="mt-1 text-[11px] uppercase tracking-wider opacity-70">{entry.source}</p>
               {entry.detail && (
-                <p className="mt-2 text-xs leading-5 opacity-90">{entry.detail}</p>
+                <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-5 opacity-90">{entry.detail}</p>
               )}
               {entry.stage && (
                 <p className="mt-2 text-[11px] uppercase tracking-wider opacity-70">stage: {entry.stage}</p>
@@ -139,7 +163,19 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-border bg-[#0f1318] px-3 py-2">
       <p className="text-[10px] uppercase tracking-wider text-text-muted">{label}</p>
-      <p className="mt-1 text-xs font-medium text-text">{value}</p>
+      <p className="mt-1 break-words text-xs font-medium text-text">{value}</p>
+    </div>
+  )
+}
+
+function ChainOutputCard({ label, title, detail }: { label: string; title: string; detail?: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-[#0f1318] px-3 py-2">
+      <p className="text-[10px] uppercase tracking-wider text-text-muted">{label}</p>
+      <p className="mt-1 break-words text-xs font-medium text-text">{title}</p>
+      <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-5 text-text-muted">
+        {detail ?? 'No detail recorded.'}
+      </p>
     </div>
   )
 }

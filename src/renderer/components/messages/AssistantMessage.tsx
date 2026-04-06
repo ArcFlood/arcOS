@@ -49,9 +49,6 @@ export default function AssistantMessage({ message }: { message: Message }) {
         {/* Badge row */}
         <div className="flex items-center gap-2 mb-1.5 px-1">
           {message.model && <MessageBadge tier={message.model} cost={message.cost} />}
-          {message.routingReason && (
-            <span className="text-xs text-text-muted italic">— {message.routingReason}</span>
-          )}
         </div>
 
         <div className="bg-surface border border-border px-4 py-3 rounded-2xl rounded-tl-sm relative selectable">

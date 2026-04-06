@@ -12,6 +12,14 @@ import { useConversationStore } from '../stores/conversationStore'
 import { useWorkspaceStore } from '../stores/workspaceStore'
 import useAppBootstrap from '../hooks/useAppBootstrap'
 
+const ARCOS_TOTAL_APP_SECONDS_KEY = 'arcos-total-app-seconds'
+
+function addAppTime(seconds: number) {
+  const current = Number.parseInt(localStorage.getItem(ARCOS_TOTAL_APP_SECONDS_KEY) ?? '0', 10)
+  const next = Number.isFinite(current) ? current + seconds : seconds
+  localStorage.setItem(ARCOS_TOTAL_APP_SECONDS_KEY, String(next))
+}
+
 export default function Layout() {
   const settingsPanelOpen = useSettingsStore((s) => s.settingsPanelOpen)
   const openSettings = useSettingsStore((s) => s.openSettingsPanel)
@@ -28,6 +36,19 @@ export default function Layout() {
   const [bugReportOpen, setBugReportOpen] = useState(false)
 
   useAppBootstrap()
+
+  useEffect(() => {
+    const startedAt = Date.now()
+    const interval = window.setInterval(() => {
+      addAppTime(30)
+    }, 30_000)
+
+    return () => {
+      window.clearInterval(interval)
+      const elapsedSeconds = Math.max(0, Math.round((Date.now() - startedAt) / 1000))
+      addAppTime(elapsedSeconds % 30)
+    }
+  }, [])
 
   // ── Weekly digest gate ───────────────────────────────────────
   useEffect(() => {

@@ -293,17 +293,6 @@ export default function MessageInput({ conversationId }: Props) {
       estimatedCost,
     }).catch?.(() => {})
 
-    // Show routing decision
-    if (settings.showRoutingReasons) {
-      addMessage(convId, {
-        role: 'system',
-        content: `${TIER_DISPLAY_LABELS[effectiveTier]} — ${effectiveReason}`,
-        model: null,
-        cost: 0,
-        timestamp: Date.now(),
-      })
-    }
-
     // Add placeholder assistant message
     const assistantMsg = addMessage(convId, {
       role: 'assistant',

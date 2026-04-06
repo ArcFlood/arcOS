@@ -137,8 +137,8 @@ export default function ToolsPanel() {
                         <div className="flex items-start gap-2">
                           <span className="text-base">{patternEmoji(pattern)}</span>
                           <div className="min-w-0">
-                            <p className="text-sm font-medium text-text">{patternLabel(pattern)}</p>
-                            <p className="mt-1 text-xs leading-5 text-text-muted">{patternDescription(pattern)}</p>
+                            <p className="break-words text-sm font-medium text-text">{patternLabel(pattern)}</p>
+                            <p className="mt-1 break-words text-xs leading-5 text-text-muted">{patternDescription(pattern)}</p>
                           </div>
                         </div>
                       </button>
@@ -149,13 +149,13 @@ export default function ToolsPanel() {
 
               <div className="space-y-3">
                 <div className="rounded-lg border border-border bg-[#12161b] px-3 py-3">
-                  <p className="text-sm font-medium text-text">
+                  <p className="break-words text-sm font-medium text-text">
                     {selectedPattern ? `${patternEmoji(selectedPattern)} ${patternLabel(selectedPattern)}` : 'Select a pattern'}
                   </p>
-                  <p className="mt-1 text-xs leading-5 text-text-muted">
+                  <p className="mt-1 break-words text-xs leading-5 text-text-muted">
                     {selectedPattern ? patternDescription(selectedPattern) : 'Choose a Fabric pattern to begin.'}
                   </p>
-                  <p className="mt-2 text-[11px] text-text-muted">
+                  <p className="mt-2 break-words text-[11px] text-text-muted">
                     {activeConversation ? `Active conversation: ${activeConversation.title}` : 'No active conversation. Runs will still be tracked in Tools.'}
                   </p>
                 </div>
@@ -216,7 +216,7 @@ export default function ToolsPanel() {
                   <div key={run.id} className="rounded-lg border border-border bg-[#12161b] px-3 py-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-sm font-medium text-text">{run.title}</p>
+                        <p className="break-words text-sm font-medium text-text">{run.title}</p>
                         <p className="mt-1 text-[11px] uppercase tracking-wider text-text-muted">
                           {run.status} · {new Date(run.startedAt).toLocaleTimeString()}
                         </p>
@@ -230,7 +230,7 @@ export default function ToolsPanel() {
                         </button>
                       ) : null}
                     </div>
-                    <p className="mt-2 text-xs leading-5 text-text-muted whitespace-pre-wrap">
+                    <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-5 text-text-muted">
                       {run.output || run.error || 'Waiting for output...'}
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
@@ -293,7 +293,7 @@ export default function ToolsPanel() {
                         <span className="text-lg">{plugin.icon}</span>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium text-text">{plugin.name}</p>
+                            <p className="break-words text-sm font-medium text-text">{plugin.name}</p>
                             {isActive && (
                               <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-success">
                                 Active
@@ -306,7 +306,7 @@ export default function ToolsPanel() {
                               {plugin.executionBoundary}
                             </span>
                           </div>
-                          <p className="mt-1 text-xs leading-5 text-text-muted">{plugin.description}</p>
+                          <p className="mt-1 break-words text-xs leading-5 text-text-muted">{plugin.description}</p>
                           <div className="mt-2 flex flex-wrap gap-1">
                             {plugin.commands.map((command) => (
                               <span key={command} className="rounded border border-border px-1.5 py-0.5 text-[10px] text-text-muted">
@@ -321,7 +321,7 @@ export default function ToolsPanel() {
                               </span>
                             ))}
                           </div>
-                          <p className="mt-2 text-[11px] leading-5 text-text-muted">
+                          <p className="mt-2 break-words text-[11px] leading-5 text-text-muted">
                             Entry surfaces: {plugin.entrySurfaces.join(', ')}. Stability: {plugin.stability}.
                           </p>
                         </div>

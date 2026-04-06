@@ -8,7 +8,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   budgetWarnLimit: 10.0,             // PRD v2: warn at $10/month
   autoStartOllama: false,
   autoStartFabric: false,
-  routingMode: 'auto',
+  routingMode: 'ollama',
   routingAggressiveness: 'balanced',
   extendedThinking: false,
   showRoutingReasons: true,
@@ -103,10 +103,21 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   // Sends key to main process for secure storage — raw key never stored in renderer
   setApiKey: async (key: string) => {
-    const result = await window.electron.apiKeySet?.(key)
-    const success = result?.success ?? false
-    if (success) set({ hasApiKey: key.trim().length > 0 })
-    return success
+    try {
+      const trimmed = key.trim()
+      const result = await window.electron.apiKeySet?.(trimmed)
+      const writeSuccess = result?.success ?? false
+      if (!writeSuccess) return false
+
+      const check = await window.electron.apiKeyHas?.()
+      const hasKey = check?.hasKey ?? false
+      const success = trimmed.length === 0 ? !hasKey : hasKey
+      set({ hasApiKey: hasKey })
+      return success
+    } catch (error) {
+      console.error('[SettingsStore] API key save failed:', error)
+      return false
+    }
   },
 
   updateSettings: (updates) => {

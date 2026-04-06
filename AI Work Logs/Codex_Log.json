@@ -1592,6 +1592,243 @@
         "Explicit legacy compatibility references remain in chain schema metadata by design.",
         "Generated validation output files and historical logs were left untouched as historical artifacts rather than rewritten manually."
       ]
+    },
+    {
+      "entry_id": "codex-2026-04-04-064",
+      "date": "2026-04-04",
+      "agent": "Codex",
+      "task_title": "Add pinned latest-stage output cards to transparency and execution panels",
+      "summary": "Enhanced the Transparency and Execution panels so they surface the latest OpenClaw, Fabric, and Response Composer outputs directly at the top of each panel. This makes the chain easier to inspect during live use without forcing manual feed scanning.",
+      "files_touched": [
+        "arcos/src/renderer/components/workspace/TracePanel.tsx",
+        "arcos/src/renderer/components/workspace/ExecutionTracePanel.tsx",
+        "arcos/src/renderer/services/canonicalChainService.ts",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npm run lint",
+        "npm run build:dir"
+      ],
+      "notes": [
+        "Fabric success entries now include a short output preview in the trace detail.",
+        "Response Composer success entries now explicitly note when PAI-section enforcement and Fabric-preservation mode were active."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-05-065",
+      "date": "2026-04-05",
+      "agent": "Codex",
+      "task_title": "Create shared ARCOS Todo List for ongoing multi-agent coordination",
+      "summary": "Created a project-level Todo_List.md to replace phase-driven planning for day-to-day ARCOS refinement. The list is structured as numbered checklist items with lettered sub-items so multiple agents can be assigned separate work streams without colliding.",
+      "files_touched": [
+        "Todo_List.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "Todo_List.md created in AI Project root"
+      ],
+      "notes": [
+        "The todo list is intended to become the ongoing coordination surface after the WBS reached structural completion.",
+        "Initial items were seeded directly from the user-provided ARCOS refinement priorities."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-05-066",
+      "date": "2026-04-05",
+      "agent": "Codex",
+      "task_title": "Add assignment and dependency fields to shared ARCOS Todo List",
+      "summary": "Expanded the project Todo_List.md with Owner, Status, Files/Area, and Blocked By fields for each top-level item. This makes the list usable as a multi-agent coordination surface and makes dependencies explicit before work is assigned.",
+      "files_touched": [
+        "Todo_List.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "Todo_List.md updated with coordination fields"
+      ],
+      "notes": [
+        "Blocked By is intended to prevent assigning implementation work before prerequisite decisions or contracts are settled.",
+        "All current top-level items now have explicit ownership, status, area, and dependency placeholders."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-05-067",
+      "date": "2026-04-05",
+      "agent": "Codex",
+      "task_title": "Reorder shared Todo List by dependency and assign security owner",
+      "summary": "Reordered the ARCOS todo list so it starts with Version History and UI module pass/fail, then surfaces dependency-linked work before the remaining unblocked items. The Security update item is now assigned to github.",
+      "files_touched": [
+        "Todo_List.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "Todo_List.md reordered and security owner updated"
+      ],
+      "notes": [
+        "Existing item numbers were preserved while only the visual ordering changed.",
+        "Dependency-driven ordering now places blockers ahead of the items that depend on them where that relationship is explicit."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-05-068",
+      "date": "2026-04-05",
+      "agent": "Codex",
+      "task_title": "Renumber shared Todo List to match reordered task order",
+      "summary": "Renumbered the ARCOS todo list so the item numbers now match the current visual order. Lettered sub-items were updated as well, and the auto-swapping blocker reference now points to the new module-vs-tab item number.",
+      "files_touched": [
+        "Todo_List.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "Todo_List.md renumbered to match displayed order"
+      ],
+      "notes": [
+        "Top-level numbering is now sequential from 1 through 15 in the current sorted order.",
+        "Sub-item labels and cross-item blocker references were updated to stay consistent with the new numbering."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-05-069",
+      "date": "2026-04-05",
+      "agent": "Codex",
+      "task_title": "Implement user-visible ARCOS version history and complete Todo item 1",
+      "summary": "Built the first version-history feature for ARCOS by adding a structured release-history data source and surfacing it in the Settings About tab as a user-visible timeline. This establishes release/change tracking as an actual app feature instead of a note in docs.",
+      "files_touched": [
+        "arcos/src/renderer/data/versionHistory.json",
+        "arcos/src/renderer/components/settings/SettingsPanel.tsx",
+        "Todo_List.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npm run lint",
+        "npm run build:dir"
+      ],
+      "notes": [
+        "Todo item 1 (Version history) is now marked complete.",
+        "The first version-history pass is static structured data in the app; later work can extend it to generated or Git-backed release notes if needed."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-05-070",
+      "date": "2026-04-05",
+      "agent": "Codex",
+      "task_title": "Complete ARCOS module pass/fail audit and first visual cleanup pass",
+      "summary": "Audited the current workspace modules, recorded pass/fail decisions in the shared todo list, and rewrote the obvious failures. Navigator no longer duplicates the Services module, Utilities no longer exposes legacy transitional launchers, and long text content across the main diagnostic panels now wraps inside module bounds instead of bleeding across the layout.",
+      "files_touched": [
+        "Todo_List.md",
+        "arcos/src/renderer/components/Sidebar.tsx",
+        "arcos/src/renderer/components/workspace/WorkspacePanelContent.tsx",
+        "arcos/src/renderer/components/workspace/TracePanel.tsx",
+        "arcos/src/renderer/components/workspace/ExecutionTracePanel.tsx",
+        "arcos/src/renderer/components/workspace/RoutingPanel.tsx",
+        "arcos/src/renderer/components/workspace/MemoryWorkspacePanel.tsx",
+        "arcos/src/renderer/components/workspace/HistoryPanel.tsx",
+        "arcos/src/renderer/components/workspace/PromptInspectorPanel.tsx",
+        "arcos/src/renderer/components/workspace/ToolsPanel.tsx",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npm run lint"
+      ],
+      "notes": [
+        "Todo item 2 is now in progress with 2a complete and 2b partially complete.",
+        "Navigator and Utilities were the only modules marked fail in the first audit pass; the rest remain valid modules with targeted visual cleanup."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-05-071",
+      "date": "2026-04-05",
+      "agent": "Codex",
+      "task_title": "Add explicit write scopes to ARCOS todo coordination list",
+      "summary": "Expanded the shared Todo_List.md so each task now includes a Write Scope field listing the primary files or directories that task is allowed to modify. This creates a concrete anti-collision boundary for parallel agent work, which is more reliable than trying to detect live edits.",
+      "files_touched": [
+        "Todo_List.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "Todo_List.md updated with write scopes for all current items"
+      ],
+      "notes": [
+        "Write Scope is now the primary coordination boundary for multi-agent work on ARCOS.",
+        "Items that share files such as main.ts, SettingsPanel.tsx, or workspaceStore.ts should still be coordinated before parallel execution."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-05-072",
+      "date": "2026-04-05",
+      "agent": "Codex",
+      "task_title": "Restructure Settings module and fix first-pass settings UI issues",
+      "summary": "Rebuilt the Settings module into a fixed-size sidebar layout, reordered the sections to General → Appearance → Connections → Models → Analytics → About, moved budget controls under Connections, moved the Ollama model selector into Models, and fixed the known settings-layout overflow issues in toggles and color fields. I also hardened Claude API key saving in settings state so writes are verified against the main-process key presence check instead of trusting the first IPC result blindly.",
+      "files_touched": [
+        "arcos/src/renderer/components/settings/SettingsPanel.tsx",
+        "arcos/src/renderer/stores/settingsStore.ts",
+        "Todo_List.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npx eslint src/renderer/components/settings/SettingsPanel.tsx src/renderer/components/settings/ApiKeyInput.tsx src/renderer/stores/settingsStore.ts"
+      ],
+      "notes": [
+        "Full-repo tsc and lint are currently blocked by unrelated workspace changes in AuditPanel, HooksPanel, ServicePanel, and existing main-process lint warnings outside the Settings work.",
+        "Added a new todo item for expanding the ARCOS theme library."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-05-073",
+      "date": "2026-04-05",
+      "agent": "Codex",
+      "task_title": "Apply second-pass Settings revisions and move chat model identity into message rendering",
+      "summary": "Applied the requested Settings follow-up revisions: removed the extra sidebar copy, simplified routing mode choices, removed the aggressiveness and routing-reason chat controls from the Settings UI, moved keyboard shortcuts into General, and added a todo item for expanding keyboard shortcuts. I also stopped injecting routing-reason system messages into chat and made message identity more explicit by labeling user and system messages while keeping assistant model badges visible per message.",
+      "files_touched": [
+        "arcos/src/renderer/components/settings/SettingsPanel.tsx",
+        "arcos/src/renderer/stores/settingsStore.ts",
+        "arcos/src/renderer/components/MessageInput.tsx",
+        "arcos/src/renderer/components/messages/AssistantMessage.tsx",
+        "arcos/src/renderer/components/messages/UserMessage.tsx",
+        "arcos/src/renderer/components/messages/SystemMessage.tsx",
+        "Todo_List.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npx eslint src/renderer/components/settings/SettingsPanel.tsx src/renderer/stores/settingsStore.ts src/renderer/components/MessageInput.tsx src/renderer/components/messages/AssistantMessage.tsx src/renderer/components/messages/UserMessage.tsx src/renderer/components/messages/SystemMessage.tsx"
+      ],
+      "notes": [
+        "Extended Thinking is currently a dead setting: it is passed through the sendMessage call signature but is not used anywhere in the actual Claude or Ollama execution path.",
+        "New installs now default routing mode to Always Local by setting the default stored routing mode to ollama."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-05-074",
+      "date": "2026-04-05",
+      "agent": "Codex",
+      "task_title": "Finalize Settings button behavior and simplify Analytics surface",
+      "summary": "Updated Settings so Cancel now reverts local edits without closing the panel and Save Changes now persists settings without closing the panel. I also removed the About-tier block, removed the Analytics model-tier graph, and replaced it with simpler persistent summary cards plus new operational totals for Fabric usage count, total time in app, and local model run count.",
+      "files_touched": [
+        "arcos/src/renderer/components/settings/SettingsPanel.tsx",
+        "arcos/src/renderer/components/cost/AnalyticsPanel.tsx",
+        "arcos/src/renderer/components/Layout.tsx",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npx eslint src/renderer/components/settings/SettingsPanel.tsx src/renderer/components/cost/AnalyticsPanel.tsx src/renderer/components/Layout.tsx"
+      ],
+      "notes": [
+        "Total time in app is now tracked locally via a persistent seconds counter stored in localStorage and updated from the app layout lifecycle.",
+        "Local model runs are currently measured as persisted assistant messages generated with the ollama model tier."
+      ]
     }
   ]
 }

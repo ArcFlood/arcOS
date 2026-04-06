@@ -47,6 +47,11 @@ export interface CanonicalChainResult {
 
 const appendTrace = (entry: Omit<TraceEntry, 'id' | 'timestamp'>) => useTraceStore.getState().appendEntry(entry)
 
+function previewDetail(text: string, max = 280): string {
+  if (text.length <= max) return text
+  return `${text.slice(0, max)}…`
+}
+
 function buildResponseComposerInstruction(fabricExecuted: boolean): string {
   if (fabricExecuted) {
     return [
@@ -355,7 +360,7 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
         source: 'fabric',
         level: 'success',
         title: `Fabric pattern ${fabricResolution.resolvedPattern} completed`,
-        detail: `${fabricResult.output.length} characters returned via ${fabricResult.mode ?? 'unknown'} execution.`,
+        detail: `${fabricResult.output.length} characters returned via ${fabricResult.mode ?? 'unknown'} execution.\n${previewDetail(fabricResult.output)}`,
         conversationId: opts.conversationId,
         stage: fabricResult.stage ?? 'Fabric',
         executionState: 'completed',
@@ -472,7 +477,7 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
     source: 'chat',
     level: 'success',
     title: 'Response package composed',
-    detail: `Final system prompt size: ${rebuiltSystemPrompt.length} chars. Final user payload size: ${rebuiltUserPrompt.length} chars.`,
+    detail: `Final system prompt size: ${rebuiltSystemPrompt.length} chars. Final user payload size: ${rebuiltUserPrompt.length} chars. Required PAI sections enforced.${fabricDiagnostics.executed ? ' Fabric output preservation mode active.' : ''}`,
     conversationId: opts.conversationId,
     stage: 'Response Composer',
     executionState: 'model_dispatch',

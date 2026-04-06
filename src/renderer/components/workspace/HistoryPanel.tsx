@@ -121,7 +121,7 @@ export default function HistoryPanel() {
                     }`}
                   >
                     <p className="text-xs font-medium">{session.date}</p>
-                    <p className="mt-0.5 text-[11px] truncate">{session.filename.replace('_session.md', '').slice(11)}</p>
+                    <p className="mt-0.5 break-words text-[11px]">{session.filename.replace('_session.md', '').slice(11)}</p>
                   </button>
                 ))
               )}
@@ -150,7 +150,7 @@ export default function HistoryPanel() {
                     </div>
                   </div>
                 )}
-                <pre className="whitespace-pre-wrap font-mono text-xs leading-6 text-text">{sessionContent}</pre>
+                <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-6 text-text">{sessionContent}</pre>
               </div>
             ) : (
               <div className="flex h-full items-center justify-center text-xs italic text-text-muted">
@@ -184,8 +184,8 @@ export default function HistoryPanel() {
               routingEntries.map((entry, index) => (
                 <div key={`${entry.timestamp}-${index}`} className="rounded-xl border border-border bg-[#12161b] px-3 py-3">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-text">{entry.chosenTier}</p>
+                    <div className="min-w-0 flex flex-wrap items-center gap-2">
+                      <p className="break-words text-sm font-medium text-text">{entry.chosenTier}</p>
                       <span className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wider text-text-muted">
                         {Math.round(entry.confidence * 100)}% confidence
                       </span>
@@ -197,8 +197,8 @@ export default function HistoryPanel() {
                     </div>
                     <span className="text-[11px] text-text-muted">{new Date(entry.timestamp).toLocaleTimeString()}</span>
                   </div>
-                  <p className="mt-1 text-xs text-text-muted">{entry.queryPreview}</p>
-                  <p className="mt-2 text-[11px] leading-5 text-text-muted">{entry.reason}</p>
+                  <p className="mt-1 break-words text-xs text-text-muted">{entry.queryPreview}</p>
+                  <p className="mt-2 break-words text-[11px] leading-5 text-text-muted">{entry.reason}</p>
                   {entry.estimatedCost !== undefined && (
                     <p className="mt-2 text-[11px] uppercase tracking-wider text-text-muted">
                       est. cost: ${entry.estimatedCost.toFixed(4)}
@@ -228,7 +228,7 @@ export default function HistoryPanel() {
                     }`}
                   >
                     <p className="text-xs font-medium">{learning.date}</p>
-                    <p className="mt-0.5 truncate text-[11px]">{learning.filename.replace('_learning.md', '').slice(11)}</p>
+                    <p className="mt-0.5 break-words text-[11px]">{learning.filename.replace('_learning.md', '').slice(11)}</p>
                   </button>
                 ))
               )}
@@ -236,7 +236,7 @@ export default function HistoryPanel() {
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto bg-[#101318] p-4">
             {learningContent ? (
-              <pre className="whitespace-pre-wrap font-mono text-xs leading-6 text-text">{learningContent}</pre>
+              <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-6 text-text">{learningContent}</pre>
             ) : (
               <div className="flex h-full items-center justify-center text-xs italic text-text-muted">
                 Select a saved learning to inspect.
@@ -253,7 +253,7 @@ function HistoryStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-border bg-[#12161b] px-3 py-2">
       <p className="text-[10px] uppercase tracking-wider text-text-muted">{label}</p>
-      <p className="mt-1 text-xs font-medium text-text">{value}</p>
+      <p className="mt-1 break-words text-xs font-medium text-text">{value}</p>
     </div>
   )
 }

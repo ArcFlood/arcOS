@@ -1,0 +1,38 @@
+{
+  "currentVersion": "2.1.0",
+  "entries": [
+    {
+      "version": "2.1.0",
+      "date": "2026-04-05",
+      "title": "Canonical chain, memory loop, and Response Composer pass",
+      "status": "current",
+      "highlights": [
+        "OpenClaw and Fabric now participate in the normal ARCOS chat chain",
+        "ARC-Memory write-back and search loop are active against ArcVault",
+        "Response Composer now preserves Fabric-backed output into the PAI response structure",
+        "Transparency and Execution panels expose clearer latest-stage chain outputs"
+      ]
+    },
+    {
+      "version": "2.0.0",
+      "date": "2026-04-04",
+      "title": "ARCOS modular workspace rebuild",
+      "status": "major",
+      "highlights": [
+        "Replaced the old shell with the pocket-grid modular workspace",
+        "Added saved layouts, detached panels, and dense ARCOS visual styling",
+        "Promoted routing, memory, transparency, execution, and tools into first-class modules"
+      ]
+    },
+    {
+      "version": "1.0.0",
+      "date": "2026-04-03",
+      "title": "Initial packaged ARCOS baseline",
+      "status": "baseline",
+      "highlights": [
+        "Established the packaged desktop app baseline",
+        "Connected local services, model management, and early observability surfaces"
+      ]
+    }
+  ]
+}

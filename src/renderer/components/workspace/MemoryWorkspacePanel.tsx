@@ -182,8 +182,8 @@ function MemoryChunkCard({ chunk, obsidianUri }: { chunk: MemoryChunk; obsidianU
           {label}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-text truncate">{chunk.title}</p>
-          <p className="text-[11px] text-text-muted">{chunk.date} · chunk {chunk.chunk_index + 1}</p>
+          <p className="break-words text-sm font-medium text-text">{chunk.title}</p>
+          <p className="break-words text-[11px] text-text-muted">{chunk.date} · chunk {chunk.chunk_index + 1}</p>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-[11px] text-text-muted">{formatMemoryRank(chunk)}</span>
@@ -207,7 +207,7 @@ function MemoryChunkCard({ chunk, obsidianUri }: { chunk: MemoryChunk; obsidianU
           )}
         </div>
       </div>
-      <div className="mt-3 text-xs leading-6 text-text-muted whitespace-pre-wrap">
+      <div className="mt-3 whitespace-pre-wrap break-words text-xs leading-6 text-text-muted">
         {expanded ? chunk.text : excerpt}
       </div>
       {chunk.text.length > 240 && (
@@ -226,7 +226,7 @@ function MemoryStat({ label, value, ok }: { label: string; value: string; ok?: b
   return (
     <div className="rounded-lg border border-border bg-[#12161b] px-3 py-2.5">
       <p className="arcos-kicker">{label}</p>
-      <p className={`mt-1 text-sm font-medium ${ok === undefined ? 'text-text' : ok ? 'text-success' : 'text-danger'}`}>{value}</p>
+      <p className={`mt-1 break-words text-sm font-medium ${ok === undefined ? 'text-text' : ok ? 'text-success' : 'text-danger'}`}>{value}</p>
     </div>
   )
 }
