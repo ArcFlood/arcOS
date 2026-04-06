@@ -149,14 +149,14 @@ function createWindow(): BrowserWindow {
   return win
 }
 
-function notifyDetachedPanelClosed(panelId: string): void {
+function notifyDetachedPanelClosed(moduleId: string): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('workspace:detached-panel-closed', panelId)
+    mainWindow.webContents.send('workspace:detached-panel-closed', moduleId)
   }
 }
 
-function createDetachedPanelWindow(panelId: string): BrowserWindow {
-  const existing = detachedPanelWindows.get(panelId)
+function createDetachedPanelWindow(moduleId: string, panelId: string, title?: string): BrowserWindow {
+  const existing = detachedPanelWindows.get(moduleId)
   if (existing && !existing.isDestroyed()) {
     existing.show()
     existing.focus()
@@ -180,28 +180,28 @@ function createDetachedPanelWindow(panelId: string): BrowserWindow {
     },
   })
 
-  win.setTitle(`ARCOS · ${panelId}`)
+  win.setTitle(`ARCOS · ${title ?? panelId}`)
   win.once('ready-to-show', () => win.show())
-  loadRenderer(win, { detachedPanel: panelId })
-  detachedPanelWindows.set(panelId, win)
+  loadRenderer(win, { detachedPanel: panelId, detachedModule: moduleId })
+  detachedPanelWindows.set(moduleId, win)
 
   win.on('closed', () => {
-    detachedPanelWindows.delete(panelId)
-    if (suppressedDetachedPanelNotifications.has(panelId)) {
-      suppressedDetachedPanelNotifications.delete(panelId)
+    detachedPanelWindows.delete(moduleId)
+    if (suppressedDetachedPanelNotifications.has(moduleId)) {
+      suppressedDetachedPanelNotifications.delete(moduleId)
       return
     }
-    notifyDetachedPanelClosed(panelId)
+    notifyDetachedPanelClosed(moduleId)
   })
 
   return win
 }
 
-function closeDetachedPanelWindow(panelId: string, suppressNotification = true): void {
-  const win = detachedPanelWindows.get(panelId)
+function closeDetachedPanelWindow(moduleId: string, suppressNotification = true): void {
+  const win = detachedPanelWindows.get(moduleId)
   if (!win || win.isDestroyed()) return
   if (suppressNotification) {
-    suppressedDetachedPanelNotifications.add(panelId)
+    suppressedDetachedPanelNotifications.add(moduleId)
   }
   win.close()
 }
@@ -1110,22 +1110,22 @@ app.on('window-all-closed', () => {
 
 // ── IPC: System ───────────────────────────────────────────────────
 ipcMain.handle('get-platform', () => process.platform)
-ipcMain.handle('workspace:detach-panel', (_event, panelId: string) => {
-  createDetachedPanelWindow(panelId)
+ipcMain.handle('workspace:detach-panel', (_event, payload: { moduleId: string; panelId: string; title?: string }) => {
+  createDetachedPanelWindow(payload.moduleId, payload.panelId, payload.title)
   return { success: true }
 })
-ipcMain.handle('workspace:redock-panel', (_event, panelId: string) => {
-  closeDetachedPanelWindow(panelId, true)
+ipcMain.handle('workspace:redock-panel', (_event, moduleId: string) => {
+  closeDetachedPanelWindow(moduleId, true)
   return { success: true }
 })
-ipcMain.handle('workspace:sync-detached-panels', (_event, panelIds: string[]) => {
-  const desired = new Set(panelIds)
-  for (const panelId of desired) {
-    createDetachedPanelWindow(panelId)
+ipcMain.handle('workspace:sync-detached-panels', (_event, modules: Array<{ moduleId: string; panelId: string; title?: string }>) => {
+  const desired = new Set(modules.map((module) => module.moduleId))
+  for (const module of modules) {
+    createDetachedPanelWindow(module.moduleId, module.panelId, module.title)
   }
-  for (const [panelId] of detachedPanelWindows) {
-    if (!desired.has(panelId)) {
-      closeDetachedPanelWindow(panelId, true)
+  for (const [moduleId] of detachedPanelWindows) {
+    if (!desired.has(moduleId)) {
+      closeDetachedPanelWindow(moduleId, true)
     }
   }
   return { success: true }
@@ -1450,7 +1450,10 @@ ipcMain.handle('service-status', async (_event, name: string) => {
 ipcMain.handle('service-start', (_event, name: string) => {
   try {
     if (name === 'ollama') {
-      const p = spawn('ollama', ['serve'], { detached: true, stdio: 'ignore' })
+      const p = spawn('ollama', ['serve'], {
+        detached: true,
+        stdio: 'ignore',
+      })
       p.unref(); serviceProcesses[name] = p
       return { success: true }
     }

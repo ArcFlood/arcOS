@@ -36,9 +36,9 @@ contextBridge.exposeInMainWorld('electron', {
   serviceStatus: (name: string) => ipcRenderer.invoke('service-status', name),
   serviceStart: (name: string) => ipcRenderer.invoke('service-start', name),
   serviceStop: (name: string) => ipcRenderer.invoke('service-stop', name),
-  workspaceDetachPanel: (panelId: string) => ipcRenderer.invoke('workspace:detach-panel', panelId),
-  workspaceRedockPanel: (panelId: string) => ipcRenderer.invoke('workspace:redock-panel', panelId),
-  workspaceSyncDetachedPanels: (panelIds: string[]) => ipcRenderer.invoke('workspace:sync-detached-panels', panelIds),
+  workspaceDetachPanel: (payload: { moduleId: string; panelId: string; title?: string }) => ipcRenderer.invoke('workspace:detach-panel', payload),
+  workspaceRedockPanel: (moduleId: string) => ipcRenderer.invoke('workspace:redock-panel', moduleId),
+  workspaceSyncDetachedPanels: (modules: Array<{ moduleId: string; panelId: string; title?: string }>) => ipcRenderer.invoke('workspace:sync-detached-panels', modules),
   codingRuntimeStatus: () => ipcRenderer.invoke('coding-runtime:status'),
   onWorkspaceEvent: (channel: string, callback: (payload: unknown) => void) => {
     const allowed = ['workspace:detached-panel-closed']

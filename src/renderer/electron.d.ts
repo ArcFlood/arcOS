@@ -131,9 +131,9 @@ declare global {
       }>
       serviceStart: (name: string) => Promise<{ success: boolean; error?: string }>
       serviceStop: (name: string) => Promise<{ success: boolean; error?: string }>
-      workspaceDetachPanel?: (panelId: string) => Promise<{ success: boolean }>
-      workspaceRedockPanel?: (panelId: string) => Promise<{ success: boolean }>
-      workspaceSyncDetachedPanels?: (panelIds: string[]) => Promise<{ success: boolean }>
+      workspaceDetachPanel?: (payload: { moduleId: string; panelId: string; title?: string }) => Promise<{ success: boolean }>
+      workspaceRedockPanel?: (moduleId: string) => Promise<{ success: boolean }>
+      workspaceSyncDetachedPanels?: (modules: Array<{ moduleId: string; panelId: string; title?: string }>) => Promise<{ success: boolean }>
       onWorkspaceEvent?: (channel: string, callback: (payload: unknown) => void) => () => void
       codingRuntimeStatus: () => Promise<{ success: boolean; status?: CodingRuntimeStatus; error?: string }>
       openExternal: (url: string) => Promise<void>

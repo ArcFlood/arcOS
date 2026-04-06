@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useConversationStore } from './conversationStore'
 import { DEFAULT_WORKSPACE_LAYOUT, WORKSPACE_PANELS } from '../workspace/presets'
 import {
   WorkspaceGridModule,
@@ -30,14 +31,17 @@ interface WorkspaceStore {
   cancelPlacement: () => void
   addPanelAtPending: (panelId: WorkspacePanelId) => void
   addPanelAtCell: (panelId: WorkspacePanelId, column: number, row: number) => void
+  createTerminalInFirstAvailableSlot: () => { success: boolean; moduleId?: string; conversationId?: string }
+  renameModule: (moduleId: string, title: string) => void
+  setModuleConversation: (moduleId: string, conversationId: string | null) => void
   showPanel: (panelId: WorkspacePanelId) => void
   hidePanel: (panelId: WorkspacePanelId) => void
   removeModule: (moduleId: string) => void
   moveModule: (moduleId: string, column: number, row: number) => void
   resizeModule: (moduleId: string, column: number, row: number, width: number, height: number) => void
-  detachPanel: (panelId: WorkspacePanelId) => void
-  redockPanel: (panelId: WorkspacePanelId) => void
-  handleDetachedWindowClosed: (panelId: WorkspacePanelId) => void
+  detachPanel: (moduleId: string) => void
+  redockPanel: (moduleId: string) => void
+  handleDetachedWindowClosed: (moduleId: string) => void
   redockAllPanels: () => void
   setGridSize: (rows: number, columns: number) => void
   saveCurrentLayout: (label: string) => string | null
@@ -99,32 +103,20 @@ function sanitizeLayout(layout: WorkspaceLayout, scopeLabel = 'Workspace'): Sani
       diagnostics.push(`${scopeLabel} dropped out-of-bounds ${module.panelId} module placement.`)
       continue
     }
-    if (modulesByPanel.has(module.panelId)) {
+    if (module.panelId !== 'chat' && modulesByPanel.has(module.panelId)) {
       diagnostics.push(`${scopeLabel} removed a duplicate ${module.panelId} module placement.`)
       continue
     }
-    const cells = moduleCells(module)
-    if (cells.some((cell) => occupied.has(cell))) {
+    if (module.panelId !== 'chat') {
+      modulesByPanel.add(module.panelId)
+    }
+    const cells = module.detached ? [] : moduleCells(module)
+    if (!module.detached && cells.some((cell) => occupied.has(cell))) {
       diagnostics.push(`${scopeLabel} removed an overlapping ${module.panelId} module placement.`)
       continue
     }
-    modulesByPanel.add(module.panelId)
     cells.forEach((cell) => occupied.add(cell))
     acceptedModules.push(module)
-  }
-
-  const detachedPanels: WorkspacePanelId[] = []
-  for (const panelId of layout.detachedPanels ?? []) {
-    if (!validPanels.has(panelId)) continue
-    if (modulesByPanel.has(panelId)) {
-      diagnostics.push(`${scopeLabel} removed duplicate detached state for ${panelId} because the panel is already docked.`)
-      continue
-    }
-    if (detachedPanels.includes(panelId)) {
-      diagnostics.push(`${scopeLabel} removed duplicate detached state for ${panelId}.`)
-      continue
-    }
-    detachedPanels.push(panelId)
   }
 
   return {
@@ -132,14 +124,9 @@ function sanitizeLayout(layout: WorkspaceLayout, scopeLabel = 'Workspace'): Sani
       rows,
       columns,
       modules: acceptedModules,
-      detachedPanels,
     },
     diagnostics: uniqueStrings(diagnostics),
   }
-}
-
-function uniquePanelIds(panelIds: WorkspacePanelId[]): WorkspacePanelId[] {
-  return [...new Set(panelIds)]
 }
 
 function clampGridSize(value: number): number {
@@ -156,28 +143,18 @@ function moduleCells(module: WorkspaceGridModule): string[] {
   return cells
 }
 
-function isCellOccupied(layout: WorkspaceLayout, column: number, row: number): boolean {
-  return layout.modules.some((module) => (
-    column >= module.column &&
-    column < module.column + module.width &&
-    row >= module.row &&
-    row < module.row + module.height
-  ))
-}
+function nextTerminalTitle(layout: WorkspaceLayout): string {
+  const takenNumbers = layout.modules
+    .filter((module) => module.panelId === 'chat')
+    .map((module) => {
+      const match = module.title?.match(/^Terminal\s+(\d+)$/i) ?? module.title?.match(/^Terminal:\s*(\d+)$/i)
+      return match ? Number.parseInt(match[1], 10) : null
+    })
+    .filter((value): value is number => Number.isFinite(value))
 
-function firstEmptyCell(layout: WorkspaceLayout): WorkspacePlacementTarget | null {
-  for (let row = 1; row <= layout.rows; row += 1) {
-    for (let column = 1; column <= layout.columns; column += 1) {
-      if (!isCellOccupied(layout, column, row)) {
-        return { column, row }
-      }
-    }
-  }
-  return null
-}
-
-function findModuleByPanelId(layout: WorkspaceLayout, panelId: WorkspacePanelId): WorkspaceGridModule | undefined {
-  return layout.modules.find((module) => module.panelId === panelId)
+  let next = 1
+  while (takenNumbers.includes(next)) next += 1
+  return `Terminal ${next}`
 }
 
 function canPlaceModule(layout: WorkspaceLayout, candidate: WorkspaceGridModule, ignoreModuleId?: string): boolean {
@@ -187,32 +164,74 @@ function canPlaceModule(layout: WorkspaceLayout, candidate: WorkspaceGridModule,
 
   const candidateCells = new Set(moduleCells(candidate))
   return !layout.modules.some((module) => {
+    if (module.detached) return false
     if (module.id === ignoreModuleId) return false
     return moduleCells(module).some((cell) => candidateCells.has(cell))
   })
 }
 
+function firstFitForSize(layout: WorkspaceLayout, width: number, height: number): WorkspacePlacementTarget | null {
+  for (let row = 1; row <= layout.rows - height + 1; row += 1) {
+    for (let column = 1; column <= layout.columns - width + 1; column += 1) {
+      const candidate: WorkspaceGridModule = {
+        id: 'candidate',
+        panelId: 'chat',
+        column,
+        row,
+        width,
+        height,
+      }
+      if (canPlaceModule(layout, candidate)) {
+        return { column, row }
+      }
+    }
+  }
+  return null
+}
+
 function addModule(layout: WorkspaceLayout, panelId: WorkspacePanelId, column: number, row: number): WorkspaceLayout {
-  const existing = findModuleByPanelId(layout, panelId)
   const base = cloneLayout(layout)
-  base.detachedPanels = base.detachedPanels.filter((id) => id !== panelId)
-  if (existing) return base
-  if (isCellOccupied(base, column, row)) return base
-  base.modules.push({
+  const existing = base.modules.find((module) => module.panelId === panelId)
+  if (existing && panelId !== 'chat') return base
+  const panelDef = WORKSPACE_PANELS.find((panel) => panel.id === panelId)
+  const width = panelDef?.defaultSize?.width ?? 1
+  const height = panelDef?.defaultSize?.height ?? 1
+  const nextModule: WorkspaceGridModule = {
     id: crypto.randomUUID(),
     panelId,
+    title: panelId === 'chat' ? nextTerminalTitle(base) : undefined,
+    conversationId: panelId === 'chat' ? useConversationStore.getState().createConversation() : undefined,
+    detached: false,
     column,
     row,
-    width: 1,
-    height: 1,
+    width,
+    height,
+  }
+  if (panelId === 'chat' && nextModule.conversationId) {
+    useConversationStore.getState().setActiveConversation(nextModule.conversationId)
+  }
+  if (!canPlaceModule(base, nextModule)) return base
+  base.modules.push({
+    ...nextModule,
   })
   return base
+}
+
+function getDetachedModules(layout: WorkspaceLayout): WorkspaceGridModule[] {
+  return layout.modules.filter((module) => module.detached)
+}
+
+function buildDetachedModulePayloads(layout: WorkspaceLayout): Array<{ moduleId: string; panelId: WorkspacePanelId; title?: string }> {
+  return getDetachedModules(layout).map((module) => ({
+    moduleId: module.id,
+    panelId: module.panelId,
+    title: module.title,
+  }))
 }
 
 function removePanel(layout: WorkspaceLayout, panelId: WorkspacePanelId): WorkspaceLayout {
   const next = cloneLayout(layout)
   next.modules = next.modules.filter((module) => module.panelId !== panelId)
-  next.detachedPanels = next.detachedPanels.filter((id) => id !== panelId)
   return next
 }
 
@@ -223,10 +242,6 @@ function collectInvalidPanels(layout: Partial<WorkspaceLayout>): string[] {
   for (const module of layout.modules ?? []) {
     if (!validPanels.has(module.panelId)) invalid.add(module.panelId)
   }
-  for (const panelId of layout.detachedPanels ?? []) {
-    if (!validPanels.has(panelId)) invalid.add(panelId)
-  }
-
   return [...invalid]
 }
 
@@ -274,7 +289,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
         currentResult.layout,
         savedLayouts
       )
-      void window.electron.workspaceSyncDetachedPanels?.(currentResult.layout.detachedPanels)
+      void window.electron.workspaceSyncDetachedPanels?.(buildDetachedModulePayloads(currentResult.layout))
     } catch {
       set({
         activeLayoutId: null,
@@ -304,11 +319,50 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
     const layout = addModule(get().layout, panelId, column, row)
     persist(get().activeLayoutId, layout, get().savedLayouts)
     set({ layout, pendingPlacement: null })
-    void window.electron.workspaceRedockPanel?.(panelId)
+    void window.electron.workspaceSyncDetachedPanels?.(buildDetachedModulePayloads(layout))
+  },
+
+  createTerminalInFirstAvailableSlot: () => {
+    const layout = get().layout
+    const panelDef = WORKSPACE_PANELS.find((panel) => panel.id === 'chat')
+    const width = panelDef?.defaultSize?.width ?? 2
+    const height = panelDef?.defaultSize?.height ?? 2
+    const target = firstFitForSize(layout, width, height)
+    if (!target) {
+      return { success: false }
+    }
+    const nextLayout = addModule(layout, 'chat', target.column, target.row)
+    persist(get().activeLayoutId, nextLayout, get().savedLayouts)
+    set({ layout: nextLayout, pendingPlacement: null })
+    void window.electron.workspaceSyncDetachedPanels?.(buildDetachedModulePayloads(nextLayout))
+    const created = nextLayout.modules.find((module) => !layout.modules.some((existing) => existing.id === module.id))
+    return { success: true, moduleId: created?.id, conversationId: created?.conversationId ?? undefined }
+  },
+
+  renameModule: (moduleId, title) => {
+    const trimmed = title.trim()
+    const layout = cloneLayout(get().layout)
+    const module = layout.modules.find((entry) => entry.id === moduleId)
+    if (!module) return
+    module.title = trimmed.length > 0 ? trimmed : (module.panelId === 'chat' ? nextTerminalTitle(layout) : undefined)
+    persist(get().activeLayoutId, layout, get().savedLayouts)
+    set({ layout })
+  },
+
+  setModuleConversation: (moduleId, conversationId) => {
+    const layout = cloneLayout(get().layout)
+    const module = layout.modules.find((entry) => entry.id === moduleId)
+    if (!module) return
+    module.conversationId = conversationId
+    persist(get().activeLayoutId, layout, get().savedLayouts)
+    set({ layout })
   },
 
   showPanel: (panelId) => {
-    const target = firstEmptyCell(get().layout)
+    const panelDef = WORKSPACE_PANELS.find((panel) => panel.id === panelId)
+    const width = panelDef?.defaultSize?.width ?? 1
+    const height = panelDef?.defaultSize?.height ?? 1
+    const target = firstFitForSize(get().layout, width, height)
     if (!target) {
       set((state) => ({
         diagnostics: [...state.diagnostics, `No empty pocket available for ${WORKSPACE_PANELS.find((panel) => panel.id === panelId)?.title ?? panelId}.`],
@@ -329,6 +383,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
     layout.modules = layout.modules.filter((module) => module.id !== moduleId)
     persist(get().activeLayoutId, layout, get().savedLayouts)
     set({ layout })
+    void window.electron.workspaceSyncDetachedPanels?.(buildDetachedModulePayloads(layout))
   },
 
   moveModule: (moduleId, column, row) => {
@@ -373,46 +428,96 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
     set({ layout })
   },
 
-  detachPanel: (panelId) => {
-    const layout = removePanel(get().layout, panelId)
-    layout.detachedPanels = uniquePanelIds([...layout.detachedPanels, panelId])
+  detachPanel: (moduleId) => {
+    const layout = cloneLayout(get().layout)
+    const module = layout.modules.find((entry) => entry.id === moduleId)
+    if (!module) return
+    module.detached = true
     persist(get().activeLayoutId, layout, get().savedLayouts)
     set({ layout })
-    void window.electron.workspaceDetachPanel?.(panelId)
-  },
-
-  redockPanel: (panelId) => {
-    void window.electron.workspaceRedockPanel?.(panelId)
-    get().showPanel(panelId)
-  },
-
-  handleDetachedWindowClosed: (panelId) => {
-    const layout = cloneLayout(get().layout)
-    if (!layout.detachedPanels.includes(panelId)) return
-    layout.detachedPanels = layout.detachedPanels.filter((id) => id !== panelId)
-    const target = firstEmptyCell(layout)
-    const nextLayout = target ? addModule(layout, panelId, target.column, target.row) : layout
-    persist(get().activeLayoutId, nextLayout, get().savedLayouts)
-    set({
-      layout: nextLayout,
-      diagnostics: [
-        ...get().diagnostics,
-        `${WORKSPACE_PANELS.find((panel) => panel.id === panelId)?.title ?? panelId} window closed and returned to the grid.`,
-      ],
+    void window.electron.workspaceDetachPanel?.({
+      moduleId: module.id,
+      panelId: module.panelId,
+      title: module.title,
     })
   },
 
-  redockAllPanels: () => {
-    let layout = cloneLayout(get().layout)
-    const stranded: WorkspacePanelId[] = []
-    for (const panelId of [...layout.detachedPanels]) {
-      const target = firstEmptyCell(layout)
+  redockPanel: (moduleId) => {
+    void window.electron.workspaceRedockPanel?.(moduleId)
+    const layout = cloneLayout(get().layout)
+    const module = layout.modules.find((entry) => entry.id === moduleId)
+    if (!module) return
+    const candidate = { ...module, detached: false }
+    if (canPlaceModule(layout, candidate, module.id)) {
+      module.detached = false
+    } else {
+      const target = firstFitForSize(layout, module.width, module.height)
       if (!target) {
-        stranded.push(panelId)
+        set((state) => ({
+          diagnostics: uniqueStrings([
+            ...state.diagnostics,
+            `Re-dock stopped because no ${module.width}x${module.height} space is available for ${module.title ?? module.panelId}.`,
+          ]),
+        }))
+        return
+      }
+      module.column = target.column
+      module.row = target.row
+      module.detached = false
+    }
+    persist(get().activeLayoutId, layout, get().savedLayouts)
+    set({ layout })
+    void window.electron.workspaceSyncDetachedPanels?.(buildDetachedModulePayloads(layout))
+  },
+
+  handleDetachedWindowClosed: (moduleId) => {
+    const layout = cloneLayout(get().layout)
+    const module = layout.modules.find((entry) => entry.id === moduleId && entry.detached)
+    if (!module) return
+    const candidate = { ...module, detached: false }
+    if (canPlaceModule(layout, candidate, module.id)) {
+      module.detached = false
+    } else {
+      const target = firstFitForSize(layout, module.width, module.height)
+      if (!target) {
+        set((state) => ({
+          diagnostics: uniqueStrings([
+            ...state.diagnostics,
+            `Window closed, but no ${module.width}x${module.height} space is available to re-dock ${module.title ?? module.panelId}.`,
+          ]),
+        }))
+        return
+      }
+      module.column = target.column
+      module.row = target.row
+      module.detached = false
+    }
+    persist(get().activeLayoutId, layout, get().savedLayouts)
+    set({
+      layout,
+      diagnostics: [
+        ...get().diagnostics,
+        `${module.title ?? WORKSPACE_PANELS.find((panel) => panel.id === module.panelId)?.title ?? module.panelId} window closed and returned to the grid.`,
+      ],
+    })
+    void window.electron.workspaceSyncDetachedPanels?.(buildDetachedModulePayloads(layout))
+  },
+
+  redockAllPanels: () => {
+    const layout = cloneLayout(get().layout)
+    const stranded: WorkspaceGridModule[] = []
+    for (const module of getDetachedModules(layout)) {
+      const target = firstFitForSize(layout, module.width, module.height)
+      if (!target) {
+        stranded.push(module)
         continue
       }
-      layout = addModule(layout, panelId, target.column, target.row)
-      void window.electron.workspaceRedockPanel?.(panelId)
+      const targetModule = layout.modules.find((entry) => entry.id === module.id)
+      if (!targetModule) continue
+      targetModule.column = target.column
+      targetModule.row = target.row
+      targetModule.detached = false
+      void window.electron.workspaceRedockPanel?.(module.id)
     }
     persist(get().activeLayoutId, layout, get().savedLayouts)
     set((state) => ({
@@ -421,9 +526,10 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
         ? state.diagnostics
         : uniqueStrings([
             ...state.diagnostics,
-            `Re-dock stopped because the grid is full. ${stranded.length} detached panel${stranded.length === 1 ? '' : 's'} remain outside the grid.`,
+            `Re-dock stopped because the grid is full. ${stranded.length} detached module${stranded.length === 1 ? '' : 's'} remain outside the grid.`,
           ]),
     }))
+    void window.electron.workspaceSyncDetachedPanels?.(buildDetachedModulePayloads(layout))
   },
 
   setGridSize: (rows, columns) => {
@@ -508,7 +614,6 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
       rows: imported.rows ?? DEFAULT_WORKSPACE_LAYOUT.rows,
       columns: imported.columns ?? DEFAULT_WORKSPACE_LAYOUT.columns,
       modules: imported.modules ?? [],
-      detachedPanels: imported.detachedPanels ?? [],
     }, `Imported layout "${payload.label}"`)
 
     const savedLayout: WorkspaceSavedLayout = {
@@ -525,7 +630,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
       savedLayouts,
       diagnostics: uniqueStrings([...state.diagnostics, ...sanitized.diagnostics]),
     }))
-    void window.electron.workspaceSyncDetachedPanels?.(sanitized.layout.detachedPanels)
+    void window.electron.workspaceSyncDetachedPanels?.(buildDetachedModulePayloads(sanitized.layout))
     return true
   },
 
@@ -540,7 +645,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
       layout,
       diagnostics: uniqueStrings([...state.diagnostics, ...result.diagnostics]),
     }))
-    void window.electron.workspaceSyncDetachedPanels?.(layout.detachedPanels)
+    void window.electron.workspaceSyncDetachedPanels?.(buildDetachedModulePayloads(layout))
   },
 
   renameSavedLayout: (layoutId, label) => {

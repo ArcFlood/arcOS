@@ -2,16 +2,14 @@ import { WorkspaceLayout, WorkspacePanelDefinition } from './types'
 
 export const WORKSPACE_PANELS: WorkspacePanelDefinition[] = [
   {
-    id: 'navigator',
-    title: 'Navigator',
-    description: 'Thread index, service cues, and quick access into active PAI work.',
-    icon: '🗂',
-  },
-  {
     id: 'chat',
-    title: 'Chat',
-    description: 'Active task-thread exchange inside the broader PAI workspace.',
-    icon: '💬',
+    title: 'Terminal',
+    description: 'Terminal tabs for active task threads inside the broader PAI workspace.',
+    icon: '',
+    defaultSize: {
+      width: 2,
+      height: 2,
+    },
   },
   {
     id: 'services',
@@ -109,5 +107,4 @@ export const DEFAULT_WORKSPACE_LAYOUT: WorkspaceLayout = {
   rows: 3,
   columns: 4,
   modules: [],
-  detachedPanels: [],
 }

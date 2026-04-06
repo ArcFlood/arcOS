@@ -32,6 +32,10 @@ export default function ServicePanel() {
   const services = useServiceStore((s) => s.services)
   const checkAllServices = useServiceStore((s) => s.checkAllServices)
   const [watchdogStatus, setWatchdogStatus] = useState<WatchdogStatus | null>(null)
+  const orderedServices = [...services].sort((a, b) => {
+    const order = ['openclaw', 'fabric', 'arc-memory', 'ollama']
+    return order.indexOf(a.name) - order.indexOf(b.name)
+  })
 
   useEffect(() => {
     checkAllServices().catch(() => {})
@@ -73,20 +77,10 @@ export default function ServicePanel() {
     <div className="space-y-4 p-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="arcos-kicker mb-1">Runtime Control</p>
           <p className="text-sm font-semibold text-text">Services</p>
           <p className="text-xs text-text-muted">Runtime health and controls for active PAI services.</p>
         </div>
         <div className="flex gap-2">
-          {watchdogStatus && (
-            <button
-              onClick={handleForceSweep}
-              className="arcos-action rounded-md px-2.5 py-1.5 text-xs transition-colors"
-              title={`Watchdog last sweep: ${watchdogStatus.lastSweep ?? 'never'}`}
-            >
-              Sweep
-            </button>
-          )}
           <button
             onClick={() => checkAllServices()}
             className="arcos-action rounded-md px-2.5 py-1.5 text-xs transition-colors"
@@ -98,13 +92,27 @@ export default function ServicePanel() {
 
       {/* Watchdog state badges */}
       {watchdogStatus && (
-        <div className="space-y-1">
-          <p className="text-xs text-text-muted font-medium">
-            Watchdog{' '}
-            <span className={`px-1.5 py-0 rounded text-[10px] ml-1 ${watchdogStatus.running ? 'bg-emerald-900/50 text-emerald-400' : 'bg-slate-700 text-slate-400'}`}>
-              {watchdogStatus.running ? 'active' : 'stopped'}
-            </span>
-          </p>
+        <div className="rounded-xl border border-border bg-[#12161b] p-3 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-text">Watchdog</p>
+              <p className="text-xs text-text-muted">
+                Automated service monitor. Sweep forces an immediate health pass. Refresh only rechecks the service cards.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`px-2 py-1 rounded text-[10px] uppercase tracking-wider ${watchdogStatus.running ? 'bg-emerald-900/50 text-emerald-400' : 'bg-slate-700 text-slate-400'}`}>
+                {watchdogStatus.running ? 'active' : 'stopped'}
+              </span>
+              <button
+                onClick={handleForceSweep}
+                className="arcos-action rounded-md px-2.5 py-1.5 text-xs transition-colors"
+                title={`Watchdog last sweep: ${watchdogStatus.lastSweep ?? 'never'}`}
+              >
+                Sweep
+              </button>
+            </div>
+          </div>
           <div className="flex flex-wrap gap-1.5">
             {watchdogStatus.services.map((ws: WatchdogServiceEntry) => (
               <div key={ws.name} className="flex items-center gap-1 text-[10px]" title={ws.hint || ws.state}>
@@ -116,7 +124,7 @@ export default function ServicePanel() {
             ))}
           </div>
           {watchdogStatus.services.some((ws: WatchdogServiceEntry) => ws.hint) && (
-            <div className="text-[10px] text-yellow-400 bg-yellow-950/30 border border-yellow-800/40 rounded px-2 py-1 mt-1">
+            <div className="text-[10px] text-yellow-400 bg-yellow-950/30 border border-yellow-800/40 rounded px-2 py-1">
               {watchdogStatus.services.filter((ws: WatchdogServiceEntry) => ws.hint).map((ws: WatchdogServiceEntry) => (
                 <div key={ws.name}><span className="font-medium">{ws.displayName}:</span> {ws.hint}</div>
               ))}
@@ -126,7 +134,7 @@ export default function ServicePanel() {
       )}
 
       <div className="space-y-3">
-        {services.map((service) => (
+        {orderedServices.map((service) => (
           <ServiceCard key={service.name} service={service} />
         ))}
       </div>

@@ -1,5 +1,4 @@
 export type WorkspacePanelId =
-  | 'navigator'
   | 'chat'
   | 'services'
   | 'routing'
@@ -20,6 +19,9 @@ export type WorkspacePanelId =
 export interface WorkspaceGridModule {
   id: string
   panelId: WorkspacePanelId
+  title?: string
+  conversationId?: string | null
+  detached?: boolean
   column: number
   row: number
   width: number
@@ -30,7 +32,6 @@ export interface WorkspaceLayout {
   rows: number
   columns: number
   modules: WorkspaceGridModule[]
-  detachedPanels: WorkspacePanelId[]
 }
 
 export interface WorkspaceSavedLayout {

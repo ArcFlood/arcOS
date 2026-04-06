@@ -24,16 +24,18 @@ export default function WorkspaceTopBar({ onOpenSettings }: WorkspaceTopBarProps
   const resetWorkspace = useWorkspaceStore((s) => s.resetWorkspace)
   const redockAllPanels = useWorkspaceStore((s) => s.redockAllPanels)
 
-  const mountedPanels = useMemo(() => new Set(layout.modules.map((module) => module.panelId)), [layout.modules])
-  const detachedPanels = useMemo(() => new Set(layout.detachedPanels), [layout.detachedPanels])
+  const mountedPanels = useMemo(() => new Set(layout.modules.filter((module) => !module.detached).map((module) => module.panelId)), [layout.modules])
+  const detachedModules = useMemo(() => layout.modules.filter((module) => module.detached), [layout.modules])
+  const detachedPanels = useMemo(() => new Set(detachedModules.map((module) => module.panelId)), [detachedModules])
   const availablePanels = useMemo(
     () => WORKSPACE_PANELS.filter((panel) => !mountedPanels.has(panel.id) && !detachedPanels.has(panel.id)),
     [detachedPanels, mountedPanels]
   )
-  const detachedPanelDefs = useMemo(
-    () => layout.detachedPanels.map((panelId) => WORKSPACE_PANELS.find((panel) => panel.id === panelId)).filter(Boolean),
-    [layout.detachedPanels]
-  )
+  const detachedPanelDefs = useMemo(() => detachedModules.map((module) => ({
+    moduleId: module.id,
+    panel: WORKSPACE_PANELS.find((entry) => entry.id === module.panelId),
+    title: module.title,
+  })).filter((entry) => entry.panel), [detachedModules])
 
   const toggleMenu = (menu: 'panels' | 'layouts' | 'workspace') => {
     setOpenMenu((current) => current === menu ? null : menu)
@@ -54,7 +56,7 @@ export default function WorkspaceTopBar({ onOpenSettings }: WorkspaceTopBarProps
             availablePanels.map((panel) => (
               <MenuItem
                 key={panel.id}
-                label={`${panel.icon} ${panel.title}`}
+                label={panel.title}
                 description={panel.description}
                 onClick={() => {
                   showPanel(panel.id)
@@ -68,11 +70,11 @@ export default function WorkspaceTopBar({ onOpenSettings }: WorkspaceTopBarProps
               <MenuDivider />
               {detachedPanelDefs.map((panel) => (
                 <MenuItem
-                  key={`detached-${panel!.id}`}
-                  label={`Re-dock ${panel!.title}`}
+                  key={`detached-${panel.moduleId}`}
+                  label={`Re-dock ${panel.title ?? panel.panel!.title}`}
                   description="Return detached panel to the grid"
                   onClick={() => {
-                    redockPanel(panel!.id)
+                    redockPanel(panel.moduleId)
                     setOpenMenu(null)
                   }}
                 />

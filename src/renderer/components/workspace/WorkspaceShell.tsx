@@ -1,9 +1,13 @@
-import { useMemo, useRef } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
+import { useConversationStore } from '../../stores/conversationStore'
 import { WORKSPACE_PANELS } from '../../workspace/presets'
 import { WorkspacePanelId } from '../../workspace/types'
 import PanelErrorBoundary from './PanelErrorBoundary'
 import WorkspacePanelContent from './WorkspacePanelContent'
+import { saveConversationToVault } from '../../utils/exportConversation'
+
+const DETACH_ICON_URL = new URL('../../../../detach_icon.png', import.meta.url).href
 
 interface WorkspaceShellProps {
   onOpenHistory: () => void
@@ -26,7 +30,7 @@ export default function WorkspaceShell(props: WorkspaceShellProps) {
   const failureCount = Object.values(panelFailureCounts).reduce((sum, count) => sum + (count ?? 0), 0)
   const occupiedCells = useMemo(() => {
     const cells = new Set<string>()
-    for (const module of layout.modules) {
+    for (const module of layout.modules.filter((entry) => !entry.detached)) {
       for (let row = module.row; row < module.row + module.height; row += 1) {
         for (let column = module.column; column < module.column + module.width; column += 1) {
           cells.add(`${column}:${row}`)
@@ -92,7 +96,14 @@ export default function WorkspaceShell(props: WorkspaceShellProps) {
                 />
 
                 {isPickerOpen && (
-                  <div className="absolute inset-0 z-20 overflow-auto border border-border bg-[#0f1318] p-2 shadow-xl">
+                  <div
+                    className="absolute left-0 z-20 w-full overflow-auto border border-border bg-[#0f1318] p-2 shadow-xl"
+                    style={{
+                      height: 'calc(200% + 1px)',
+                      top: row < layout.rows ? 0 : 'auto',
+                      bottom: row < layout.rows ? 'auto' : 0,
+                    }}
+                  >
                     <div className="mb-2 flex items-center justify-between">
                       <p className="arcos-kicker">Add Module</p>
                       <button onClick={cancelPlacement} className="arcos-action rounded px-2 py-1 text-[10px] uppercase tracking-wider">
@@ -106,12 +117,9 @@ export default function WorkspaceShell(props: WorkspaceShellProps) {
                           onClick={() => addPanelAtPending(panel.id)}
                           className="w-full border border-border bg-[#12161b] px-2 py-2 text-left transition-colors hover:border-[#8fa1b3]/30 hover:bg-[#171c22]"
                         >
-                          <div className="flex items-start gap-3">
-                            <span className="text-lg">{panel.icon}</span>
-                            <div>
-                              <p className="text-sm font-medium text-text">{panel.title}</p>
-                              <p className="mt-1 text-xs leading-5 text-text-muted">{panel.description}</p>
-                            </div>
+                          <div>
+                            <p className="text-sm font-medium text-text">{panel.title}</p>
+                            <p className="mt-1 text-xs leading-5 text-text-muted">{panel.description}</p>
                           </div>
                         </button>
                       ))}
@@ -122,7 +130,7 @@ export default function WorkspaceShell(props: WorkspaceShellProps) {
             )
           })}
 
-          {layout.modules.map((module) => (
+          {layout.modules.filter((entry) => !entry.detached).map((module) => (
             <GridModule key={module.id} moduleId={module.id} panelId={module.panelId} {...props} />
           ))}
         </div>
@@ -139,6 +147,8 @@ function GridModule({
   onOpenLog,
   onOpenSettings,
 }: WorkspaceShellProps & { moduleId: string; panelId: WorkspacePanelId }) {
+  const [closePromptOpen, setClosePromptOpen] = useState(false)
+  const [closing, setClosing] = useState(false)
   const module = useWorkspaceStore((s) => s.layout.modules.find((entry) => entry.id === moduleId))
   const removeModule = useWorkspaceStore((s) => s.removeModule)
   const moveModule = useWorkspaceStore((s) => s.moveModule)
@@ -146,20 +156,128 @@ function GridModule({
   const detachPanel = useWorkspaceStore((s) => s.detachPanel)
   const recordPanelFailure = useWorkspaceStore((s) => s.recordPanelFailure)
   const resetWorkspace = useWorkspaceStore((s) => s.resetWorkspace)
+  const setModuleConversation = useWorkspaceStore((s) => s.setModuleConversation)
+  const activeConversationId = useConversationStore((s) => s.activeConversationId)
+  const setActiveConversation = useConversationStore((s) => s.setActiveConversation)
+  const conversations = useConversationStore((s) => s.conversations)
+  const deleteConversation = useConversationStore((s) => s.deleteConversation)
   const frameRef = useRef<HTMLElement | null>(null)
+  const closeMenuRef = useRef<HTMLDivElement | null>(null)
+  const closeMenuItemsRef = useRef<Array<HTMLButtonElement | null>>([])
+  const panel = WORKSPACE_PANELS.find((entry) => entry.id === panelId)
+  const isTerminal = panelId === 'chat'
+  const selectedThread = conversations.find((entry) => entry.id === module?.conversationId) ?? null
+  const isActiveTerminal = Boolean(isTerminal && module?.conversationId && activeConversationId === module.conversationId)
+  const terminalTitle = isTerminal
+    ? (module?.title?.trim().replace(/^Terminal:\s*/i, 'Terminal ') || 'Terminal')
+    : (panel?.title ?? panelId)
+
+  const handleTerminalClose = useCallback(async (action: 'save' | 'archive' | 'discard') => {
+    if (!module || !selectedThread) {
+      if (module) removeModule(module.id)
+      setClosePromptOpen(false)
+      return
+    }
+    setClosing(true)
+    try {
+      if (action === 'archive') {
+        const result = await saveConversationToVault(selectedThread)
+        if (!result.success) {
+          throw new Error(result.error ?? 'Archive failed')
+        }
+        deleteConversation(selectedThread.id)
+      } else if (action === 'discard') {
+        deleteConversation(selectedThread.id)
+      } else {
+        setModuleConversation(module.id, null)
+      }
+      if (activeConversationId === selectedThread.id) {
+        const nextThread = conversations.find((entry) => entry.id !== selectedThread.id)
+        setActiveConversation(nextThread?.id ?? null)
+      }
+      removeModule(module.id)
+    } finally {
+      setClosing(false)
+      setClosePromptOpen(false)
+    }
+  }, [module, selectedThread, removeModule, deleteConversation, setModuleConversation, activeConversationId, conversations, setActiveConversation])
+
+  useEffect(() => {
+    if (!closePromptOpen) return
+    const handlePointerDown = (event: MouseEvent) => {
+      if (closeMenuRef.current && !closeMenuRef.current.contains(event.target as Node)) {
+        setClosePromptOpen(false)
+      }
+    }
+    window.addEventListener('mousedown', handlePointerDown)
+    return () => window.removeEventListener('mousedown', handlePointerDown)
+  }, [closePromptOpen])
+
+  useEffect(() => {
+    if (!closePromptOpen) return
+    window.setTimeout(() => closeMenuItemsRef.current[0]?.focus(), 0)
+  }, [closePromptOpen])
+
+  useEffect(() => {
+    if (!closePromptOpen || !isTerminal) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        const currentIndex = closeMenuItemsRef.current.findIndex((entry) => entry === document.activeElement)
+        const next = Math.min(currentIndex + 1, 2)
+        closeMenuItemsRef.current[next]?.focus()
+        return
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        const currentIndex = closeMenuItemsRef.current.findIndex((entry) => entry === document.activeElement)
+        const next = Math.max(currentIndex - 1, 0)
+        closeMenuItemsRef.current[next]?.focus()
+        return
+      }
+      const meta = event.metaKey || event.ctrlKey
+      if (!meta) return
+      if (event.key.toLowerCase() === 's') {
+        event.preventDefault()
+        void handleTerminalClose('save')
+        return
+      }
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        void handleTerminalClose('archive')
+        return
+      }
+      if (event.key === 'Backspace' || event.key === 'Delete') {
+        event.preventDefault()
+        void handleTerminalClose('discard')
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [closePromptOpen, isTerminal, handleTerminalClose])
 
   if (!module) return null
 
-  const panel = WORKSPACE_PANELS.find((entry) => entry.id === panelId)
   if (!panel) return null
 
   return (
     <section
       ref={frameRef}
-      className="arcos-panel group relative flex min-h-0 flex-col overflow-hidden"
+      className={`arcos-panel group relative flex min-h-0 flex-col overflow-hidden ${isTerminal ? 'ring-1 ring-inset' : ''} ${
+        isTerminal
+          ? isActiveTerminal
+            ? 'ring-accent/80 shadow-[inset_0_0_0_1px_rgba(143,161,179,0.32)]'
+            : 'opacity-50 ring-border/80'
+          : ''
+      }`}
       style={{
         gridColumn: `${module.column} / span ${module.width}`,
         gridRow: `${module.row} / span ${module.height}`,
+      }}
+      onMouseDown={() => {
+        if (isTerminal && module.conversationId) {
+          setActiveConversation(module.conversationId)
+        }
       }}
     >
       <header
@@ -167,25 +285,59 @@ function GridModule({
         onMouseDown={(event) => startMove(event, module, frameRef.current, moveModule)}
       >
         <div className="min-w-0">
-          <p className="arcos-kicker mb-0.5">Module</p>
-          <h2 className="truncate text-sm font-semibold text-text">{panel.icon} {panel.title}</h2>
-          <p className="truncate text-[11px] text-text-muted">{panel.description}</p>
+          <h2 className="truncate text-sm font-semibold text-text">{terminalTitle}</h2>
         </div>
         <div className="ml-3 flex items-center gap-1">
           <button
-            onClick={() => detachPanel(panel.id)}
+            onClick={() => detachPanel(module.id)}
             className="arcos-action rounded px-1.5 py-1 text-[10px] uppercase tracking-wider"
             title="Detach module"
           >
-            []
+            <img src={DETACH_ICON_URL} alt="" className="h-3.5 w-3.5 rounded-[2px] object-contain" />
           </button>
-          <button
-            onClick={() => removeModule(module.id)}
-            className="arcos-action rounded px-1.5 py-1 text-[10px] uppercase tracking-wider"
-            title="Remove module"
-          >
-            ×
-          </button>
+          <div className="relative" ref={closeMenuRef}>
+            <button
+              onClick={() => {
+                if (isTerminal) {
+                  setClosePromptOpen((current) => !current)
+                } else {
+                  removeModule(module.id)
+                }
+              }}
+              className="arcos-action rounded px-1.5 py-1 text-[10px] uppercase tracking-wider"
+              title={isTerminal ? 'Close terminal' : 'Remove module'}
+            >
+              ×
+            </button>
+            {isTerminal && closePromptOpen && (
+              <div className="absolute right-0 top-full z-20 mt-1 w-44 rounded-md border border-border bg-[#10151b] p-1 shadow-xl">
+                <ActionMenuButton
+                  ref={(element) => { closeMenuItemsRef.current[0] = element }}
+                  label="Save"
+                  detail="Keep this thread for later."
+                  shortcut="⌘S"
+                  disabled={closing}
+                  onClick={() => void handleTerminalClose('save')}
+                />
+                <ActionMenuButton
+                  ref={(element) => { closeMenuItemsRef.current[1] = element }}
+                  label="Archive"
+                  detail="Commit this thread to memory."
+                  shortcut="⌘↩"
+                  disabled={closing}
+                  onClick={() => void handleTerminalClose('archive')}
+                />
+                <ActionMenuButton
+                  ref={(element) => { closeMenuItemsRef.current[2] = element }}
+                  label="Don't Save"
+                  detail="Delete this thread."
+                  shortcut="⌘⌫"
+                  disabled={closing}
+                  onClick={() => void handleTerminalClose('discard')}
+                />
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -196,6 +348,7 @@ function GridModule({
           onRecoverWorkspace={resetWorkspace}
         >
           <WorkspacePanelContent
+            moduleId={module.id}
             panelId={panel.id}
             onOpenHistory={onOpenHistory}
             onOpenMemory={onOpenMemory}
@@ -231,6 +384,38 @@ function GridModule({
     </section>
   )
 }
+
+interface ActionMenuButtonProps {
+  label: string
+  detail: string
+  shortcut?: string
+  disabled: boolean
+  onClick: () => void
+}
+
+const ActionMenuButton = React.forwardRef<HTMLButtonElement, ActionMenuButtonProps>(({
+  label,
+  detail,
+  shortcut,
+  disabled,
+  onClick,
+}, ref) => {
+  return (
+    <button
+      ref={ref}
+      onClick={onClick}
+      disabled={disabled}
+      className="block w-full rounded px-2 py-2 text-left transition-colors hover:bg-[#18202a] disabled:opacity-50"
+    >
+      <span className="flex items-center justify-between gap-3 text-xs font-medium text-text">
+        <span>{label}</span>
+        {shortcut && <span className="text-[10px] text-text-dim">{shortcut}</span>}
+      </span>
+      <span className="mt-0.5 block text-[11px] text-text-dim">{detail}</span>
+    </button>
+  )
+})
+ActionMenuButton.displayName = 'ActionMenuButton'
 
 function ResizeHandle({
   orientation,

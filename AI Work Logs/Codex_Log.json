@@ -1829,6 +1829,266 @@
         "Total time in app is now tracked locally via a persistent seconds counter stored in localStorage and updated from the app layout lifecycle.",
         "Local model runs are currently measured as persisted assistant messages generated with the ollama model tier."
       ]
+    },
+    {
+      "entry_id": "codex-2026-04-05-075",
+      "date": "2026-04-05",
+      "agent": "Codex",
+      "task_title": "Remove Navigator and convert Chat into tabbed Terminal modules",
+      "summary": "Removed Navigator from the workspace registry and converted Chat into Terminal, including tabbed terminal management, saved-vs-open terminal handling, simplified module headers, exact per-message model labels, active-vs-idle terminal behavior, and the custom detach icon. Terminal modules can now exist more than once in the grid, but detach remains disabled for Terminal until module-instance detach is implemented cleanly.",
+      "files_touched": [
+        "Todo_List.md",
+        "arcos/src/main/database/db.ts",
+        "arcos/src/main/database/operations.ts",
+        "arcos/src/main/database/schema.ts",
+        "arcos/src/renderer/components/ChatArea.tsx",
+        "arcos/src/renderer/components/MessageInput.tsx",
+        "arcos/src/renderer/components/messages/AssistantMessage.tsx",
+        "arcos/src/renderer/components/messages/MessageBadge.tsx",
+        "arcos/src/renderer/components/workspace/WorkspacePanelContent.tsx",
+        "arcos/src/renderer/components/workspace/WorkspaceShell.tsx",
+        "arcos/src/renderer/stores/conversationStore.ts",
+        "arcos/src/renderer/stores/types.ts",
+        "arcos/src/renderer/stores/workspaceStore.ts",
+        "arcos/src/renderer/utils/exportConversation.ts",
+        "arcos/src/renderer/workspace/presets.ts",
+        "arcos/src/renderer/workspace/types.ts",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npx eslint src/renderer/components/ChatArea.tsx src/renderer/components/workspace/WorkspaceShell.tsx src/renderer/components/workspace/WorkspacePanelContent.tsx src/renderer/components/MessageInput.tsx src/renderer/components/messages/AssistantMessage.tsx src/renderer/components/messages/MessageBadge.tsx src/renderer/stores/conversationStore.ts src/renderer/stores/workspaceStore.ts src/renderer/stores/types.ts src/main/database/schema.ts src/main/database/db.ts src/main/database/operations.ts src/renderer/utils/exportConversation.ts",
+        "npm exec tsc -- --noEmit",
+        "npm run build:dir"
+      ],
+      "notes": [
+        "Terminal close/app-close save-archive-discard behavior is only implemented at the terminal-tab level in this pass; module-close and app-close lifecycle prompts still need a dedicated follow-up.",
+        "One-active-terminal behavior is currently enforced by active-vs-idle terminal gating rather than a true deferred-send queue."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-05-076",
+      "date": "2026-04-05",
+      "agent": "Codex",
+      "task_title": "Correct Terminal behavior to be one thread per terminal module",
+      "summary": "Reworked the Terminal module so terminals stack as modules rather than thread tabs inside a single module. Thread selection is now a dropdown, new threads bind to the current terminal, terminal headers no longer expose editable sublabels, inactive terminals are visually grayed out, the model indicator is centered and status-colored, and the default empty state now reads Waiting for Input.",
+      "files_touched": [
+        "arcos/src/renderer/components/ChatArea.tsx",
+        "arcos/src/renderer/components/workspace/WorkspaceShell.tsx",
+        "arcos/src/renderer/stores/conversationStore.ts",
+        "arcos/src/renderer/stores/workspaceStore.ts",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/components/ChatArea.tsx src/renderer/components/workspace/WorkspaceShell.tsx src/renderer/components/MessageInput.tsx src/renderer/stores/conversationStore.ts src/renderer/stores/workspaceStore.ts"
+      ],
+      "notes": [
+        "Terminal detach remains disabled intentionally because the current request model is dock-only terminals that stack in the workspace.",
+        "Internal store names still use conversation terminology; the user-facing Terminal surface now uses thread terminology."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-05-077",
+      "date": "2026-04-05",
+      "agent": "Codex",
+      "task_title": "Fix threadless sends, move thread actions into terminal close, and harden model selection UI",
+      "summary": "Updated Terminal so sending from an unbound terminal creates and binds a new thread immediately, moved save/archive/don't-save actions into the terminal close menu in the module header, and refreshed the Models settings tab so it actively fetches installed Ollama models and presents them through a dropdown instead of a free-text field. The centered model indicator behavior remains in place, and threadless messages should no longer disappear.",
+      "files_touched": [
+        "arcos/src/renderer/components/ChatArea.tsx",
+        "arcos/src/renderer/components/MessageInput.tsx",
+        "arcos/src/renderer/components/settings/SettingsPanel.tsx",
+        "arcos/src/renderer/components/workspace/WorkspaceShell.tsx",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/components/ChatArea.tsx src/renderer/components/workspace/WorkspaceShell.tsx src/renderer/components/MessageInput.tsx src/renderer/components/settings/SettingsPanel.tsx src/renderer/stores/conversationStore.ts src/renderer/stores/workspaceStore.ts"
+      ],
+      "notes": [
+        "App-close save/archive/don't-save behavior is still not implemented; this pass only moved the action menu into terminal close inside the workspace.",
+        "Internal architecture still uses conversation naming in stores and persistence, but the visible terminal UI now presents threads."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-05-078",
+      "date": "2026-04-05",
+      "agent": "Codex",
+      "task_title": "Add app-close thread intercept to the Todo list",
+      "summary": "Added a dedicated Todo item for app-close interception so the unsaved-thread shutdown flow is tracked explicitly instead of remaining implied under general Terminal lifecycle work.",
+      "files_touched": [
+        "Todo_List.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "Todo_List.md updated with item 26 App-close thread intercept"
+      ],
+      "notes": [
+        "The new item scopes the shutdown intercept across main process, preload bridge, renderer shell, and Terminal UI.",
+        "This remains blocked by the final terminal close policy."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-05-079",
+      "date": "2026-04-05",
+      "agent": "Codex",
+      "task_title": "Auto-start Ollama on ARCOS launch",
+      "summary": "Updated ARCOS bootstrap so it starts Ollama automatically on launch when Ollama is down, and changed the default setting so auto-start Ollama is enabled for new installs. This closes the gap where model inventory would appear empty simply because ARCOS only checked service state without bringing the local runtime up.",
+      "files_touched": [
+        "arcos/src/renderer/hooks/useAppBootstrap.ts",
+        "arcos/src/renderer/stores/settingsStore.ts",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/hooks/useAppBootstrap.ts src/renderer/stores/settingsStore.ts"
+      ],
+      "notes": [
+        "ARCOS model discovery still comes from the Ollama API, not direct filesystem scanning of the Ollama model store.",
+        "If a user intentionally disables auto-start in Settings, ARCOS will respect that and only check service state."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-05-080",
+      "date": "2026-04-05",
+      "agent": "Codex",
+      "task_title": "Launch Ollama.app on macOS instead of only spawning ollama serve",
+      "summary": "Changed ARCOS service startup so the Ollama service path launches Ollama.app on macOS and falls back to `ollama serve` only if needed. This matches the user expectation that ARCOS should bring up the installed Ollama app itself rather than only attempting the CLI runtime.",
+      "files_touched": [
+        "arcos/src/main/main.ts",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/main/main.ts src/renderer/hooks/useAppBootstrap.ts src/renderer/stores/settingsStore.ts"
+      ],
+      "notes": [
+        "Model discovery still uses the Ollama API once the runtime is up; ARCOS is not scanning the model store directly.",
+        "Non-macOS environments still use `ollama serve` as the primary start path."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-05-081",
+      "date": "2026-04-05",
+      "agent": "Codex",
+      "task_title": "Revert Ollama startup enforcement and add no-model warning state",
+      "summary": "Reverted ARCOS bootstrap back to a pure Ollama API/status check instead of trying to launch Ollama automatically on startup. In the Services module, Ollama now shows a yellow warning indicator when the API is reachable but zero chat-capable models are returned, and the model cache is explicitly cleared when Ollama reports no models so the warning state is accurate.",
+      "files_touched": [
+        "arcos/src/main/main.ts",
+        "arcos/src/renderer/hooks/useAppBootstrap.ts",
+        "arcos/src/renderer/stores/settingsStore.ts",
+        "arcos/src/renderer/stores/serviceStore.ts",
+        "arcos/src/renderer/components/services/ServiceCard.tsx",
+        "arcos/src/renderer/components/services/StatusIndicator.tsx",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/main/main.ts src/renderer/hooks/useAppBootstrap.ts src/renderer/stores/settingsStore.ts src/renderer/stores/serviceStore.ts src/renderer/components/services/ServiceCard.tsx src/renderer/components/services/StatusIndicator.tsx"
+      ],
+      "notes": [
+        "ARCOS still supports manual Ollama startup from the Services module; only the automatic startup path was removed.",
+        "The warning state is tied to the Ollama API response, not filesystem inspection of the local model store."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-05-082",
+      "date": "2026-04-05",
+      "agent": "Codex",
+      "task_title": "Stop new Terminal modules from inheriting the global active thread",
+      "summary": "Adjusted Terminal selection logic so a newly opened Terminal module stays unbound until its first send creates and binds a thread. This prevents blank Terminal modules from silently attaching to the global active thread and makes first-message thread creation work the way the UI model expects.",
+      "files_touched": [
+        "arcos/src/renderer/components/ChatArea.tsx",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/components/ChatArea.tsx"
+      ],
+      "notes": [
+        "Module-bound Terminals now only use their own bound thread id; the global active thread fallback remains for non-module contexts.",
+        "This fix is scoped to Terminal selection and does not change thread persistence or close behavior."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-05-083",
+      "date": "2026-04-05",
+      "agent": "Codex",
+      "task_title": "Expand Terminal module behavior, detaching, and keyboard control",
+      "summary": "Changed Terminal modules to default to 2x2, create and activate a bound thread when a new Terminal is added, and support instance-based undocking so duplicate Terminal modules can detach cleanly. Added `cmd+t` to create a new Terminal in the top-left available 2x2 space, keyboard arrow navigation for the thread dropdown and terminal close popup, and terminal close shortcuts for Save, Archive, and Don't Save.",
+      "files_touched": [
+        "arcos/src/renderer/components/Layout.tsx",
+        "arcos/src/renderer/components/ChatArea.tsx",
+        "arcos/src/renderer/components/workspace/WorkspaceShell.tsx",
+        "arcos/src/renderer/components/workspace/WorkspaceTopBar.tsx",
+        "arcos/src/renderer/components/workspace/DetachedPanelWindow.tsx",
+        "arcos/src/renderer/stores/workspaceStore.ts",
+        "arcos/src/renderer/workspace/types.ts",
+        "arcos/src/renderer/workspace/presets.ts",
+        "arcos/src/preload/preload.ts",
+        "arcos/src/renderer/electron.d.ts",
+        "arcos/src/main/main.ts",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/components/Layout.tsx src/renderer/components/ChatArea.tsx src/renderer/components/workspace/WorkspaceShell.tsx src/renderer/components/workspace/WorkspaceTopBar.tsx src/renderer/components/workspace/DetachedPanelWindow.tsx src/renderer/stores/workspaceStore.ts src/renderer/workspace/types.ts src/renderer/workspace/presets.ts src/preload/preload.ts src/renderer/electron.d.ts src/main/main.ts"
+      ],
+      "notes": [
+        "Detached windows are now tracked by module instance rather than panel type, which is what allows duplicate Terminal modules to undock correctly.",
+        "If no 2x2 space is available for `cmd+t`, ARCOS now alerts the user to make a 2x2 opening in the grid."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-05-084",
+      "date": "2026-04-05",
+      "agent": "Codex",
+      "task_title": "Tighten empty-module picker and restructure Services module",
+      "summary": "Changed the empty-module picker into a two-cell-tall overlay so module selection is less cramped, and removed icon glyphs from picker/menu labels. Reworked Services by removing the duplicate kicker text, separating Watchdog into its own info box, ordering services to match the ARCOS chain, adding log-copy controls, removing stop/restart controls from Ollama, and adding inline guidance for Fabric and ARC-Memory stop/restart use cases.",
+      "files_touched": [
+        "arcos/src/renderer/components/workspace/WorkspaceShell.tsx",
+        "arcos/src/renderer/components/workspace/WorkspaceTopBar.tsx",
+        "arcos/src/renderer/components/workspace/ServicePanel.tsx",
+        "arcos/src/renderer/components/services/ServiceCard.tsx",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/components/workspace/WorkspaceShell.tsx src/renderer/components/workspace/WorkspaceTopBar.tsx src/renderer/components/workspace/ServicePanel.tsx src/renderer/components/services/ServiceCard.tsx"
+      ],
+      "notes": [
+        "Refresh still rechecks service state from ARCOS, while Sweep explicitly triggers the watchdog monitor cycle.",
+        "Ollama remains startable from ARCOS if it is down, but once running it is treated as externally managed to avoid breaking loaded-model state."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-05-085",
+      "date": "2026-04-05",
+      "agent": "Codex",
+      "task_title": "Move Sweep control into the Watchdog container",
+      "summary": "Moved the Sweep action out of the top-level Services header and into the Watchdog info box so the button lives next to the watchdog state it controls.",
+      "files_touched": [
+        "arcos/src/renderer/components/workspace/ServicePanel.tsx",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/components/workspace/ServicePanel.tsx"
+      ],
+      "notes": [
+        "Refresh remains the top-level ARCOS service status refresh.",
+        "Sweep is now visually scoped to watchdog behavior."
+      ]
     }
   ]
 }

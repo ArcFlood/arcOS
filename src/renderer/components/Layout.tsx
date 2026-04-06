@@ -26,7 +26,12 @@ export default function Layout() {
   const closeSettings = useSettingsStore((s) => s.closeSettingsPanel)
   const createConversation = useConversationStore((s) => s.createConversation)
   const hydrateWorkspace = useWorkspaceStore((s) => s.hydrate)
-  const detachedPanels = useWorkspaceStore((s) => s.layout.detachedPanels)
+  const detachedModules = useWorkspaceStore((s) => s.layout.modules.filter((module) => module.detached).map((module) => ({
+    moduleId: module.id,
+    panelId: module.panelId,
+    title: module.title,
+  })))
+  const createTerminalInFirstAvailableSlot = useWorkspaceStore((s) => s.createTerminalInFirstAvailableSlot)
   const handleDetachedWindowClosed = useWorkspaceStore((s) => s.handleDetachedWindowClosed)
 
   const [logOpen, setLogOpen] = useState(false)
@@ -64,8 +69,8 @@ export default function Layout() {
   }, [])
 
   useEffect(() => {
-    void window.electron.workspaceSyncDetachedPanels?.(detachedPanels)
-  }, [detachedPanels])
+    void window.electron.workspaceSyncDetachedPanels?.(detachedModules)
+  }, [detachedModules])
 
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
@@ -103,6 +108,14 @@ export default function Layout() {
     const onKeyDown = (e: KeyboardEvent) => {
       const meta = e.metaKey || e.ctrlKey
       if (meta && e.key === 'k') { e.preventDefault(); createConversation(); return }
+      if (meta && e.key.toLowerCase() === 't') {
+        e.preventDefault()
+        const result = createTerminalInFirstAvailableSlot()
+        if (!result.success) {
+          window.alert('No 2x2 space is available. Make a 2x2 opening in the grid, then try again.')
+        }
+        return
+      }
       if (meta && e.key === ',') { e.preventDefault(); settingsPanelOpen ? closeSettings() : openSettings(); return }
       if (meta && e.shiftKey && e.key === 'L') { e.preventDefault(); setLogOpen((v) => !v); return }
       if (meta && e.shiftKey && e.key === 'H') { e.preventDefault(); setHistoryOpen((v) => !v); return }
@@ -116,7 +129,7 @@ export default function Layout() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [settingsPanelOpen, logOpen, historyOpen, memoryOpen, openSettings, closeSettings, createConversation])
+  }, [settingsPanelOpen, logOpen, historyOpen, memoryOpen, openSettings, closeSettings, createConversation, createTerminalInFirstAvailableSlot])
 
   // ── Native menu event listeners ───────────────────────────────
   useEffect(() => {

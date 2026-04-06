@@ -7,9 +7,10 @@ import useAppBootstrap from '../../hooks/useAppBootstrap'
 
 interface DetachedPanelWindowProps {
   panelId: WorkspacePanelId
+  moduleId: string
 }
 
-export default function DetachedPanelWindow({ panelId }: DetachedPanelWindowProps) {
+export default function DetachedPanelWindow({ panelId, moduleId }: DetachedPanelWindowProps) {
   const panel = WORKSPACE_PANELS.find((entry) => entry.id === panelId)
   const redockPanel = useWorkspaceStore((s) => s.redockPanel)
   const recordPanelFailure = useWorkspaceStore((s) => s.recordPanelFailure)
@@ -39,7 +40,7 @@ export default function DetachedPanelWindow({ panelId }: DetachedPanelWindowProp
         </div>
         <div className="titlebar-no-drag ml-3 flex items-center gap-2">
           <button
-            onClick={() => redockPanel(panelId)}
+            onClick={() => redockPanel(moduleId)}
             className="arcos-action-primary rounded-md px-2.5 py-1.5 text-[11px]"
           >
             Re-dock
@@ -53,11 +54,12 @@ export default function DetachedPanelWindow({ panelId }: DetachedPanelWindowProp
           onRecoverWorkspace={resetWorkspace}
         >
           <WorkspacePanelContent
+            moduleId={moduleId}
             panelId={panelId}
-            onOpenHistory={() => redockPanel('history')}
-            onOpenMemory={() => redockPanel('memory')}
-            onOpenLog={() => redockPanel('transparency')}
-            onOpenSettings={() => redockPanel('utilities')}
+            onOpenHistory={() => redockPanel(moduleId)}
+            onOpenMemory={() => redockPanel(moduleId)}
+            onOpenLog={() => redockPanel(moduleId)}
+            onOpenSettings={() => redockPanel(moduleId)}
           />
         </PanelErrorBoundary>
       </div>
