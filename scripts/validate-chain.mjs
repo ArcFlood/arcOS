@@ -1,10 +1,11 @@
 #!/usr/bin/env node
+/* eslint-env node */
 
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import crypto from 'node:crypto'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -55,6 +56,14 @@ const validationCases = [
   },
 ]
 
+const FABRIC_PATTERN_ALIASES = {
+  code_review: ['review_code', 'explain_code', 'coding_master'],
+  code_reviewer: ['review_code', 'explain_code', 'coding_master'],
+  prompt_rebuilder: ['improve_prompt', 'summarize_prompt', 'create_pattern'],
+  prompt_rebuild: ['improve_prompt', 'summarize_prompt', 'create_pattern'],
+  control_plane: ['summarize', 'create_summary', 'extract_wisdom'],
+}
+
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'))
 }
@@ -66,6 +75,14 @@ function ensureDir(dirPath) {
 function truncate(text, max = 2400) {
   if (text.length <= max) return text
   return `${text.slice(0, max)}\n...[truncated ${text.length - max} chars]`
+}
+
+function normalizePatternId(value) {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
 }
 
 function pickArcPromptSource() {
@@ -286,176 +303,6 @@ function extractJsonObject(text) {
   return text.slice(firstBrace, lastBrace + 1).trim()
 }
 
-class OpenClawGatewayClient {
-  constructor(settings) {
-    this.url = `ws://${settings.bindHost}:${settings.gatewayPort}`
-    this.token = settings.token
-    this.password = settings.password
-    this.pending = new Map()
-    this.appVersion = 'chain-validation'
-    this.ws = null
-    this.connectPromise = null
-    this.connectNonce = null
-    this.connectSent = false
-  }
-
-  buildConnectParams() {
-    return {
-      minProtocol: 3,
-      maxProtocol: 3,
-      client: {
-        id: 'arcos-validation',
-        version: this.appVersion,
-        platform: process.platform,
-        mode: 'webchat',
-      },
-      role: 'operator',
-      scopes: ['operator.read', 'operator.write'],
-      caps: ['tool-events'],
-      auth: {
-        ...(this.token ? { token: this.token } : {}),
-        ...(this.password ? { password: this.password } : {}),
-      },
-      locale: Intl.DateTimeFormat().resolvedOptions().locale,
-      ...(this.connectNonce ? { nonce: this.connectNonce } : {}),
-    }
-  }
-
-  async connect() {
-    if (this.connectPromise) return this.connectPromise
-
-    this.connectPromise = new Promise((resolve, reject) => {
-      const ws = new WebSocket(this.url)
-      let settled = false
-      let fallbackTimer = null
-
-      const cleanup = () => {
-        if (fallbackTimer) {
-          clearTimeout(fallbackTimer)
-          fallbackTimer = null
-        }
-      }
-
-      const failPending = (error) => {
-        for (const [id, pending] of this.pending) {
-          pending.reject(error)
-          this.pending.delete(id)
-        }
-      }
-
-      ws.addEventListener('open', () => {
-        this.ws = ws
-        this.connectSent = false
-        this.connectNonce = null
-
-        fallbackTimer = setTimeout(() => {
-          if (!this.connectSent) {
-            this.connectSent = true
-            this.request('connect', this.buildConnectParams()).then(() => {
-              if (!settled) {
-                settled = true
-                cleanup()
-                resolve()
-              }
-            }).catch((error) => {
-              if (!settled) {
-                settled = true
-                cleanup()
-                reject(error)
-              }
-            })
-          }
-        }, 250)
-      })
-
-      ws.addEventListener('message', (event) => {
-        let frame
-        try {
-          frame = JSON.parse(String(event.data ?? ''))
-        } catch {
-          return
-        }
-
-        const record = frame
-
-        if (record.type === 'event' && record.event === 'connect.challenge') {
-          const nonce = typeof record.payload?.nonce === 'string' ? record.payload.nonce : null
-          if (!this.connectSent) {
-            this.connectNonce = nonce
-            this.connectSent = true
-            this.request('connect', this.buildConnectParams()).then(() => {
-              if (!settled) {
-                settled = true
-                cleanup()
-                resolve()
-              }
-            }).catch((error) => {
-              if (!settled) {
-                settled = true
-                cleanup()
-                reject(error)
-              }
-            })
-          }
-          return
-        }
-
-        if (record.type !== 'res' || typeof record.id !== 'string') return
-        const pending = this.pending.get(record.id)
-        if (!pending) return
-        this.pending.delete(record.id)
-        if (record.ok) {
-          pending.resolve(record.payload)
-        } else {
-          pending.reject(new Error(record.error?.message ?? 'OpenClaw gateway request failed'))
-        }
-      })
-
-      ws.addEventListener('close', (event) => {
-        this.ws = null
-        this.connectPromise = null
-        const error = new Error(`OpenClaw gateway closed (${event.code})`)
-        failPending(error)
-        if (!settled) {
-          settled = true
-          cleanup()
-          reject(error)
-        }
-      })
-
-      ws.addEventListener('error', () => {
-        // close handler rejects
-      })
-    })
-
-    return this.connectPromise
-  }
-
-  async request(method, params) {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      await this.connect()
-    }
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      throw new Error('OpenClaw gateway is not connected')
-    }
-
-    const id = crypto.randomUUID()
-    const promise = new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject })
-    })
-    this.ws.send(JSON.stringify({ type: 'req', id, method, params }))
-    return promise
-  }
-
-  async close() {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.close()
-    }
-    this.ws = null
-    this.connectPromise = null
-  }
-}
-
 function buildFabricPatternUrlCandidates(pattern, input) {
   const encoded = encodeURIComponent(pattern)
   return [
@@ -490,6 +337,31 @@ async function listOllamaModels() {
   }
   const data = await response.json()
   return (data.models ?? []).map((model) => model.name)
+}
+
+async function listFabricPatterns() {
+  const result = runCommand('fabric', ['--listpatterns', '--shell-complete-list'])
+  return result.stdout
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+}
+
+function resolveFabricPattern(requestedPattern, installedPatterns) {
+  const normalizedInstalled = new Map(
+    installedPatterns.map((pattern) => [normalizePatternId(pattern), pattern])
+  )
+  const normalizedRequested = normalizePatternId(requestedPattern)
+  if (!normalizedRequested) return null
+  if (normalizedInstalled.has(normalizedRequested)) {
+    return normalizedInstalled.get(normalizedRequested) ?? null
+  }
+  const aliases = FABRIC_PATTERN_ALIASES[normalizedRequested] ?? []
+  for (const alias of aliases) {
+    const resolved = normalizedInstalled.get(normalizePatternId(alias))
+    if (resolved) return resolved
+  }
+  return null
 }
 
 async function runOllamaChat(model, systemPrompt, userPrompt) {
@@ -672,16 +544,19 @@ async function analyzeCase(testCase, shared) {
     : openClawContext.map((file) => `# ${file.name}\n${file.content}`).join('\n\n')
 
   let chainPath = 'openclaw-only'
+  const installedFabricPatterns = await listFabricPatterns()
+  const resolvedFabricPattern = resolveFabricPattern(analysis?.fabric_pattern ?? null, installedFabricPatterns)
   let fabricResult = {
     executed: false,
     pattern: analysis?.fabric_pattern ?? null,
+    resolvedPattern: resolvedFabricPattern,
     mode: null,
     stage: null,
     output: 'No Fabric transformation was applied.',
     error: null,
   }
 
-  if (analysis?.should_use_fabric && analysis?.fabric_pattern) {
+  if (analysis?.should_use_fabric && resolvedFabricPattern) {
     const fabricInput = [
       testCase.prompt,
       '',
@@ -691,12 +566,13 @@ async function analyzeCase(testCase, shared) {
       '## Memory Context',
       memorySection,
     ].join('\n')
-    const executed = await runFabricPattern(analysis.fabric_pattern, fabricInput)
+    const executed = await runFabricPattern(resolvedFabricPattern, fabricInput)
     if (executed.executed) {
       chainPath = 'openclaw-plus-fabric'
       fabricResult = {
         executed: true,
         pattern: analysis.fabric_pattern,
+        resolvedPattern: resolvedFabricPattern,
         mode: executed.mode,
         stage: executed.stage,
         output: executed.output,
@@ -707,11 +583,23 @@ async function analyzeCase(testCase, shared) {
       fabricResult = {
         executed: false,
         pattern: analysis.fabric_pattern,
+        resolvedPattern: resolvedFabricPattern,
         mode: executed.mode,
         stage: executed.stage,
-        output: `Fabric execution failed for pattern "${analysis.fabric_pattern}".`,
+        output: `Fabric execution failed for pattern "${resolvedFabricPattern}".`,
         error: executed.error,
       }
+    }
+  } else if (analysis?.should_use_fabric && analysis?.fabric_pattern && !resolvedFabricPattern) {
+    chainPath = 'degraded-fallback'
+    fabricResult = {
+      executed: false,
+      pattern: analysis.fabric_pattern,
+      resolvedPattern: null,
+      mode: null,
+      stage: 'Fabric',
+      output: `Fabric execution failed for pattern "${analysis.fabric_pattern}".`,
+      error: `No installed Fabric pattern matched "${analysis.fabric_pattern}"`,
     }
   }
 
@@ -828,6 +716,7 @@ function buildMarkdownReport(report) {
     lines.push(`- Recommended model: ${result.openClaw.analysis.recommended_model ?? 'none'}`)
     lines.push(`- Fabric selected: ${result.fabric.pattern ?? 'none'}`)
     lines.push(`- Fabric executed: ${result.fabric.executed ? 'yes' : 'no'}`)
+    lines.push(`- Fabric resolved: ${result.fabric.resolvedPattern ?? 'none'}`)
     if (result.fabric.error) {
       lines.push(`- Fabric error: ${result.fabric.error}`)
     }

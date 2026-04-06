@@ -170,12 +170,12 @@ async function checkFabricPatternCoverage(): Promise<AuditCheckResult> {
     if (fs.existsSync(dir)) {
       try {
         const patterns = fs.readdirSync(dir).filter((f) => fs.statSync(path.join(dir, f)).isDirectory())
-        const required = ['code_review', 'prompt_rebuilder', 'summarize']
+        const required = ['review_code', 'improve_prompt', 'summarize']
         const missing = required.filter((p) => !patterns.includes(p))
         if (missing.length === 0) {
           return { name: 'fabric_pattern_coverage', status: 'pass', summary: `${patterns.length} patterns available, required patterns present` }
         }
-        return { name: 'fabric_pattern_coverage', status: 'warn', summary: `${missing.length} required patterns missing: ${missing.join(', ')}`, recommendation: 'Run `fabric --update` or manually add missing patterns to the patterns directory.' }
+        return { name: 'fabric_pattern_coverage', status: 'warn', summary: `${missing.length} required patterns missing: ${missing.join(', ')}`, recommendation: 'Run `fabric -U` or manually add missing patterns to the patterns directory.' }
       } catch {
         // continue
       }

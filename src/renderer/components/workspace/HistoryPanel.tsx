@@ -43,10 +43,14 @@ export default function HistoryPanel() {
   useEffect(() => {
     const load = async () => {
       const sessionResult = await window.electron.sessionList?.(50)
-      if (sessionResult?.success) setSessions(sessionResult.sessions)
+      if (sessionResult?.success) {
+        setSessions([...sessionResult.sessions].sort((a, b) => b.path.localeCompare(a.path)))
+      }
 
       const learningsResult = await window.electron.learningsList?.(50)
-      if (learningsResult?.success) setLearnings(learningsResult.files)
+      if (learningsResult?.success) {
+        setLearnings([...learningsResult.files].sort((a, b) => b.path.localeCompare(a.path)))
+      }
 
       const routingDateResult = await window.electron.routingGetDates?.()
       if (routingDateResult?.success) {
@@ -55,7 +59,9 @@ export default function HistoryPanel() {
         setSelectedRoutingDate(firstDate)
         if (firstDate) {
           const routingResult = await window.electron.routingGetEntries?.(firstDate)
-          if (routingResult?.success) setRoutingEntries(routingResult.entries)
+          if (routingResult?.success) {
+            setRoutingEntries([...routingResult.entries].sort((a, b) => b.timestamp.localeCompare(a.timestamp)))
+          }
         }
       }
     }
@@ -73,7 +79,9 @@ export default function HistoryPanel() {
   const loadRoutingDate = async (dateStr: string) => {
     setSelectedRoutingDate(dateStr)
     const result = await window.electron.routingGetEntries?.(dateStr)
-    if (result?.success) setRoutingEntries(result.entries)
+    if (result?.success) {
+      setRoutingEntries([...result.entries].sort((a, b) => b.timestamp.localeCompare(a.timestamp)))
+    }
   }
 
   const openLearning = async (filePath: string) => {
@@ -162,6 +170,9 @@ export default function HistoryPanel() {
       ) : activeTab === 'routing' ? (
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="border-b border-border px-4 py-3">
+            <p className="mb-2 text-xs text-text-muted">
+              Routing Logs live here because they are part of persisted request history. This tab shows the record of past routing decisions, not the live routing controls.
+            </p>
             <div className="flex items-center gap-2">
               <span className="arcos-kicker">Date</span>
               <select

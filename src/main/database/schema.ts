@@ -14,6 +14,7 @@ export const SCHEMA = `
     role             TEXT    NOT NULL,
     content          TEXT    NOT NULL,
     model            TEXT,
+    model_label      TEXT,
     cost             REAL    NOT NULL DEFAULT 0,
     timestamp        INTEGER NOT NULL,
     routing_reason   TEXT

@@ -15,6 +15,8 @@ import { saveConversationToVault } from '../utils/exportConversation'
 
 interface Props {
   conversationId: string | null
+  disabled?: boolean
+  onConversationCreated?: (conversationId: string) => void
 }
 const TIER_COLORS: Record<ModelTier, string> = {
   ollama: 'text-success',
@@ -30,7 +32,7 @@ function modelIdForTier(tier: ModelTier, ollamaModel: string): string {
   return 'claude-sonnet-4-6'
 }
 
-export default function MessageInput({ conversationId }: Props) {
+export default function MessageInput({ conversationId, disabled = false, onConversationCreated }: Props) {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -159,7 +161,7 @@ export default function MessageInput({ conversationId }: Props) {
 
   const handleSend = async () => {
     const trimmed = text.trim()
-    if (!trimmed || sending || memorySearching) return
+    if (!trimmed || sending || memorySearching || disabled) return
 
     if (trimmed.startsWith('/memory')) {
       await handleMemorySearch()
@@ -194,6 +196,9 @@ export default function MessageInput({ conversationId }: Props) {
     // ──────────────────────────────────────────────────────────
 
     const convId = conversationId ?? createConversation()
+    if (!conversationId) {
+      onConversationCreated?.(convId)
+    }
 
     // Build history from current conversation (before adding new message)
     const history = (activeConversation?.messages ?? []).map((m) => ({
@@ -238,6 +243,7 @@ export default function MessageInput({ conversationId }: Props) {
       prompt: resolvedContent,
       conversationId: convId,
       conversationHistory: history,
+      isConversationStart: history.filter((message) => message.role === 'user' || message.role === 'assistant').length === 0,
       memoryCitations: stagedMemory?.citations ?? [],
       plugin: resolvedPlugin,
       preferredLocalModel: settings.ollamaModel,
@@ -278,7 +284,7 @@ export default function MessageInput({ conversationId }: Props) {
       title: `Routed to ${TIER_DISPLAY_LABELS[effectiveTier]}`,
       detail: `${effectiveReason}${estimatedCost > 0 ? ` Estimated cost: $${estimatedCost.toFixed(4)}.` : ' Local path selected.'}`,
       conversationId: convId,
-      relatedPanels: ['routing', resolvedPlugin ? 'tools' : 'prompt_inspector', 'execution'],
+      relatedPanels: ['routing', resolvedPlugin ? 'tools' : 'prompt_inspector', 'transparency'],
       entityLabel: resolvedPlugin?.id ?? effectiveTier,
     })
 
@@ -293,11 +299,14 @@ export default function MessageInput({ conversationId }: Props) {
       estimatedCost,
     }).catch?.(() => {})
 
+    const finalModelId = modelIdForTier(effectiveTier, settings.ollamaModel)
+
     // Add placeholder assistant message
     const assistantMsg = addMessage(convId, {
       role: 'assistant',
       content: '',
       model: effectiveTier,
+      modelLabel: finalModelId,
       cost: 0,
       timestamp: Date.now(),
       isStreaming: true,
@@ -307,7 +316,6 @@ export default function MessageInput({ conversationId }: Props) {
     // Stream the response
     abortRef.current = new AbortController()
     let accumulatedContent = ''
-    const finalModelId = modelIdForTier(effectiveTier, settings.ollamaModel)
     const saveChainArtifact = (params: {
       status: 'completed' | 'failed'
       response?: string
@@ -336,6 +344,7 @@ export default function MessageInput({ conversationId }: Props) {
         chain: {
           path: canonicalChain.diagnostics.chainPath,
           composerStage: canonicalChain.composerStage,
+          usesPaiSystemPrompt: canonicalChain.usesPaiSystemPrompt,
           openClawTierOverride: canonicalChain.openClawTierOverride,
           openClawAnalysis: canonicalChain.diagnostics.openClawAnalysis,
           openClawRaw: canonicalChain.diagnostics.openClawRaw,
@@ -368,7 +377,7 @@ export default function MessageInput({ conversationId }: Props) {
       conversationId: convId,
       stage: 'local model',
       executionState: 'model_dispatch',
-      relatedPanels: ['chat', 'execution', 'prompt_inspector', 'transparency'],
+      relatedPanels: ['chat', 'prompt_inspector', 'transparency'],
       entityLabel: effectiveTier,
     })
 
@@ -392,7 +401,7 @@ export default function MessageInput({ conversationId }: Props) {
       },
       signal: abortRef.current.signal,
       // Plugin system prompt override
-      prebuiltSystemPrompt: canonicalChain.rebuiltSystemPrompt,
+      prebuiltSystemPrompt: canonicalChain.usesPaiSystemPrompt ? canonicalChain.rebuiltSystemPrompt : undefined,
       systemPromptOverride: resolvedPlugin?.systemPrompt,
       tierOverride: resolvedPlugin?.tier,
       onToken: (token) => {
@@ -421,7 +430,7 @@ export default function MessageInput({ conversationId }: Props) {
           conversationId: convId,
           stage: 'local model',
           executionState: 'completed',
-          relatedPanels: ['chat', 'execution', 'cost'],
+          relatedPanels: ['chat', 'cost', 'transparency'],
           entityLabel: effectiveTier,
         })
         if (cost > 0) {
@@ -477,7 +486,7 @@ export default function MessageInput({ conversationId }: Props) {
           conversationId: convId,
           stage: 'local model',
           executionState: 'failed',
-          relatedPanels: ['chat', 'execution', 'services'],
+          relatedPanels: ['chat', 'services', 'transparency'],
           entityLabel: effectiveTier,
         })
         saveChainArtifact({
@@ -499,6 +508,7 @@ export default function MessageInput({ conversationId }: Props) {
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (disabled) return
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       void handleSend()
@@ -668,13 +678,15 @@ export default function MessageInput({ conversationId }: Props) {
               ? 'Generating...'
               : memoryCommandQuery
               ? 'Press Enter to search memory...'
+              : disabled
+              ? 'This terminal is idle.'
               : activePlugin
               ? `${activePlugin.icon} ${activePlugin.name} active — ask anything...`
               : stagedMemory
               ? 'Ask with staged memory context attached...'
               : 'Ask anything or type /command... (Enter to send)'
           }
-          disabled={sending || memorySearching}
+          disabled={disabled || sending || memorySearching}
           rows={1}
           className="flex-1 bg-transparent resize-none text-sm text-text placeholder:text-text-muted focus:outline-none leading-relaxed disabled:opacity-50 selectable"
           style={{ maxHeight: '200px' }}
@@ -691,7 +703,7 @@ export default function MessageInput({ conversationId }: Props) {
         ) : (
           <button
             onClick={() => void handleSend()}
-            disabled={!text.trim() || memorySearching}
+            disabled={disabled || !text.trim() || memorySearching}
             className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-lg bg-accent hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-white text-sm"
           >
             {memorySearching ? '…' : memoryCommandQuery ? '⌕' : '↑'}

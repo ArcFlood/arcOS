@@ -130,7 +130,7 @@ export const useToolExecutionStore = create<ToolExecutionStore>((set, get) => ({
       detail: `${patternDescription(pattern)} Fabric is being used as a workflow stage in the PAI chain.`,
       stage: 'Fabric',
       conversationId: convId ?? undefined,
-      relatedPanels: ['tools', 'execution', 'prompt_inspector'],
+        relatedPanels: ['tools', 'prompt_inspector', 'transparency'],
       entityLabel: pattern,
     })
 
@@ -154,7 +154,7 @@ export const useToolExecutionStore = create<ToolExecutionStore>((set, get) => ({
             detail: `${patternLabel(pattern)} is running via ${meta.mode === 'server' ? 'Fabric server' : 'Fabric CLI fallback'}.`,
             stage: meta.stage ?? 'Fabric',
             conversationId: convId ?? undefined,
-            relatedPanels: ['tools', 'execution', 'prompt_inspector', 'services'],
+            relatedPanels: ['tools', 'prompt_inspector', 'services', 'transparency'],
             entityLabel: pattern,
           })
         },
@@ -191,7 +191,7 @@ export const useToolExecutionStore = create<ToolExecutionStore>((set, get) => ({
             detail: `${output.length} characters returned from Fabric${get().runs.find((run) => run.id === runId)?.executionMode === 'cli' ? ' via CLI fallback' : ''}.`,
             stage: get().runs.find((run) => run.id === runId)?.stageLabel ?? 'Fabric',
             conversationId: convId ?? undefined,
-            relatedPanels: ['tools', 'execution', 'chat'],
+            relatedPanels: ['tools', 'chat', 'transparency'],
             entityLabel: pattern,
           })
         },
@@ -218,7 +218,7 @@ export const useToolExecutionStore = create<ToolExecutionStore>((set, get) => ({
             detail: error.message,
             stage: get().runs.find((run) => run.id === runId)?.stageLabel ?? 'Fabric',
             conversationId: convId ?? undefined,
-            relatedPanels: ['tools', 'services', 'execution'],
+            relatedPanels: ['tools', 'services', 'transparency'],
             entityLabel: pattern,
           })
         },
@@ -243,7 +243,7 @@ export const useToolExecutionStore = create<ToolExecutionStore>((set, get) => ({
       title: 'Aborted Fabric run',
       detail: `Run ${runId.slice(0, 8)} was stopped before completion.`,
       stage: 'Fabric',
-      relatedPanels: ['tools', 'execution'],
+      relatedPanels: ['tools', 'transparency'],
       entityLabel: 'fabric',
     })
   },

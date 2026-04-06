@@ -150,7 +150,7 @@ Keep ideas concise — one sentence each. The goal is quantity and variety.`,
     architectureRole: 'prompt-shaper',
     targetStages: ['OpenClaw', 'Fabric', 'Response Composer', 'local model'],
     entrySurfaces: ['composer-command', 'tools-panel', 'runtime', 'prompt-inspector'],
-    opensPanels: ['tools', 'runtime', 'prompt_inspector', 'execution'],
+    opensPanels: ['tools', 'runtime', 'prompt_inspector', 'transparency'],
     executionBoundary: 'renderer',
     stability: 'stable',
     systemPrompt: `You are an expert debugger and problem solver. When given an error, stack trace, or unexpected behavior:

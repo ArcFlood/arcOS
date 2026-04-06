@@ -1,11 +1,25 @@
-interface Props { running: boolean; checking?: boolean; size?: 'sm' | 'md' }
+interface Props {
+  running: boolean
+  checking?: boolean
+  warning?: boolean
+  size?: 'sm' | 'md'
+}
 
-export default function StatusIndicator({ running, checking, size = 'sm' }: Props) {
+export default function StatusIndicator({ running, checking, warning, size = 'sm' }: Props) {
   const dim = size === 'md' ? 'w-2.5 h-2.5' : 'w-2 h-2'
 
   if (checking) {
     return (
       <span className={`${dim} rounded-full bg-warning animate-pulse inline-block`} />
+    )
+  }
+
+  if (warning) {
+    return (
+      <span className="relative inline-flex">
+        <span className={`absolute inline-flex ${dim} rounded-full bg-warning opacity-60 animate-ping`} />
+        <span className={`relative inline-flex ${dim} rounded-full bg-warning`} />
+      </span>
     )
   }
 

@@ -22,6 +22,11 @@ export function getDb(): Database.Database {
 
   // Run migrations / create tables
   _db.exec(SCHEMA)
+  try {
+    _db.exec('ALTER TABLE messages ADD COLUMN model_label TEXT')
+  } catch {
+    // Column already exists on upgraded installs.
+  }
 
   console.log(`[DB] Opened: ${dbPath}`)
   return _db

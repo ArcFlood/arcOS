@@ -32,17 +32,34 @@ export default function PromptInspectorPanel() {
     [activeConversation?.messages]
   )
 
-  const currentUserPrompt = [...chatMessages].reverse().find((message) => message.role === 'user')?.content ?? ''
-  const conversationContext = chatMessages
-    .slice(-6)
-    .map((message) => `${message.role.toUpperCase()}: ${message.content}`)
-    .join('\n\n')
+  const latestUserMessage = [...chatMessages].reverse().find((message) => message.role === 'user')
+  const recentContextWindow = chatMessages.slice(-6)
+  const recentUserCount = recentContextWindow.filter((message) => message.role === 'user').length
+  const recentAssistantCount = recentContextWindow.filter((message) => message.role === 'assistant').length
+  const currentUserPromptTokens = estimateTokens(latestUserMessage?.content ?? '')
+  const recentConversationTokens = estimateTokens(
+    recentContextWindow.map((message) => message.content).join('\n\n')
+  )
+  const contextWindowTokens = currentUserPromptTokens + recentConversationTokens
 
   const activeSystemPrompt = activePlugin?.systemPrompt ?? systemPrompt
   const activeSystemSource = activePlugin ? `plugin:${activePlugin.name}` : promptSource
 
   return (
     <div className="space-y-4 p-4">
+      <section className="arcos-subpanel rounded-xl p-3">
+        <div className="flex items-center justify-between">
+          <p className="arcos-kicker">Stats</p>
+          <span className="text-[11px] text-text-muted">{contextWindowTokens} tokens est.</span>
+        </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <InspectorStat label="Latest User Prompt Tokens" value={String(currentUserPromptTokens)} />
+          <InspectorStat label="Recent Context Tokens" value={String(recentConversationTokens)} />
+          <InspectorStat label="Recent User Messages" value={String(recentUserCount)} />
+          <InspectorStat label="Recent Assistant Messages" value={String(recentAssistantCount)} />
+        </div>
+      </section>
+
       <section className="arcos-subpanel rounded-xl p-3">
         <p className="arcos-kicker">Prompt Composition</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -51,16 +68,9 @@ export default function PromptInspectorPanel() {
           <InspectorStat label="Context Messages" value={String(chatMessages.length)} />
           <InspectorStat label="Extended Thinking" value={settings.extendedThinking ? 'Enabled' : 'Disabled'} />
         </div>
-      </section>
-
-      <section className="arcos-subpanel rounded-xl p-3">
-        <div className="flex items-center justify-between">
-          <p className="arcos-kicker">Current User Prompt</p>
-          <span className="text-[11px] text-text-muted">{estimateTokens(currentUserPrompt)} tokens est.</span>
-        </div>
-        <div className="mt-3 rounded-lg border border-border bg-[#12161b] px-3 py-3 whitespace-pre-wrap break-words text-xs leading-6 text-text-muted">
-          {currentUserPrompt || 'No active user prompt yet.'}
-        </div>
+        <p className="mt-3 text-xs leading-5 text-text-muted">
+          System tokens are the estimated size of the currently loaded system prompt stack. In the current build that is mostly the ARCOS / PAI core prompt loaded from the configured source, plus any active plugin override. It does not include the user prompt or recent thread context.
+        </p>
       </section>
 
       <section className="arcos-subpanel rounded-xl p-3">
@@ -73,18 +83,15 @@ export default function PromptInspectorPanel() {
             {expanded ? 'Collapse' : 'Expand'}
           </button>
         </div>
-        <div className="mt-3 rounded-lg border border-border bg-[#12161b] px-3 py-3 whitespace-pre-wrap break-words text-xs leading-6 text-text-muted">
-          {expanded ? activeSystemPrompt : `${activeSystemPrompt.slice(0, 600)}${activeSystemPrompt.length > 600 ? '…' : ''}`}
-        </div>
-      </section>
-
-      <section className="arcos-subpanel rounded-xl p-3">
-        <div className="flex items-center justify-between">
-          <p className="arcos-kicker">Recent Conversation Context</p>
-          <span className="text-[11px] text-text-muted">{estimateTokens(conversationContext)} tokens est.</span>
-        </div>
-        <div className="mt-3 rounded-lg border border-border bg-[#12161b] px-3 py-3 whitespace-pre-wrap break-words text-xs leading-6 text-text-muted">
-          {conversationContext || 'No recent conversation context yet.'}
+        <div
+          className={`mt-3 rounded-lg border border-border bg-[#12161b] px-3 py-3 whitespace-pre-wrap break-words text-xs leading-6 text-text-muted ${expanded ? '' : 'overflow-hidden'}`}
+          style={!expanded ? {
+            display: '-webkit-box',
+            WebkitLineClamp: 7,
+            WebkitBoxOrient: 'vertical',
+          } : undefined}
+        >
+          {activeSystemPrompt}
         </div>
       </section>
     </div>

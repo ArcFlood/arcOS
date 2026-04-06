@@ -43,7 +43,7 @@ export const useServiceStore = create<ServiceStore>((set, get) => ({
   fetchOllamaModels: async () => {
     try {
       const result = await window.electron.ollamaListModels()
-      if (result.success && result.models.length > 0) {
+      if (result.success) {
         const chatModels = filterChatCapableOllamaModels(result.models)
         set({ availableOllamaModels: chatModels })
         useSettingsStore.getState().autoFixOllamaModel(chatModels)
@@ -52,6 +52,7 @@ export const useServiceStore = create<ServiceStore>((set, get) => ({
     } catch {
       // Fall back to an empty model list if Ollama is unavailable.
     }
+    set({ availableOllamaModels: [] })
     return []
   },
 
@@ -67,6 +68,7 @@ export const useServiceStore = create<ServiceStore>((set, get) => ({
     } catch {
       // Fall back to an empty detail list if Ollama is unavailable.
     }
+    set({ availableOllamaModelDetails: [] })
     return []
   },
 

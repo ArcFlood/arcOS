@@ -21,12 +21,20 @@ const TAB_LABELS: Array<{ id: Tab; label: string; kicker: string }> = [
 export default function SettingsPanel() {
   const { settings, updateSettings, closeSettingsPanel, resetToDefaults } = useSettingsStore()
   const availableModels = useServiceStore((s) => s.availableOllamaModels)
+  const fetchOllamaModels = useServiceStore((s) => s.fetchOllamaModels)
+  const fetchOllamaModelDetails = useServiceStore((s) => s.fetchOllamaModelDetails)
   const [local, setLocal] = useState({ ...settings })
   const [activeTab, setActiveTab] = useState<Tab>('general')
 
   useEffect(() => {
     setLocal({ ...settings })
   }, [settings])
+
+  useEffect(() => {
+    if (activeTab !== 'models') return
+    fetchOllamaModels().catch(() => {})
+    fetchOllamaModelDetails().catch(() => {})
+  }, [activeTab, fetchOllamaModels, fetchOllamaModelDetails])
 
   const save = () => {
     updateSettings(local)
@@ -269,24 +277,20 @@ export default function SettingsPanel() {
                 <div className="space-y-6">
                   <section className="rounded-xl border border-border bg-[#12161b] px-4 py-4">
                     <Field label="Active Ollama Model">
-                      {availableModels.length > 0 ? (
-                        <select
-                          value={local.ollamaModel}
-                          onChange={(e) => setLocal((s) => ({ ...s, ollamaModel: e.target.value }))}
-                          className="input-base w-full"
-                        >
-                          {availableModels.map((model) => (
+                      <select
+                        value={availableModels.includes(local.ollamaModel) ? local.ollamaModel : ''}
+                        onChange={(e) => setLocal((s) => ({ ...s, ollamaModel: e.target.value }))}
+                        className="input-base w-full"
+                        disabled={availableModels.length === 0}
+                      >
+                        {availableModels.length === 0 ? (
+                          <option value="">No installed models detected</option>
+                        ) : (
+                          availableModels.map((model) => (
                             <option key={model} value={model}>{model}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <input
-                          type="text"
-                          value={local.ollamaModel}
-                          onChange={(e) => setLocal((s) => ({ ...s, ollamaModel: e.target.value }))}
-                          className="input-base w-full"
-                        />
-                      )}
+                          ))
+                        )}
+                      </select>
                     </Field>
                   </section>
                   <ModelManager />

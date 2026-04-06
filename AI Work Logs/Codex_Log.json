@@ -2089,6 +2089,242 @@
         "Refresh remains the top-level ARCOS service status refresh.",
         "Sweep is now visually scoped to watchdog behavior."
       ]
+    },
+    {
+      "entry_id": "codex-2026-04-05-086",
+      "date": "2026-04-05",
+      "agent": "Codex",
+      "task_title": "Refine Watchdog layout and modernize Routing module copy",
+      "summary": "Moved the Watchdog active indicator to the top-right corner and placed Refresh and Sweep directly under the Watchdog title. Added a Todo item for smart wide module growth, removed stale aggressiveness display from Routing, switched the visible budget policy box to monthly budget, explained chain path, confidence, and preview in the module itself, and added a Connections settings box that opens Settings.",
+      "files_touched": [
+        "Todo_List.md",
+        "arcos/src/renderer/components/workspace/ServicePanel.tsx",
+        "arcos/src/renderer/components/workspace/RoutingPanel.tsx",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/components/workspace/ServicePanel.tsx src/renderer/components/workspace/RoutingPanel.tsx"
+      ],
+      "notes": [
+        "The routing engine still uses daily spend for local fallback decisions; this pass changed the displayed policy box to monthly budget per the UI request.",
+        "The new Connections box is a settings launcher, not a duplicate connections editor."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-05-087",
+      "date": "2026-04-05",
+      "agent": "Codex",
+      "task_title": "Correct Watchdog placement and simplify Routing empty state",
+      "summary": "Moved the Watchdog active indicator to the top-right opposite the title, kept Refresh and Sweep under the title, removed the Preview section from Routing, and converted Connections into an empty-state viewing box rather than a settings launcher.",
+      "files_touched": [
+        "arcos/src/renderer/components/workspace/ServicePanel.tsx",
+        "arcos/src/renderer/components/workspace/RoutingPanel.tsx",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/components/workspace/ServicePanel.tsx src/renderer/components/workspace/RoutingPanel.tsx"
+      ],
+      "notes": [
+        "Connections now reads as a passive status surface instead of a duplicate settings entry point.",
+        "Preview was removed entirely from the Routing module."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-05-088",
+      "date": "2026-04-05",
+      "agent": "Codex",
+      "task_title": "Rename Runtime to Dev Analytics and restructure Tools explanations",
+      "summary": "Added a Todo item for explanatory helper text across the app, renamed the Runtime module to Dev Analytics and moved it lower in the module selector, rebuilt Tools into a single-column surface with clearer Fabric/plugin guidance, removed the Tools runtime button, and added a direct explanation in Prompt Inspector for what the system-token count represents.",
+      "files_touched": [
+        "Todo_List.md",
+        "arcos/src/renderer/components/workspace/ToolsPanel.tsx",
+        "arcos/src/renderer/components/workspace/PromptInspectorPanel.tsx",
+        "arcos/src/renderer/workspace/presets.ts",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/components/workspace/ToolsPanel.tsx src/renderer/components/workspace/PromptInspectorPanel.tsx src/renderer/workspace/presets.ts"
+      ],
+      "notes": [
+        "Dev Analytics is still the same underlying panel id; this pass changed the user-facing name and module ordering only.",
+        "Prompt Inspector now explains that system-token count comes from the loaded system prompt stack rather than user/context text."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-05-089",
+      "date": "2026-04-05",
+      "agent": "Codex",
+      "task_title": "Limit PAI system prompt to thread start",
+      "summary": "Changed the ARCOS send path so the PAI system prompt is only attached on the first turn of a thread. Follow-up messages now keep per-message OpenClaw, Fabric, memory, and response-format context in the user payload instead of resending the full PAI system prompt every time.",
+      "files_touched": [
+        "arcos/src/renderer/services/canonicalChainService.ts",
+        "arcos/src/renderer/components/MessageInput.tsx",
+        "arcos/src/main/chainHistory.ts",
+        "arcos/src/renderer/electron.d.ts",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/services/canonicalChainService.ts src/renderer/components/MessageInput.tsx src/main/chainHistory.ts src/renderer/electron.d.ts"
+      ],
+      "notes": [
+        "The chain artifact now records whether the PAI system prompt was attached on that turn.",
+        "Per-message chain context still flows on follow-up messages; only the baseline PAI system prompt was restricted to thread start."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-05-090",
+      "date": "2026-04-05",
+      "agent": "Codex",
+      "task_title": "Refine Tools, Services, Prompt Inspector, and module registry",
+      "summary": "Collapsed Prompt Inspector user/context visibility into counters instead of repeated prompt bodies, converted the Tools header to plain title text, turned Plugins into a dropdown-driven detail surface, moved Recent Tool Runs into Services, added explanatory copy for routing logs in History, and fixed the actual module registry so Runtime is now labeled Dev Analytics and appears at the bottom of the selector.",
+      "files_touched": [
+        "arcos/src/renderer/components/workspace/PromptInspectorPanel.tsx",
+        "arcos/src/renderer/components/workspace/ToolsPanel.tsx",
+        "arcos/src/renderer/components/workspace/ServicePanel.tsx",
+        "arcos/src/renderer/components/workspace/HistoryPanel.tsx",
+        "arcos/src/renderer/workspace/presets.ts",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/components/workspace/PromptInspectorPanel.tsx src/renderer/components/workspace/ToolsPanel.tsx src/renderer/components/workspace/ServicePanel.tsx src/renderer/components/workspace/HistoryPanel.tsx src/renderer/workspace/presets.ts"
+      ],
+      "notes": [
+        "Routing Logs remain in History because they are persisted decision records, not live routing controls.",
+        "Recent Tool Runs now live with service health because they are operational status artifacts rather than configuration surfaces."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-06-091",
+      "date": "2026-04-06",
+      "agent": "Codex",
+      "task_title": "Tighten Prompt Inspector, Tools emphasis, and newest-first history ordering",
+      "summary": "Moved Prompt Inspector stats to the top and reduced them to counters only, collapsed the system prompt preview to a 7-line preview when not expanded, highlighted the selected Fabric pattern with a green border, forced routing/session/learning history displays to newest-first ordering, renamed the Memory module to Search Memory, and removed Models from the addable module registry so model management stays in Settings.",
+      "files_touched": [
+        "arcos/src/renderer/components/workspace/PromptInspectorPanel.tsx",
+        "arcos/src/renderer/components/workspace/ToolsPanel.tsx",
+        "arcos/src/renderer/components/workspace/HistoryPanel.tsx",
+        "arcos/src/renderer/components/workspace/RoutingPanel.tsx",
+        "arcos/src/renderer/workspace/presets.ts",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/components/workspace/PromptInspectorPanel.tsx src/renderer/components/workspace/ToolsPanel.tsx src/renderer/components/workspace/HistoryPanel.tsx src/renderer/components/workspace/RoutingPanel.tsx src/renderer/workspace/presets.ts"
+      ],
+      "notes": [
+        "History and Routing now sort explicitly by timestamp/path descending instead of assuming backend order.",
+        "Removing Models from the module registry prevents adding new Models modules; Settings remains the intended model-management surface."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-06-092",
+      "date": "2026-04-06",
+      "agent": "Codex",
+      "task_title": "Clarify plugin availability and observability panels",
+      "summary": "Removed the plugin install action from Tools so plugins read as automatically available, renamed the Cost module to Analytics, and added direct explanations in Transparency and Execution for verbosity modes, Clear, Current Phase, Lifecycle, and the difference between the live feed and the ordered execution timeline.",
+      "files_touched": [
+        "arcos/src/renderer/components/workspace/ToolsPanel.tsx",
+        "arcos/src/renderer/components/workspace/TracePanel.tsx",
+        "arcos/src/renderer/components/workspace/ExecutionTracePanel.tsx",
+        "arcos/src/renderer/workspace/presets.ts",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/components/workspace/ToolsPanel.tsx src/renderer/components/workspace/TracePanel.tsx src/renderer/components/workspace/ExecutionTracePanel.tsx src/renderer/workspace/presets.ts"
+      ],
+      "notes": [
+        "Plugins now present as persistent automatically discovered surfaces, with activation remaining the session-level control.",
+        "Analytics is still the existing cost/usage panel under the same internal panel id."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-06-093",
+      "date": "2026-04-06",
+      "agent": "Codex",
+      "task_title": "Collapse Transparency help, trim redundant modules, and refresh Fabric baseline",
+      "summary": "Converted Transparency help into a toggleable guide panel, renamed the clear action to Reset, removed self-referential Transparency panel buttons, renamed Search Memory to Memory Search, removed Execution and Utilities from the addable module selector, refreshed Fabric patterns with `fabric -U`, and regenerated the chain validation baseline.",
+      "files_touched": [
+        "arcos/src/renderer/components/workspace/TracePanel.tsx",
+        "arcos/src/renderer/workspace/presets.ts",
+        "AI Work Logs/Codex_Log.json",
+        "arcos/docs/CHAIN_VALIDATION_LATEST.md",
+        "arcos/docs/CHAIN_VALIDATION_LATEST.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/components/workspace/TracePanel.tsx src/renderer/workspace/presets.ts",
+        "fabric -U",
+        "npm run validate:chain"
+      ],
+      "notes": [
+        "Fabric now has 251 patterns installed locally, but OpenClaw still recommends pattern names like `code-review` and `control_plane` that do not exist in the Fabric catalog.",
+        "The regenerated validation baseline is current as of 2026-04-06 00:46:44 local time."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-06-094",
+      "date": "2026-04-06",
+      "agent": "Codex",
+      "task_title": "Remove redundant workspace modules and patch Fabric alias expectations",
+      "summary": "Expanded the OpenClaw-to-Fabric alias map, removed redundant Execution and Utilities module code paths from the workspace system, removed the workspace Models module path while keeping model management in Settings, moved the Transparency help into a toggle button, removed the app-header Panels button, renamed Search Memory to Memory Search, and added scheduled stack updates to the todo list.",
+      "files_touched": [
+        "arcos/src/renderer/services/fabricService.ts",
+        "arcos/src/renderer/workspace/types.ts",
+        "arcos/src/renderer/components/workspace/WorkspacePanelContent.tsx",
+        "arcos/src/renderer/components/workspace/WorkspaceTopBar.tsx",
+        "arcos/src/renderer/components/workspace/TracePanel.tsx",
+        "arcos/src/renderer/workspace/presets.ts",
+        "arcos/src/renderer/services/canonicalChainService.ts",
+        "arcos/src/renderer/stores/toolExecutionStore.ts",
+        "arcos/src/renderer/components/MessageInput.tsx",
+        "arcos/src/main/plugins/loader.ts",
+        "arcos/src/main/audit/auditEngine.ts",
+        "arcos/scripts/validate-chain.mjs",
+        "Todo_List.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/components/workspace/TracePanel.tsx src/renderer/components/workspace/WorkspaceTopBar.tsx src/renderer/components/workspace/WorkspacePanelContent.tsx src/renderer/workspace/types.ts src/renderer/services/fabricService.ts src/renderer/services/canonicalChainService.ts src/renderer/stores/toolExecutionStore.ts src/renderer/components/MessageInput.tsx src/main/plugins/loader.ts src/main/audit/auditEngine.ts scripts/validate-chain.mjs"
+      ],
+      "notes": [
+        "ExecutionTracePanel was deleted and UtilitiesPanel was removed from WorkspacePanelContent; removed panel ids are now dropped by workspace sanitization.",
+        "A fresh post-alias chain validation rerun was started but had not finished writing a new report at the time this log entry was recorded."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-06-095",
+      "date": "2026-04-06",
+      "agent": "Codex",
+      "task_title": "Close UI refinement track",
+      "summary": "Marked the ARCOS UI module pass/fail track complete in the todo list and prepared the current ARCOS refinement state for a Git push.",
+      "files_touched": [
+        "Todo_List.md",
+        "AI Work Logs/Codex_Log.json"
+      ],
+      "status": "completed",
+      "verification": [
+        "git status --short"
+      ],
+      "notes": [
+        "Generated Python __pycache__ artifacts remain intentionally excluded from the push.",
+        "The todo update was made in the root project todo list, outside the ARCOS repo."
+      ]
     }
   ]
 }

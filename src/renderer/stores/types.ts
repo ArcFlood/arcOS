@@ -78,6 +78,7 @@ export interface Message {
   role: 'user' | 'assistant' | 'system'
   content: string
   model: ModelTier | null
+  modelLabel?: string
   cost: number
   timestamp: number
   routingReason?: string

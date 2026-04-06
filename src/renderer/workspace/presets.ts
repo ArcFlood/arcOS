@@ -24,12 +24,6 @@ export const WORKSPACE_PANELS: WorkspacePanelDefinition[] = [
     icon: '🧠',
   },
   {
-    id: 'runtime',
-    title: 'Runtime',
-    description: 'Structured coding-runtime status for repo, worktree, and verification scope.',
-    icon: '⑂',
-  },
-  {
     id: 'tools',
     title: 'Tools',
     description: 'Fabric patterns, plugins, and future PAI-native modules.',
@@ -43,7 +37,7 @@ export const WORKSPACE_PANELS: WorkspacePanelDefinition[] = [
   },
   {
     id: 'memory',
-    title: 'Memory',
+    title: 'Memory Search',
     description: 'Semantic search, citations, and memory workflows.',
     icon: '🧠',
   },
@@ -54,14 +48,8 @@ export const WORKSPACE_PANELS: WorkspacePanelDefinition[] = [
     icon: '🕘',
   },
   {
-    id: 'models',
-    title: 'Models',
-    description: 'Local runtime inventory, pulls, and model management.',
-    icon: '📦',
-  },
-  {
     id: 'cost',
-    title: 'Cost',
+    title: 'Analytics',
     description: 'Usage, token, and budget visibility.',
     icon: '₿',
   },
@@ -70,18 +58,6 @@ export const WORKSPACE_PANELS: WorkspacePanelDefinition[] = [
     title: 'Transparency',
     description: 'Live orchestration feed across routing, memory, and tools.',
     icon: '◫',
-  },
-  {
-    id: 'execution',
-    title: 'Execution',
-    description: 'Ordered execution timeline across requests and tools.',
-    icon: '⋮',
-  },
-  {
-    id: 'utilities',
-    title: 'Utilities',
-    description: 'Compatibility launchers and transitional ARCOS actions.',
-    icon: '⌘',
   },
   {
     id: 'hooks',
@@ -100,6 +76,12 @@ export const WORKSPACE_PANELS: WorkspacePanelDefinition[] = [
     title: 'Discord',
     description: 'Discord server integration — channel-based project comms.',
     icon: '💬',
+  },
+  {
+    id: 'runtime',
+    title: 'Dev Analytics',
+    description: 'Developer-facing runtime status for repo, worktree, and verification scope.',
+    icon: '',
   },
 ]
 

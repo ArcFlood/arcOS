@@ -3,10 +3,11 @@ import { formatCostBadge } from '../../utils/formatCurrency'
 
 interface Props {
   tier: ModelTier
+  modelLabel?: string
   cost?: number
 }
 
-export default function MessageBadge({ tier, cost }: Props) {
+export default function MessageBadge({ tier, modelLabel, cost }: Props) {
   const info = MODEL_REGISTRY[tier]
   const colorMap: Record<ModelTier, string> = {
     ollama: 'text-success',
@@ -17,8 +18,7 @@ export default function MessageBadge({ tier, cost }: Props) {
 
   return (
     <span className={`inline-flex items-center gap-1 text-xs font-medium ${colorMap[tier]}`}>
-      <span>{info.emoji}</span>
-      <span>{info.displayName}</span>
+      <span>{modelLabel ?? info.modelId}</span>
       {cost !== undefined && cost > 0 && (
         <span className="text-danger opacity-70">({formatCostBadge(cost)})</span>
       )}

@@ -6,6 +6,7 @@ import { WorkspacePanelId } from './workspace/types'
 
 export default function App() {
   const detachedPanel = new URLSearchParams(window.location.search).get('detachedPanel') as WorkspacePanelId | null
+  const detachedModule = new URLSearchParams(window.location.search).get('detachedModule')
   const {
     appearanceTheme,
     appearanceFont,
@@ -23,8 +24,8 @@ export default function App() {
     document.documentElement.style.setProperty('--arcos-warning', appearanceAccentSecondaryColor)
   }, [appearanceTheme, appearanceFont, appearanceTextColor, appearanceAccentColor, appearanceAccentSecondaryColor])
 
-  if (detachedPanel) {
-    return <DetachedPanelWindow panelId={detachedPanel} />
+  if (detachedPanel && detachedModule) {
+    return <DetachedPanelWindow panelId={detachedPanel} moduleId={detachedModule} />
   }
 
   return <Layout />

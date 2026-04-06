@@ -36,7 +36,7 @@ export function conversationToMarkdown(conversation: Conversation): string {
     .filter((m) => m.role !== 'system') // omit routing system messages
     .map((m) => {
       const label = ROLE_LABELS[m.role] ?? m.role
-      const modelNote = m.model ? ` *(${MODEL_LABELS[m.model] ?? m.model})*` : ''
+      const modelNote = m.model ? ` *(${m.modelLabel ?? MODEL_LABELS[m.model] ?? m.model})*` : ''
       const costNote = m.cost && m.cost > 0 ? ` — $${m.cost.toFixed(5)}` : ''
       const time = new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
@@ -82,6 +82,7 @@ export async function saveConversationToVault(
       role: m.role,
       content: m.content,
       model: m.model ?? undefined,
+      modelLabel: m.modelLabel ?? undefined,
     })),
     tags: conversation.tags,
     totalCost: conversation.totalCost,

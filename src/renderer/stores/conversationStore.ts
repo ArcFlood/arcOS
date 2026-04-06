@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { Conversation, ConversationStatus, Message } from './types'
 
+const OPEN_TERMINALS_STORAGE_KEY = 'arcos-open-terminal-ids'
+
 function generateId(): string {
   return crypto.randomUUID()
 }
@@ -29,6 +31,7 @@ function msgToDb(m: Message) {
     role: m.role,
     content: m.content,
     model: m.model ?? null,
+    model_label: m.modelLabel ?? null,
     cost: m.cost,
     timestamp: m.timestamp,
     routing_reason: m.routingReason ?? null,
@@ -54,6 +57,7 @@ function dbToMsg(row: Record<string, unknown>): Message {
     role: row.role as 'user' | 'assistant' | 'system',
     content: row.content as string,
     model: (row.model as import('./types').ModelTier | null) ?? null,
+    modelLabel: (row.model_label as string | null) ?? undefined,
     cost: row.cost as number,
     timestamp: row.timestamp as number,
     routingReason: (row.routing_reason as string | null) ?? undefined,
@@ -66,19 +70,23 @@ function dbToMsg(row: Record<string, unknown>): Message {
 interface ConversationStore {
   conversations: Conversation[]
   activeConversationId: string | null
+  openConversationIds: string[]
   searchQuery: string
   tagFilter: string | null
   dbReady: boolean
 
   activeConversation: () => Conversation | null
   filteredConversations: () => Conversation[]
+  openConversations: () => Conversation[]
   getAllTags: () => string[]
 
   // DB bootstrap — called once on app mount
   loadFromDb: () => Promise<void>
 
   createConversation: () => string
+  reopenConversation: (id: string) => void
   setActiveConversation: (id: string | null) => void
+  closeConversation: (id: string) => void
   deleteConversation: (id: string) => void
   addMessage: (conversationId: string, msg: Omit<Message, 'id' | 'conversationId'>) => Message
   updateMessage: (conversationId: string, messageId: string, updates: Partial<Message>) => void
@@ -94,6 +102,7 @@ interface ConversationStore {
 export const useConversationStore = create<ConversationStore>((set, get) => ({
   conversations: [],
   activeConversationId: null,
+  openConversationIds: [],
   searchQuery: '',
   tagFilter: null,
   dbReady: false,
@@ -121,6 +130,12 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     return result
   },
 
+  openConversations: () => {
+    const { conversations, openConversationIds } = get()
+    const openIds = new Set(openConversationIds)
+    return conversations.filter((conversation) => openIds.has(conversation.id))
+  },
+
   getAllTags: () => {
     const { conversations } = get()
     const tagSet = new Set<string>()
@@ -145,7 +160,27 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         })
       )
 
-      set({ conversations, dbReady: true })
+      const storedOpenIds = (() => {
+        try {
+          const parsed = JSON.parse(localStorage.getItem(OPEN_TERMINALS_STORAGE_KEY) ?? '[]') as string[]
+          return Array.isArray(parsed) ? parsed : []
+        } catch {
+          return []
+        }
+      })()
+      const existingConversationIds = new Set(conversations.map((conversation) => conversation.id))
+      const openConversationIds = storedOpenIds.filter((id) => existingConversationIds.has(id))
+      const normalizedOpenIds = openConversationIds.length > 0
+        ? openConversationIds
+        : conversations.slice(0, 6).map((conversation) => conversation.id)
+
+      localStorage.setItem(OPEN_TERMINALS_STORAGE_KEY, JSON.stringify(normalizedOpenIds))
+      set({
+        conversations,
+        openConversationIds: normalizedOpenIds,
+        activeConversationId: normalizedOpenIds[0] ?? conversations[0]?.id ?? null,
+        dbReady: true,
+      })
     } catch (e) {
       console.error('[ConversationStore] DB load failed:', e)
       set({ dbReady: true }) // mark ready even on error so UI doesn't hang
@@ -158,7 +193,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     const id = generateId()
     const conversation: Conversation = {
       id,
-      title: 'New Conversation',
+      title: 'New Thread',
       createdAt: Date.now(),
       updatedAt: Date.now(),
       tags: [],
@@ -169,17 +204,50 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     set((s) => ({
       conversations: [conversation, ...s.conversations],
       activeConversationId: id,
+      openConversationIds: [id, ...s.openConversationIds.filter((entry) => entry !== id)],
     }))
+    localStorage.setItem(
+      OPEN_TERMINALS_STORAGE_KEY,
+      JSON.stringify([id, ...get().openConversationIds.filter((entry) => entry !== id)])
+    )
     window.electron.db.conversations.save(convToDb(conversation)).catch(console.error)
     return id
   },
 
-  setActiveConversation: (id) => set({ activeConversationId: id }),
+  reopenConversation: (id) => {
+    const { conversations, openConversationIds } = get()
+    if (!conversations.some((conversation) => conversation.id === id)) return
+    const nextOpenIds = [id, ...openConversationIds.filter((entry) => entry !== id)]
+    localStorage.setItem(OPEN_TERMINALS_STORAGE_KEY, JSON.stringify(nextOpenIds))
+    set({ openConversationIds: nextOpenIds, activeConversationId: id })
+  },
+
+  setActiveConversation: (id) => {
+    if (!id) {
+      set({ activeConversationId: null })
+      return
+    }
+    const nextOpenIds = [id, ...get().openConversationIds.filter((entry) => entry !== id)]
+    localStorage.setItem(OPEN_TERMINALS_STORAGE_KEY, JSON.stringify(nextOpenIds))
+    set({ activeConversationId: id, openConversationIds: nextOpenIds })
+  },
+
+  closeConversation: (id) => {
+    const nextOpenIds = get().openConversationIds.filter((entry) => entry !== id)
+    localStorage.setItem(OPEN_TERMINALS_STORAGE_KEY, JSON.stringify(nextOpenIds))
+    set({
+      openConversationIds: nextOpenIds,
+      activeConversationId: get().activeConversationId === id ? (nextOpenIds[0] ?? null) : get().activeConversationId,
+    })
+  },
 
   deleteConversation: (id) => {
+    const nextOpenIds = get().openConversationIds.filter((entry) => entry !== id)
+    localStorage.setItem(OPEN_TERMINALS_STORAGE_KEY, JSON.stringify(nextOpenIds))
     set((s) => ({
       conversations: s.conversations.filter((c) => c.id !== id),
-      activeConversationId: s.activeConversationId === id ? null : s.activeConversationId,
+      activeConversationId: s.activeConversationId === id ? (nextOpenIds[0] ?? null) : s.activeConversationId,
+      openConversationIds: nextOpenIds,
     }))
     window.electron.db.conversations.delete(id).catch(console.error)
   },

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import ServiceCard from '../services/ServiceCard'
 import { useServiceStore } from '../../stores/serviceStore'
+import { useToolExecutionStore } from '../../stores/toolExecutionStore'
 
 type WatchdogServiceState = 'unknown' | 'healthy' | 'degraded' | 'failed' | 'recovering'
 interface WatchdogServiceEntry {
@@ -31,6 +32,9 @@ const STATE_COLORS: Record<string, string> = {
 export default function ServicePanel() {
   const services = useServiceStore((s) => s.services)
   const checkAllServices = useServiceStore((s) => s.checkAllServices)
+  const runs = useToolExecutionStore((s) => s.runs)
+  const abortRun = useToolExecutionStore((s) => s.abortRun)
+  const clearRuns = useToolExecutionStore((s) => s.clearRuns)
   const [watchdogStatus, setWatchdogStatus] = useState<WatchdogStatus | null>(null)
   const orderedServices = [...services].sort((a, b) => {
     const order = ['openclaw', 'fabric', 'arc-memory', 'ollama']
@@ -93,26 +97,32 @@ export default function ServicePanel() {
       {/* Watchdog state badges */}
       {watchdogStatus && (
         <div className="rounded-xl border border-border bg-[#12161b] p-3 space-y-3">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm font-semibold text-text">Watchdog</p>
             <div>
-              <p className="text-sm font-semibold text-text">Watchdog</p>
-              <p className="text-xs text-text-muted">
-                Automated service monitor. Sweep forces an immediate health pass. Refresh only rechecks the service cards.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
               <span className={`px-2 py-1 rounded text-[10px] uppercase tracking-wider ${watchdogStatus.running ? 'bg-emerald-900/50 text-emerald-400' : 'bg-slate-700 text-slate-400'}`}>
                 {watchdogStatus.running ? 'active' : 'stopped'}
               </span>
-              <button
-                onClick={handleForceSweep}
-                className="arcos-action rounded-md px-2.5 py-1.5 text-xs transition-colors"
-                title={`Watchdog last sweep: ${watchdogStatus.lastSweep ?? 'never'}`}
-              >
-                Sweep
-              </button>
             </div>
           </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleForceSweep}
+              className="arcos-action rounded-md px-2.5 py-1.5 text-xs transition-colors"
+              title={`Watchdog last sweep: ${watchdogStatus.lastSweep ?? 'never'}`}
+            >
+              Sweep
+            </button>
+            <button
+              onClick={() => checkAllServices()}
+              className="arcos-action rounded-md px-2.5 py-1.5 text-xs transition-colors"
+            >
+              Refresh
+            </button>
+          </div>
+          <p className="text-xs text-text-muted">
+            Automated service monitor. Sweep forces an immediate health pass. Refresh only rechecks the service cards.
+          </p>
           <div className="flex flex-wrap gap-1.5">
             {watchdogStatus.services.map((ws: WatchdogServiceEntry) => (
               <div key={ws.name} className="flex items-center gap-1 text-[10px]" title={ws.hint || ws.state}>
@@ -137,6 +147,49 @@ export default function ServicePanel() {
         {orderedServices.map((service) => (
           <ServiceCard key={service.name} service={service} />
         ))}
+      </div>
+
+      <div className="rounded-xl border border-border bg-[#12161b] p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-text">Recent Tool Runs</p>
+            <p className="text-xs text-text-muted">Recent Fabric execution status and output.</p>
+          </div>
+          <button onClick={clearRuns} className="arcos-action rounded px-2 py-1 text-[10px] uppercase tracking-wider">
+            Clear
+          </button>
+        </div>
+        <div className="mt-3 space-y-3">
+          {runs.length === 0 ? (
+            <div className="rounded-lg border border-border bg-[#101318] px-3 py-5 text-xs text-text-muted">
+              No tool runs yet. Execute a Fabric pattern to populate this panel.
+            </div>
+          ) : (
+            runs.map((run) => (
+              <div key={run.id} className="rounded-lg border border-border bg-[#101318] px-3 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="break-words text-sm font-medium text-text">{run.title}</p>
+                    <p className="mt-1 text-[11px] uppercase tracking-wider text-text-muted">
+                      {run.status} · {new Date(run.startedAt).toLocaleTimeString()}
+                    </p>
+                    <p className="mt-1 text-[11px] uppercase tracking-wider text-text-muted">
+                      {run.stageLabel ?? 'Fabric'} · {run.executionMode === 'cli' ? 'CLI fallback' : run.executionMode === 'server' ? 'Server' : 'Resolving'}
+                    </p>
+                  </div>
+                  {run.status === 'running' ? (
+                    <button onClick={() => abortRun(run.id)} className="arcos-action rounded px-2 py-1 text-[10px] uppercase tracking-wider">
+                      Stop
+                    </button>
+                  ) : null}
+                </div>
+                <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-5 text-text-muted">
+                  {run.output || run.error || 'Waiting for output...'}
+                </p>
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </div>
   )

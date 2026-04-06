@@ -18,6 +18,7 @@ export default function TracePanel() {
   const executionSummary = useTraceStore((s) => s.executionSummary)
   const showPanel = useWorkspaceStore((s) => s.showPanel)
   const [verbosity, setVerbosity] = useState<Verbosity>('standard')
+  const [showHelp, setShowHelp] = useState(false)
   const summary = executionSummary()
 
   const filteredEntries = entries.filter((entry) => {
@@ -53,15 +54,37 @@ export default function TracePanel() {
             <option value="debug">Debug</option>
           </select>
           <button
+            onClick={() => setShowHelp((value) => !value)}
+            className="arcos-action rounded-md px-2.5 py-1 text-xs"
+          >
+            {showHelp ? 'Hide Guide' : 'How To Read'}
+          </button>
+          <button
             onClick={clearEntries}
             className="arcos-action rounded-md px-2.5 py-1 text-xs"
           >
-            Clear
+            Reset
           </button>
         </div>
       </div>
 
       <div className="space-y-2">
+        {showHelp && (
+          <div className="rounded-xl border border-border bg-[#12161b] px-3 py-3">
+            <p className="arcos-kicker mb-2">How To Read Transparency</p>
+            <div className="space-y-2 text-xs leading-5 text-text-muted">
+              <p><span className="text-text">Minimal:</span> only successes, warnings, and errors.</p>
+              <p><span className="text-text">Standard:</span> the normal live feed with most useful checkpoints and fewer low-value chat infos.</p>
+              <p><span className="text-text">Detailed:</span> more stage activity, including additional service and orchestration detail.</p>
+              <p><span className="text-text">Debug:</span> everything ARCOS recorded for the current in-memory trace.</p>
+              <p><span className="text-text">Reset:</span> clears the in-memory Transparency feed. It does not erase persisted History, routing logs, or saved learnings.</p>
+              <p><span className="text-text">Current Phase:</span> the stage ARCOS believes the active request is currently in.</p>
+              <p><span className="text-text">Lifecycle:</span> the current request state, such as idle, routing, tool running, model dispatch, completed, or degraded.</p>
+              <p><span className="text-text">Transparency vs Execution:</span> Transparency is the live observability feed; Execution is the ordered timeline view of the same underlying chain events.</p>
+            </div>
+          </div>
+        )}
+
         <div className="rounded-xl border border-border bg-[#12161b] px-3 py-3">
           <p className="arcos-kicker mb-2">Execution Summary</p>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -141,7 +164,7 @@ export default function TracePanel() {
                 <p className="mt-2 text-xs leading-5 opacity-90">next: {entry.recoveryAction}</p>
               )}
               <div className="mt-3 flex flex-wrap gap-2">
-                {(entry.relatedPanels ?? []).map((panelId) => (
+                {(entry.relatedPanels ?? []).filter((panelId) => panelId !== 'transparency').map((panelId) => (
                   <button
                     key={`${entry.id}-${panelId}`}
                     onClick={() => showPanel(panelId)}

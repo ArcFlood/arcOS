@@ -8,6 +8,7 @@ export interface CanonicalChainOptions {
   prompt: string
   conversationId: string
   conversationHistory: Array<{ role: string; content: string }>
+  isConversationStart: boolean
   memoryCitations: MemoryCitation[]
   plugin: Plugin | null
   preferredLocalModel: string
@@ -20,6 +21,7 @@ export interface CanonicalChainOptions {
 export interface CanonicalChainResult {
   rebuiltUserPrompt: string
   rebuiltSystemPrompt: string
+  usesPaiSystemPrompt: boolean
   routingPrompt: string
   composedUserPrompt: string
   composedSystemPrompt: string
@@ -111,7 +113,7 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
     conversationId: opts.conversationId,
     stage: 'user prompt',
     executionState: 'query_received',
-    relatedPanels: ['chat', 'transparency', 'execution'],
+    relatedPanels: ['chat', 'transparency'],
   })
 
   appendTrace({
@@ -217,7 +219,7 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
         conversationId: opts.conversationId,
         stage: 'OpenClaw',
         executionState: 'service_action',
-        relatedPanels: ['services', 'runtime', 'transparency', 'execution'],
+        relatedPanels: ['services', 'runtime', 'transparency'],
       })
     } else {
       chainPath = 'degraded-fallback'
@@ -305,7 +307,7 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
       conversationId: opts.conversationId,
       stage: 'Fabric',
       executionState: 'degraded',
-      relatedPanels: ['tools', 'execution', 'transparency'],
+      relatedPanels: ['tools', 'transparency'],
       entityLabel: fabricPatternSuggestion ?? fabricIntentSuggestion ?? 'fabric',
       failureType: 'tool_runtime',
       chainPath,
@@ -323,7 +325,7 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
       conversationId: opts.conversationId,
       stage: 'Fabric',
       executionState: 'tool_running',
-      relatedPanels: ['tools', 'execution', 'transparency', 'prompt_inspector'],
+      relatedPanels: ['tools', 'transparency', 'prompt_inspector'],
       entityLabel: fabricResolution.resolvedPattern,
       chainPath,
     })
@@ -364,7 +366,7 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
         conversationId: opts.conversationId,
         stage: fabricResult.stage ?? 'Fabric',
         executionState: 'completed',
-        relatedPanels: ['tools', 'execution', 'prompt_inspector', 'transparency'],
+        relatedPanels: ['tools', 'prompt_inspector', 'transparency'],
         entityLabel: fabricResolution.resolvedPattern,
         chainPath,
       })
@@ -382,7 +384,7 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
         conversationId: opts.conversationId,
         stage: 'Fabric',
         executionState: 'failed',
-        relatedPanels: ['tools', 'execution', 'services', 'transparency'],
+        relatedPanels: ['tools', 'services', 'transparency'],
         entityLabel: fabricResolution.resolvedPattern,
         failureType: 'tool_runtime',
         chainPath,
@@ -407,7 +409,7 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
     conversationId: opts.conversationId,
     stage: 'execution path',
     executionState: chainPath === 'degraded-fallback' ? 'degraded' : 'routing',
-    relatedPanels: ['transparency', 'execution', 'routing', 'prompt_inspector'],
+    relatedPanels: ['transparency', 'routing', 'prompt_inspector'],
     chainPath,
   })
 
@@ -419,15 +421,27 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
     conversationId: opts.conversationId,
     stage: 'Response Composer',
     executionState: 'model_dispatch',
-    relatedPanels: ['prompt_inspector', 'transparency', 'execution'],
+    relatedPanels: ['prompt_inspector', 'transparency'],
   })
 
   const responseComposerInstruction = buildResponseComposerInstruction(fabricDiagnostics.executed)
-  const rebuiltSystemPrompt = [
-    arcPrompt,
+  const usesPaiSystemPrompt = opts.isConversationStart
+  const rebuiltSystemPrompt = usesPaiSystemPrompt
+    ? [
+        arcPrompt,
+        '',
+        '## Execution Requirement',
+        'You are responding through the ARCOS canonical execution chain. Preserve the PAI operating contract across the thread.',
+      ]
+        .filter(Boolean)
+        .join('\n')
+    : ''
+
+  const rebuiltUserPrompt = [
+    opts.prompt,
     '',
-    '## PAI Core Context',
-    '',
+    '## Per-Message Chain Context',
+    `This is ${usesPaiSystemPrompt ? 'the first message in the thread' : 'a follow-up message in an existing thread'}.`,
     `Active plugin: ${opts.plugin ? `${opts.plugin.name} (${opts.plugin.architectureRole})` : 'none'}`,
     `Plugin target stages: ${opts.plugin ? opts.plugin.targetStages.join(', ') : 'none'}`,
     '',
@@ -449,15 +463,8 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
     '## Response Composer Instruction',
     responseComposerInstruction,
     '',
-    '## Execution Requirement',
-    'You are responding through the ARCOS canonical execution chain. Respect the PAI context above when producing the response.',
-    opts.plugin ? `## Active Plugin Override\n${opts.plugin.systemPrompt}` : '',
-  ]
-    .filter(Boolean)
-    .join('\n')
-
-  const rebuiltUserPrompt = [
-    opts.prompt,
+    '## Active Plugin Override',
+    opts.plugin ? opts.plugin.systemPrompt : 'No active plugin override.',
     '',
     '## Response Format Requirement',
     'Return the final answer using the required PAI structure and preserve the strongest validated upstream findings.',
@@ -477,16 +484,17 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
     source: 'chat',
     level: 'success',
     title: 'Response package composed',
-    detail: `Final system prompt size: ${rebuiltSystemPrompt.length} chars. Final user payload size: ${rebuiltUserPrompt.length} chars. Required PAI sections enforced.${fabricDiagnostics.executed ? ' Fabric output preservation mode active.' : ''}`,
+    detail: `PAI system prompt ${usesPaiSystemPrompt ? 'attached for thread start' : 'not attached for this follow-up message'}. Final system prompt size: ${rebuiltSystemPrompt.length} chars. Final user payload size: ${rebuiltUserPrompt.length} chars. Required PAI sections enforced.${fabricDiagnostics.executed ? ' Fabric output preservation mode active.' : ''}`,
     conversationId: opts.conversationId,
     stage: 'Response Composer',
     executionState: 'model_dispatch',
-    relatedPanels: ['prompt_inspector', 'transparency', 'execution'],
+    relatedPanels: ['prompt_inspector', 'transparency'],
   })
 
   return {
     rebuiltUserPrompt,
     rebuiltSystemPrompt,
+    usesPaiSystemPrompt,
     composedUserPrompt: rebuiltUserPrompt,
     composedSystemPrompt: rebuiltSystemPrompt,
     routingPrompt: [

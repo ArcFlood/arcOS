@@ -16,6 +16,7 @@ export interface DbMessage {
   role: string
   content: string
   model: string | null
+  model_label: string | null
   cost: number
   timestamp: number
   routing_reason: string | null
@@ -67,10 +68,11 @@ export function listMessages(conversationId: string): DbMessage[] {
 export function upsertMessage(m: DbMessage): void {
   getDb()
     .prepare(`
-      INSERT INTO messages (id, conversation_id, role, content, model, cost, timestamp, routing_reason)
-      VALUES (@id, @conversation_id, @role, @content, @model, @cost, @timestamp, @routing_reason)
+      INSERT INTO messages (id, conversation_id, role, content, model, model_label, cost, timestamp, routing_reason)
+      VALUES (@id, @conversation_id, @role, @content, @model, @model_label, @cost, @timestamp, @routing_reason)
       ON CONFLICT(id) DO UPDATE SET
         content        = excluded.content,
+        model_label    = excluded.model_label,
         cost           = excluded.cost,
         routing_reason = excluded.routing_reason
     `)

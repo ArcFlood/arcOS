@@ -31,6 +31,7 @@ export interface ChainArtifact {
       canonicalName: 'Response Composer'
       legacyName: 'prompt rebuilder'
     }
+    usesPaiSystemPrompt?: boolean
     openClawTierOverride?: string
     openClawAnalysis?: unknown
     openClawRaw?: string

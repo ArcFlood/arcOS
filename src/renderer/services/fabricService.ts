@@ -49,11 +49,18 @@ function normalizePatternId(value: string | null | undefined): string {
 
 const FABRIC_INTENT_ALIASES: Record<string, string[]> = {
   code_review: ['review_code', 'explain_code', 'coding_master'],
+  code_reviewer: ['review_code', 'explain_code', 'coding_master'],
   review_code: ['review_code', 'explain_code', 'coding_master'],
+  code_review_pattern: ['review_code', 'explain_code', 'coding_master'],
+  code_review_analysis: ['review_code', 'explain_code', 'coding_master'],
+  code_review_audit: ['review_code', 'explain_code', 'coding_master'],
   prompt_rebuilder: ['improve_prompt', 'summarize_prompt', 'create_pattern'],
   prompt_rebuild: ['improve_prompt', 'summarize_prompt', 'create_pattern'],
   improve_prompt: ['improve_prompt', 'summarize_prompt'],
   summarize_prompt: ['summarize_prompt', 'improve_prompt'],
+  control_plane: ['summarize', 'create_summary', 'extract_wisdom'],
+  operating_surface: ['summarize', 'create_summary', 'extract_wisdom'],
+  orchestration_summary: ['summarize', 'create_summary', 'extract_wisdom'],
   summarize: ['summarize', 'create_summary', 'create_micro_summary'],
   summary: ['summarize', 'create_summary', 'create_micro_summary'],
   extract_insights: ['extract_insights', 'extract_wisdom', 'extract_ideas'],

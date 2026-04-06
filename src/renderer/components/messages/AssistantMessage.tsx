@@ -48,7 +48,7 @@ export default function AssistantMessage({ message }: { message: Message }) {
       <div className="max-w-[85%] w-full">
         {/* Badge row */}
         <div className="flex items-center gap-2 mb-1.5 px-1">
-          {message.model && <MessageBadge tier={message.model} cost={message.cost} />}
+          {message.model && <MessageBadge tier={message.model} modelLabel={message.modelLabel} cost={message.cost} />}
         </div>
 
         <div className="bg-surface border border-border px-4 py-3 rounded-2xl rounded-tl-sm relative selectable">
