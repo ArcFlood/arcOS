@@ -139,6 +139,15 @@ declare global {
       codingRuntimeStatus: () => Promise<{ success: boolean; status?: CodingRuntimeStatus; error?: string }>
       openExternal: (url: string) => Promise<void>
       openPath: (targetPath: string) => Promise<{ success: boolean; error?: string }>
+      voiceStatus: () => Promise<{ healthy: boolean; port: number; apiKeyConfigured?: boolean; defaultVoiceId?: string; error?: string }>
+      voiceNotify: (params: { message: string; title?: string; voiceId?: string }) => Promise<{ success: boolean; error?: string }>
+      voiceSynthesize: (params: { message: string; voiceId?: string }) => Promise<{
+        success: boolean
+        audioDataUrl?: string
+        contentType?: string
+        charCount?: number
+        error?: string
+      }>
 
       fabricListPatterns: () => Promise<{ success: boolean; patterns: string[] }>
       fabricRunPattern: (params: {

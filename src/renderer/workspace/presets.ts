@@ -66,12 +66,6 @@ export const WORKSPACE_PANELS: WorkspacePanelDefinition[] = [
     icon: '⚡',
   },
   {
-    id: 'audit',
-    title: 'Audit',
-    description: 'Scheduled workspace integrity and chain quality audits.',
-    icon: '🔍',
-  },
-  {
     id: 'discord',
     title: 'Discord',
     description: 'Discord server integration — channel-based project comms.',
@@ -79,8 +73,8 @@ export const WORKSPACE_PANELS: WorkspacePanelDefinition[] = [
   },
   {
     id: 'runtime',
-    title: 'Dev Analytics',
-    description: 'Developer-facing runtime status for repo, worktree, and verification scope.',
+    title: 'Dev Tools',
+    description: 'Developer-facing runtime status, verification scope, and audit review.',
     icon: '',
   },
 ]

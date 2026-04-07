@@ -7,10 +7,11 @@ import ModelManager from '../models/ModelManager'
 import AnalyticsPanel from '../cost/AnalyticsPanel'
 import versionHistory from '../../data/versionHistory.json'
 
-type Tab = 'general' | 'appearance' | 'connections' | 'models' | 'analytics' | 'about'
+type Tab = 'general' | 'response_tuner' | 'appearance' | 'connections' | 'models' | 'analytics' | 'about'
 
 const TAB_LABELS: Array<{ id: Tab; label: string; kicker: string }> = [
   { id: 'general', label: 'General', kicker: 'Routing and defaults' },
+  { id: 'response_tuner', label: 'Response Tuner', kicker: 'ARCOS identity and reply shaping' },
   { id: 'appearance', label: 'Appearance', kicker: 'Theme and typography' },
   { id: 'connections', label: 'Connections', kicker: 'Claude and budget' },
   { id: 'models', label: 'Models', kicker: 'Local runtime inventory' },
@@ -25,6 +26,14 @@ export default function SettingsPanel() {
   const fetchOllamaModelDetails = useServiceStore((s) => s.fetchOllamaModelDetails)
   const [local, setLocal] = useState({ ...settings })
   const [activeTab, setActiveTab] = useState<Tab>('general')
+  const [voiceStatus, setVoiceStatus] = useState<{
+    healthy: boolean
+    port: number
+    apiKeyConfigured?: boolean
+    defaultVoiceId?: string
+    modelId?: string
+    error?: string
+  } | null>(null)
 
   useEffect(() => {
     setLocal({ ...settings })
@@ -35,6 +44,13 @@ export default function SettingsPanel() {
     fetchOllamaModels().catch(() => {})
     fetchOllamaModelDetails().catch(() => {})
   }, [activeTab, fetchOllamaModels, fetchOllamaModelDetails])
+
+  useEffect(() => {
+    if (activeTab !== 'connections') return
+    window.electron.voiceStatus()
+      .then((status) => setVoiceStatus(status))
+      .catch(() => setVoiceStatus(null))
+  }, [activeTab])
 
   const save = () => {
     updateSettings(local)
@@ -97,6 +113,7 @@ export default function SettingsPanel() {
                 <p className="arcos-kicker mb-1">{TAB_LABELS.find((tab) => tab.id === activeTab)?.label}</p>
                 <p className="text-sm font-semibold text-text">
                   {activeTab === 'general' && 'Routing, startup behavior, and default assistant controls'}
+                  {activeTab === 'response_tuner' && 'Tune ARCOS-level identity and response shaping without editing PAI CORE or OpenClaw files'}
                   {activeTab === 'appearance' && 'Theme, font, and accent tuning for the ARCOS surface'}
                   {activeTab === 'connections' && 'Claude connection state and local budget policy'}
                   {activeTab === 'models' && 'Active Ollama model and local model inventory'}
@@ -216,6 +233,47 @@ export default function SettingsPanel() {
                 </div>
               )}
 
+              {activeTab === 'response_tuner' && (
+                <div className="space-y-6">
+                  <div className="rounded-lg border border-border bg-[#0f1318] px-4 py-3 text-xs leading-5 text-text-muted">
+                    Response Tuner sits at the ARCOS layer. It shapes how ARCOS presents and formats responses without replacing PAI CORE, OpenClaw rules, or Fabric patterns.
+                  </div>
+
+                  <section className="rounded-xl border border-border bg-[#12161b] px-4 py-4">
+                    <Field label="ARCOS Identity">
+                      <textarea
+                        value={local.responseTunerIdentity}
+                        onChange={(e) => setLocal((s) => ({ ...s, responseTunerIdentity: e.target.value }))}
+                        className="input-base min-h-[110px] w-full resize-y"
+                        placeholder="Describe how ARCOS should identify itself at the app layer."
+                      />
+                    </Field>
+                  </section>
+
+                  <section className="rounded-xl border border-border bg-[#12161b] px-4 py-4">
+                    <Field label="Response Style">
+                      <textarea
+                        value={local.responseTunerStyle}
+                        onChange={(e) => setLocal((s) => ({ ...s, responseTunerStyle: e.target.value }))}
+                        className="input-base min-h-[110px] w-full resize-y"
+                        placeholder="Describe tone, density, and response behavior."
+                      />
+                    </Field>
+                  </section>
+
+                  <section className="rounded-xl border border-border bg-[#12161b] px-4 py-4">
+                    <Field label="Additional ARCOS Instructions">
+                      <textarea
+                        value={local.responseTunerInstructions}
+                        onChange={(e) => setLocal((s) => ({ ...s, responseTunerInstructions: e.target.value }))}
+                        className="input-base min-h-[140px] w-full resize-y"
+                        placeholder="Optional ARCOS-specific instructions that should apply at the response-composition layer."
+                      />
+                    </Field>
+                  </section>
+                </div>
+              )}
+
               {activeTab === 'connections' && (
                 <div className="space-y-6">
                   <section className="rounded-xl border border-border bg-[#12161b] px-4 py-4">
@@ -229,6 +287,57 @@ export default function SettingsPanel() {
                       >
                         Open Anthropic key page
                       </button>
+                    </div>
+                  </section>
+
+                  <section className="rounded-xl border border-border bg-[#12161b] px-4 py-4">
+                    <p className="arcos-kicker mb-3">ElevenLabs</p>
+                    <div className="rounded-lg border border-border bg-[#0f1318] px-4 py-3 text-xs leading-5 text-text-muted">
+                      <div className="flex items-center justify-between gap-3">
+                        <span>ARCOS Playback</span>
+                        <span className={voiceStatus?.apiKeyConfigured && voiceStatus.defaultVoiceId ? 'text-success' : 'text-danger'}>
+                          {voiceStatus?.apiKeyConfigured && voiceStatus.defaultVoiceId ? 'Ready' : 'Not Ready'}
+                        </span>
+                      </div>
+                      <div className="mt-3 space-y-1.5">
+                        <div className="flex items-center justify-between gap-3">
+                          <span>Legacy Voice Server</span>
+                          <span className={voiceStatus?.healthy ? 'text-success' : 'text-text-muted'}>
+                            {voiceStatus?.healthy ? `Connected on ${voiceStatus.port}` : 'Not Required'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <span>API Key</span>
+                          <span className={voiceStatus?.apiKeyConfigured ? 'text-success' : 'text-danger'}>
+                            {voiceStatus?.apiKeyConfigured ? 'Configured' : 'Missing'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <span>Default Voice ID</span>
+                          <span className="max-w-[260px] truncate text-text">
+                            {voiceStatus?.defaultVoiceId ?? 'Not reported'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <span>Model</span>
+                          <span className="max-w-[260px] truncate text-text">
+                            {voiceStatus?.modelId ?? 'Not reported'}
+                          </span>
+                        </div>
+                      </div>
+                      {voiceStatus?.error && (
+                        <div className="mt-3 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-danger">
+                          {voiceStatus.error}
+                        </div>
+                      )}
+                      <div className="mt-3">
+                        <button
+                          onClick={() => window.electron.openExternal('https://elevenlabs.io/app/settings/api-keys')}
+                          className="text-accent underline hover:opacity-80"
+                        >
+                          Open ElevenLabs
+                        </button>
+                      </div>
                     </div>
                   </section>
 

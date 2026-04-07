@@ -77,6 +77,7 @@ export interface Message {
   conversationId: string
   role: 'user' | 'assistant' | 'system'
   content: string
+  thinkingContent?: string
   model: ModelTier | null
   modelLabel?: string
   cost: number
@@ -170,6 +171,9 @@ export interface AppSettings {
   appearanceTextColor: string
   appearanceAccentColor: string
   appearanceAccentSecondaryColor: string
+  responseTunerIdentity: string
+  responseTunerStyle: string
+  responseTunerInstructions: string
 }
 
 // ── Plugin ────────────────────────────────────────────────────────

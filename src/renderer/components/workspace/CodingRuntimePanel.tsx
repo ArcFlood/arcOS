@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useCodingRuntimeStore } from '../../stores/codingRuntimeStore'
+import AuditPanel from './AuditPanel'
 
 const READINESS_STYLES = {
   ready: 'border-success/30 bg-success/10 text-success',
@@ -104,6 +105,10 @@ export default function CodingRuntimePanel() {
           </section>
         </>
       )}
+
+      <section className="rounded-xl border border-border bg-[#12161b]">
+        <AuditPanel embedded />
+      </section>
     </div>
   )
 }

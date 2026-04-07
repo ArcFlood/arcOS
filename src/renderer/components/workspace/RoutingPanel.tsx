@@ -23,6 +23,14 @@ export default function RoutingPanel() {
   const ollamaRunning = useServiceStore((s) => s.getService('ollama')?.running ?? false)
   const executionSummary = useTraceStore((s) => s.executionSummary)
   const [entries, setEntries] = useState<RoutingEntry[]>([])
+  const [hasClaudeKey, setHasClaudeKey] = useState(false)
+  const [voiceStatus, setVoiceStatus] = useState<{
+    healthy: boolean
+    port: number
+    apiKeyConfigured?: boolean
+    defaultVoiceId?: string
+    modelId?: string
+  } | null>(null)
   const summary = executionSummary(activeConversation?.id ?? null)
   const chainPathLabel = summary.chainPath === 'unknown'
     ? 'unknown'
@@ -35,6 +43,11 @@ export default function RoutingPanel() {
     }
     load().catch(() => {})
   }, [activeConversation?.id])
+
+  useEffect(() => {
+    window.electron.apiKeyHas().then((result) => setHasClaudeKey(result.hasKey)).catch(() => setHasClaudeKey(false))
+    window.electron.voiceStatus().then(setVoiceStatus).catch(() => setVoiceStatus(null))
+  }, [])
 
   return (
     <div className="space-y-4 p-4">
@@ -53,11 +66,10 @@ export default function RoutingPanel() {
 
       <section className="arcos-subpanel rounded-xl p-3">
         <p className="arcos-kicker">Connections</p>
-        <div className="mt-3 rounded-lg border border-border bg-[#12161b] px-3 py-3">
-          <p className="text-sm font-medium text-text">No connected providers</p>
-          <p className="mt-1 text-xs leading-5 text-text-muted">
-            This panel will show connected external providers here once they are configured.
-          </p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <Stat label="Claude" value={hasClaudeKey ? 'Connected' : 'Not Connected'} />
+          <Stat label="Ollama" value={ollamaRunning ? 'Connected' : 'Offline'} />
+          <Stat label="ElevenLabs" value={voiceStatus?.apiKeyConfigured && voiceStatus.defaultVoiceId ? 'Ready' : 'Not Connected'} />
         </div>
       </section>
 

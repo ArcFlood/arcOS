@@ -10,7 +10,6 @@ export type WorkspacePanelId =
   | 'cost'
   | 'transparency'
   | 'hooks'
-  | 'audit'
   | 'discord'
 
 export interface WorkspaceGridModule {

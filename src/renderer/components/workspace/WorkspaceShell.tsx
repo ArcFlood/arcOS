@@ -263,7 +263,7 @@ function GridModule({
   return (
     <section
       ref={frameRef}
-      className={`arcos-panel group relative flex min-h-0 flex-col overflow-hidden ${isTerminal ? 'ring-1 ring-inset' : ''} ${
+      className={`arcos-panel group relative flex min-h-0 flex-col overflow-hidden transition-all duration-150 ease-out ${isTerminal ? 'ring-1 ring-inset' : ''} ${
         isTerminal
           ? isActiveTerminal
             ? 'ring-accent/80 shadow-[inset_0_0_0_1px_rgba(143,161,179,0.32)]'
@@ -424,13 +424,13 @@ function ResizeHandle({
   orientation: 'left' | 'right' | 'top' | 'bottom' | 'top_left' | 'corner'
   onResizeStart: (event: React.MouseEvent<HTMLDivElement>) => void
 }) {
-  const shared = 'absolute titlebar-no-drag bg-[#93a5b8]/22 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-[#93a5b8]/45'
+  const shared = 'absolute titlebar-no-drag z-10 bg-[#93a5b8]/22 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-[#93a5b8]/45'
 
   if (orientation === 'left') {
     return (
       <div
         onMouseDown={onResizeStart}
-        className={`${shared} left-1 top-1/2 h-16 w-2 -translate-y-1/2 cursor-ew-resize`}
+        className={`${shared} inset-y-0 left-0 w-2 cursor-ew-resize`}
         title="Resize width"
       />
     )
@@ -440,7 +440,7 @@ function ResizeHandle({
     return (
       <div
         onMouseDown={onResizeStart}
-        className={`${shared} group right-1 top-1/2 h-16 w-2 -translate-y-1/2 cursor-ew-resize`}
+        className={`${shared} inset-y-0 right-0 w-2 cursor-ew-resize`}
         title="Resize width"
       />
     )
@@ -450,7 +450,7 @@ function ResizeHandle({
     return (
       <div
         onMouseDown={onResizeStart}
-        className={`${shared} left-1/2 top-1 h-2 w-16 -translate-x-1/2 cursor-ns-resize`}
+        className={`${shared} inset-x-0 top-0 h-2 cursor-ns-resize`}
         title="Resize height"
       />
     )
@@ -460,7 +460,7 @@ function ResizeHandle({
     return (
       <div
         onMouseDown={onResizeStart}
-        className={`${shared} group bottom-1 left-1/2 h-2 w-16 -translate-x-1/2 cursor-ns-resize`}
+        className={`${shared} inset-x-0 bottom-0 h-2 cursor-ns-resize`}
         title="Resize height"
       />
     )
@@ -470,7 +470,7 @@ function ResizeHandle({
     return (
       <div
         onMouseDown={onResizeStart}
-        className={`${shared} left-1 top-1 h-4 w-4 cursor-nwse-resize`}
+        className={`${shared} left-0 top-0 h-4 w-4 cursor-nwse-resize`}
         title="Resize module"
       />
     )
@@ -479,7 +479,7 @@ function ResizeHandle({
   return (
     <div
       onMouseDown={onResizeStart}
-      className={`${shared} group bottom-1 right-1 h-4 w-4 cursor-nwse-resize`}
+      className={`${shared} bottom-0 right-0 h-4 w-4 cursor-nwse-resize`}
       title="Resize module"
     />
   )
@@ -538,7 +538,9 @@ function startResize(
       nextRow = module.row + module.height - nextHeight
     }
 
-    resizeModule(module.id, nextColumn, nextRow, nextWidth, nextHeight)
+    window.requestAnimationFrame(() => {
+      resizeModule(module.id, nextColumn, nextRow, nextWidth, nextHeight)
+    })
   }
 
   const onUp = () => {
@@ -575,13 +577,18 @@ function startMove(
   const cellHeight = (rect.height - rowGap * Math.max(rows - 1, 0)) / rows
   const startX = event.clientX
   const startY = event.clientY
+  const startColumn = module.column
+  const startRow = module.row
 
   const onMove = (moveEvent: MouseEvent) => {
-    const deltaColumns = Math.round((moveEvent.clientX - startX) / Math.max(1, cellWidth + columnGap))
-    const deltaRows = Math.round((moveEvent.clientY - startY) / Math.max(1, cellHeight + rowGap))
-    const nextColumn = Math.max(1, Math.min(columns - module.width + 1, module.column + deltaColumns))
-    const nextRow = Math.max(1, Math.min(rows - module.height + 1, module.row + deltaRows))
-    moveModule(module.id, nextColumn, nextRow)
+    const liveModule = useWorkspaceStore.getState().layout.modules.find((entry) => entry.id === module.id) ?? module
+    const deltaColumns = Math.trunc(((moveEvent.clientX - startX) / Math.max(1, cellWidth + columnGap)) + (moveEvent.clientX >= startX ? 0.35 : -0.35))
+    const deltaRows = Math.trunc(((moveEvent.clientY - startY) / Math.max(1, cellHeight + rowGap)) + (moveEvent.clientY >= startY ? 0.35 : -0.35))
+    const nextColumn = Math.max(1, Math.min(columns - liveModule.width + 1, startColumn + deltaColumns))
+    const nextRow = Math.max(1, Math.min(rows - liveModule.height + 1, startRow + deltaRows))
+    window.requestAnimationFrame(() => {
+      moveModule(module.id, nextColumn, nextRow)
+    })
   }
 
   const onUp = () => {

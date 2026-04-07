@@ -170,6 +170,58 @@ function canPlaceModule(layout: WorkspaceLayout, candidate: WorkspaceGridModule,
   })
 }
 
+function collidingModules(
+  layout: WorkspaceLayout,
+  candidate: WorkspaceGridModule,
+  ignoreModuleId?: string
+): WorkspaceGridModule[] {
+  const candidateCells = new Set(moduleCells(candidate))
+  return layout.modules.filter((module) => {
+    if (module.detached) return false
+    if (module.id === ignoreModuleId) return false
+    return moduleCells(module).some((cell) => candidateCells.has(cell))
+  })
+}
+
+function moduleContainsCell(module: WorkspaceGridModule, column: number, row: number): boolean {
+  return (
+    column >= module.column &&
+    column < module.column + module.width &&
+    row >= module.row &&
+    row < module.row + module.height
+  )
+}
+
+function canPlaceModuleAgainstModules(
+  modules: WorkspaceGridModule[],
+  layout: WorkspaceLayout,
+  candidate: WorkspaceGridModule,
+  ignoreModuleIds: string[] = []
+): boolean {
+  if (candidate.column < 1 || candidate.row < 1 || candidate.width < 1 || candidate.height < 1) return false
+  if (candidate.column + candidate.width - 1 > layout.columns) return false
+  if (candidate.row + candidate.height - 1 > layout.rows) return false
+
+  const ignored = new Set(ignoreModuleIds)
+  const candidateCells = new Set(moduleCells(candidate))
+  return !modules.some((module) => {
+    if (module.detached) return false
+    if (ignored.has(module.id)) return false
+    return moduleCells(module).some((cell) => candidateCells.has(cell))
+  })
+}
+
+function modulesDoNotOverlap(modules: WorkspaceGridModule[]): boolean {
+  const occupied = new Set<string>()
+  for (const module of modules) {
+    for (const cell of moduleCells(module)) {
+      if (occupied.has(cell)) return false
+      occupied.add(cell)
+    }
+  }
+  return true
+}
+
 function firstFitForSize(layout: WorkspaceLayout, width: number, height: number): WorkspacePlacementTarget | null {
   for (let row = 1; row <= layout.rows - height + 1; row += 1) {
     for (let column = 1; column <= layout.columns - width + 1; column += 1) {
@@ -391,6 +443,8 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
     const module = layout.modules.find((entry) => entry.id === moduleId)
     if (!module) return
 
+    const originalColumn = module.column
+    const originalRow = module.row
     const nextModule: WorkspaceGridModule = {
       ...module,
       column: Math.max(1, Math.round(column)),
@@ -398,6 +452,42 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
     }
 
     if (!canPlaceModule(layout, nextModule, moduleId)) {
+      const collisions = collidingModules(layout, nextModule, moduleId)
+      const displacedModule =
+        collisions.find((entry) => moduleContainsCell(entry, nextModule.column, nextModule.row)) ??
+        (collisions.length === 1 ? collisions[0] : null)
+
+      if (!displacedModule) {
+        return
+      }
+      const swappedIncomingModule: WorkspaceGridModule = {
+        ...module,
+        column: displacedModule.column,
+        row: displacedModule.row,
+      }
+      const swappedModule: WorkspaceGridModule = {
+        ...displacedModule,
+        column: originalColumn,
+        row: originalRow,
+      }
+
+      if (!canPlaceModuleAgainstModules(layout.modules, layout, swappedIncomingModule, [moduleId, displacedModule.id])) {
+        return
+      }
+      if (!canPlaceModuleAgainstModules(layout.modules, layout, swappedModule, [moduleId, displacedModule.id])) {
+        return
+      }
+      if (!modulesDoNotOverlap([swappedIncomingModule, swappedModule])) {
+        return
+      }
+
+      layout.modules = layout.modules.map((entry) => {
+        if (entry.id === moduleId) return swappedIncomingModule
+        if (entry.id === displacedModule.id) return swappedModule
+        return entry
+      })
+      persist(get().activeLayoutId, layout, get().savedLayouts)
+      set({ layout })
       return
     }
 

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, KeyboardEvent } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback, KeyboardEvent } from 'react'
 import { useConversationStore } from '../stores/conversationStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useServiceStore } from '../stores/serviceStore'
@@ -18,6 +18,7 @@ interface Props {
   disabled?: boolean
   onConversationCreated?: (conversationId: string) => void
 }
+
 const TIER_COLORS: Record<ModelTier, string> = {
   ollama: 'text-success',
   haiku: 'text-haiku-accent',
@@ -32,10 +33,60 @@ function modelIdForTier(tier: ModelTier, ollamaModel: string): string {
   return 'claude-sonnet-4-6'
 }
 
+function extractSection(text: string, heading: string, nextHeadings: string[]): string {
+  const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const regex = new RegExp(`${escape(heading)}:\\s*([\\s\\S]*?)(?=\\n(?:${nextHeadings.map(escape).join('|')}):|$)`, 'i')
+  const match = text.match(regex)
+  if (!match) return ''
+  return match[1]
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function firstSentences(text: string, maxSentences = 5): string {
+  return text
+    .split(/(?<=[.!?])\s+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .slice(0, maxSentences)
+    .join(' ')
+}
+
+function buildVoiceSummaryFromPaiResponse(text: string): string {
+  const results = extractSection(text, 'RESULTS', ['STATUS', 'CAPTURE', 'NEXT', 'COMPLETED'])
+  const next = extractSection(text, 'NEXT', ['COMPLETED'])
+  return firstSentences(
+    [results ? `Results. ${results}` : '', next ? `Next. ${next}` : ''].filter(Boolean).join(' '),
+    5
+  )
+}
+
+function sanitizeVoiceSummary(text: string): string {
+  return text
+    .normalize('NFKD')
+    .replace(/[^\x20-\x7E]/g, ' ')
+    .replace(/[;&|><`$(){}[\]\\]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 500)
+}
+
+function compactThinkingPreview(text: string, max = 900): string {
+  const cleaned = text.replace(/\s+/g, ' ').trim()
+  if (!cleaned) return 'No thinking text captured.'
+  return cleaned.length <= max ? cleaned : `${cleaned.slice(0, max)}…`
+}
+
+const ARCOS_VOICE_PLAYBACK_ENABLED = true
+
 export default function MessageInput({ conversationId, disabled = false, onConversationCreated }: Props) {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [voiceMode, setVoiceMode] = useState(false)
+  const [fastTestMode, setFastTestMode] = useState(false)
   const [memorySearching, setMemorySearching] = useState(false)
   // Task Mode (Item 19)
   const [taskModeOpen, setTaskModeOpen] = useState(false)
@@ -51,11 +102,12 @@ export default function MessageInput({ conversationId, disabled = false, onConve
   } | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const voiceModeRef = useRef(false)
+  const voiceAudioRef = useRef<HTMLAudioElement | null>(null)
 
   const createConversation = useConversationStore((s) => s.createConversation)
   const addMessage = useConversationStore((s) => s.addMessage)
   const updateMessage = useConversationStore((s) => s.updateMessage)
-  const activeConversation = useConversationStore((s) => s.activeConversation())
   const setConversationStatus = useConversationStore((s) => s.setConversationStatus)
 
   const settings = useSettingsStore((s) => s.settings)
@@ -71,6 +123,8 @@ export default function MessageInput({ conversationId, disabled = false, onConve
   const activatePlugin = usePluginStore((s) => s.activatePlugin)
   const findByCommand = usePluginStore((s) => s.findByCommand)
   const appendTraceEntry = useTraceStore((s) => s.appendEntry)
+
+  voiceModeRef.current = voiceMode
 
   // Auto-resize textarea
   useEffect(() => {
@@ -111,7 +165,7 @@ export default function MessageInput({ conversationId, disabled = false, onConve
       ? `Plugin: ${activePlugin.name} → ${TIER_DISPLAY_LABELS[activePlugin.tier]}`
       : route?.reason ?? ''
 
-  const handleMemorySearch = async () => {
+  const handleMemorySearch = useCallback(async () => {
     const query = memoryCommandQuery?.trim() ?? ''
     if (!query) {
       setMemoryError('Use /memory followed by a query.')
@@ -157,10 +211,10 @@ export default function MessageInput({ conversationId, disabled = false, onConve
       relatedPanels: ['memory', 'chat', 'prompt_inspector'],
       entityLabel: query,
     })
-  }
+  }, [memoryCommandQuery, memoryRunning, appendTraceEntry])
 
-  const handleSend = async () => {
-    const trimmed = text.trim()
+  const handleSendWithText = useCallback(async (rawText: string) => {
+    const trimmed = rawText.trim()
     if (!trimmed || sending || memorySearching || disabled) return
 
     if (trimmed.startsWith('/memory')) {
@@ -168,12 +222,14 @@ export default function MessageInput({ conversationId, disabled = false, onConve
       return
     }
 
+    const convId = conversationId ?? createConversation()
+    onConversationCreated?.(convId)
+    const draftToRestore = rawText
     setError(null)
     setSending(true)
     setText('')
     // Drive session state machine → sending
-    const earlyConvId = conversationId
-    if (earlyConvId) setConversationStatus(earlyConvId, 'sending')
+    setConversationStatus(convId, 'sending')
 
     // ── Slash command detection ────────────────────────────────
     // If the message starts with a known plugin command, auto-activate it
@@ -195,310 +251,447 @@ export default function MessageInput({ conversationId, disabled = false, onConve
     }
     // ──────────────────────────────────────────────────────────
 
-    const convId = conversationId ?? createConversation()
-    if (!conversationId) {
-      onConversationCreated?.(convId)
-    }
+    try {
+      // Build history from current conversation (before adding new message)
+      const currentConversation = useConversationStore.getState().conversations.find((conversation) => conversation.id === convId)
+      const history = (currentConversation?.messages ?? []).map((m) => ({
+        role: m.role,
+        content: m.content,
+      }))
 
-    // Build history from current conversation (before adding new message)
-    const history = (activeConversation?.messages ?? []).map((m) => ({
-      role: m.role,
-      content: m.content,
-    }))
+      // Add user message to store (show original text including command)
+      // Build task packet if Task Mode is active (Item 19)
+      const activeTaskPacket: TaskPacket | undefined =
+        taskModeOpen && taskPacket.objective?.trim()
+          ? {
+              objective: taskPacket.objective!.trim(),
+              scope: taskPacket.scope?.trim() || undefined,
+              expectedOutputFormat: taskPacket.expectedOutputFormat ?? 'prose',
+              retryPolicy: taskPacket.retryPolicy ?? 'none',
+            }
+          : undefined
 
-    // Add user message to store (show original text including command)
-    // Build task packet if Task Mode is active (Item 19)
-    const activeTaskPacket: TaskPacket | undefined =
-      taskModeOpen && taskPacket.objective?.trim()
-        ? {
-            objective: taskPacket.objective!.trim(),
-            scope: taskPacket.scope?.trim() || undefined,
-            expectedOutputFormat: taskPacket.expectedOutputFormat ?? 'prose',
-            retryPolicy: taskPacket.retryPolicy ?? 'none',
-          }
-        : undefined
-
-    addMessage(convId, {
-      role: 'user',
-      content: displayContent,
-      model: null,
-      cost: 0,
-      timestamp: Date.now(),
-      taskPacket: activeTaskPacket,
-    })
-
-    if (stagedMemory && stagedMemory.citations.length > 0) {
-      appendTraceEntry({
-        source: 'memory',
-        level: 'info',
-        title: 'Prepared staged memory for canonical chain',
-        detail: `${stagedMemory.citations.length} citations from "${stagedMemory.query}" were queued for the PAI core context stage.`,
-        conversationId: convId,
-        relatedPanels: ['memory', 'chat', 'prompt_inspector'],
-        entityLabel: stagedMemory.query,
+      addMessage(convId, {
+        role: 'user',
+        content: displayContent,
+        model: null,
+        cost: 0,
+        timestamp: Date.now(),
+        taskPacket: activeTaskPacket,
       })
-    }
+      if (stagedMemory && stagedMemory.citations.length > 0) {
+        appendTraceEntry({
+          source: 'memory',
+          level: 'info',
+          title: 'Prepared staged memory for canonical chain',
+          detail: `${stagedMemory.citations.length} citations from "${stagedMemory.query}" were queued for the PAI core context stage.`,
+          conversationId: convId,
+          relatedPanels: ['memory', 'chat', 'prompt_inspector'],
+          entityLabel: stagedMemory.query,
+        })
+      }
 
-    const canonicalChain = await executeCanonicalChain({
-      prompt: resolvedContent,
-      conversationId: convId,
-      conversationHistory: history,
-      isConversationStart: history.filter((message) => message.role === 'user' || message.role === 'assistant').length === 0,
-      memoryCitations: stagedMemory?.citations ?? [],
-      plugin: resolvedPlugin,
-      preferredLocalModel: settings.ollamaModel,
-      services: {
-        openClawRunning,
-        fabricRunning,
-      },
-    })
+      const canonicalChain = fastTestMode
+        ? {
+            rebuiltUserPrompt: resolvedContent,
+            rebuiltSystemPrompt: '',
+            usesPaiSystemPrompt: false,
+            routingPrompt: resolvedContent,
+            composedUserPrompt: resolvedContent,
+            composedSystemPrompt: '',
+            routingContextPrompt: resolvedContent,
+            composerStage: {
+              canonicalName: 'Response Composer' as const,
+              legacyName: 'prompt rebuilder' as const,
+            },
+            openClawTierOverride: undefined,
+            diagnostics: {
+              chainPath: 'direct-pass-through' as const,
+              openClawAnalysis: undefined,
+              openClawRaw: undefined,
+              openClawError: null,
+              openClawContextFiles: [],
+              fabric: {
+                requestedPattern: null,
+                requestedIntent: null,
+                resolvedPattern: null,
+                strategy: 'unresolved' as const,
+                reason: 'Fast Terminal test bypass skips PAI, OpenClaw, Fabric, and required response format.',
+                installedPatternCount: 0,
+                executed: false,
+                error: null,
+              },
+            },
+          }
+        : await executeCanonicalChain({
+            prompt: resolvedContent,
+            conversationId: convId,
+            conversationHistory: history,
+            isConversationStart: history.filter((message) => message.role === 'user' || message.role === 'assistant').length === 0,
+            memoryCitations: stagedMemory?.citations ?? [],
+            plugin: resolvedPlugin,
+            preferredLocalModel: settings.ollamaModel,
+            services: {
+              openClawRunning,
+              fabricRunning,
+            },
+          })
 
-    // Route decision (may be overridden by plugin tier below)
-    const { tier, reason } = routeQuery(canonicalChain.routingPrompt, settings.routingMode, settings.routingAggressiveness, ollamaRunning, spendingToday, settings.dailyBudgetLimit)
+      // Route decision (may be overridden by plugin tier below)
+      const { tier, reason } = routeQuery(canonicalChain.routingPrompt, settings.routingMode, settings.routingAggressiveness, ollamaRunning, spendingToday, settings.dailyBudgetLimit)
 
-    // Effective tier — plugin overrides router
-    const routedTier = resolvedPlugin ? resolvedPlugin.tier : (canonicalChain.openClawTierOverride ?? tier)
-    const routedReason = resolvedPlugin
-      ? `Plugin: ${resolvedPlugin.name} → ${TIER_DISPLAY_LABELS[resolvedPlugin.tier]}`
-      : canonicalChain.openClawTierOverride
-      ? `OpenClaw gateway → ${TIER_DISPLAY_LABELS[canonicalChain.openClawTierOverride]}`
-      : reason
-    const shouldFallbackToLocal = routedTier !== 'ollama' && !hasApiKey && ollamaRunning
-    const effectiveTier = shouldFallbackToLocal ? 'ollama' : routedTier
-    const effectiveReason = shouldFallbackToLocal
-      ? `${routedReason} · Claude API key missing, falling back to ${TIER_DISPLAY_LABELS.ollama}`
-      : routedReason
+      // Effective tier — plugin overrides router
+      const routedTier = resolvedPlugin ? resolvedPlugin.tier : (canonicalChain.openClawTierOverride ?? tier)
+      const routedReason = resolvedPlugin
+        ? `Plugin: ${resolvedPlugin.name} → ${TIER_DISPLAY_LABELS[resolvedPlugin.tier]}`
+        : canonicalChain.openClawTierOverride
+        ? `OpenClaw gateway → ${TIER_DISPLAY_LABELS[canonicalChain.openClawTierOverride]}`
+        : reason
+      const shouldFallbackToLocal = routedTier !== 'ollama' && !hasApiKey && ollamaRunning
+      const effectiveTier = shouldFallbackToLocal ? 'ollama' : routedTier
+      const effectiveReason = shouldFallbackToLocal
+        ? `${routedReason} · Claude API key missing, falling back to ${TIER_DISPLAY_LABELS.ollama}`
+        : routedReason
 
-    const estimatedInputTokens = estimateTokens(
-      [
-        ...history.map((message) => message.content),
-        canonicalChain.routingPrompt,
-      ].join('\n')
-    )
-    const estimatedOutputTokens = Math.max(estimateTokens(canonicalChain.rebuiltUserPrompt), 384)
-    const estimatedCost = estimateCost(effectiveTier, estimatedInputTokens, estimatedOutputTokens)
+      const estimatedInputTokens = estimateTokens(
+        [
+          ...history.map((message) => message.content),
+          canonicalChain.routingPrompt,
+        ].join('\n')
+      )
+      const estimatedOutputTokens = Math.max(estimateTokens(canonicalChain.rebuiltUserPrompt), 384)
+      const estimatedCost = estimateCost(effectiveTier, estimatedInputTokens, estimatedOutputTokens)
 
-    appendTraceEntry({
-      source: 'routing',
-      level: 'info',
-      title: `Routed to ${TIER_DISPLAY_LABELS[effectiveTier]}`,
-      detail: `${effectiveReason}${estimatedCost > 0 ? ` Estimated cost: $${estimatedCost.toFixed(4)}.` : ' Local path selected.'}`,
-      conversationId: convId,
-      relatedPanels: ['routing', resolvedPlugin ? 'tools' : 'prompt_inspector', 'transparency'],
-      entityLabel: resolvedPlugin?.id ?? effectiveTier,
-    })
-
-    window.electron.routingAppend?.({
-      timestamp: new Date().toISOString(),
-      queryPreview: canonicalChain.routingPrompt.slice(0, 80),
-      chosenTier: effectiveTier,
-      reason: effectiveReason,
-      confidence: resolvedPlugin ? 1 : 0.72,
-      wasOverridden: settings.routingMode !== 'auto' || Boolean(resolvedPlugin) || shouldFallbackToLocal,
-      conversationId: convId,
-      estimatedCost,
-    }).catch?.(() => {})
-
-    const finalModelId = modelIdForTier(effectiveTier, settings.ollamaModel)
-
-    // Add placeholder assistant message
-    const assistantMsg = addMessage(convId, {
-      role: 'assistant',
-      content: '',
-      model: effectiveTier,
-      modelLabel: finalModelId,
-      cost: 0,
-      timestamp: Date.now(),
-      isStreaming: true,
-      routingReason: effectiveReason,
-    })
-
-    // Stream the response
-    abortRef.current = new AbortController()
-    let accumulatedContent = ''
-    const saveChainArtifact = (params: {
-      status: 'completed' | 'failed'
-      response?: string
-      error?: string
-      cost: number
-    }) => {
-      return window.electron.chainCaptureSave?.({
-        savedAt: new Date().toISOString(),
+      appendTraceEntry({
+        source: 'routing',
+        level: 'info',
+        title: `Routed to ${TIER_DISPLAY_LABELS[effectiveTier]}`,
+        detail: `${effectiveReason}${estimatedCost > 0 ? ` Estimated cost: $${estimatedCost.toFixed(4)}.` : ' Local path selected.'}`,
         conversationId: convId,
-        messageId: assistantMsg.id,
-        userPrompt: resolvedContent,
-        displayedUserPrompt: displayContent,
-        conversationHistoryCount: history.length,
-        memoryCitationCount: stagedMemory?.citations.length ?? 0,
-        activePlugin: resolvedPlugin
-          ? { id: resolvedPlugin.id, name: resolvedPlugin.name, tier: resolvedPlugin.tier }
-          : null,
-        routing: {
-          initialTier: routedTier,
-          initialReason: routedReason,
-          effectiveTier,
-          effectiveReason,
-          fallbackToLocal: shouldFallbackToLocal,
-          estimatedCost,
-        },
-        chain: {
-          path: canonicalChain.diagnostics.chainPath,
-          composerStage: canonicalChain.composerStage,
-          usesPaiSystemPrompt: canonicalChain.usesPaiSystemPrompt,
-          openClawTierOverride: canonicalChain.openClawTierOverride,
-          openClawAnalysis: canonicalChain.diagnostics.openClawAnalysis,
-          openClawRaw: canonicalChain.diagnostics.openClawRaw,
-          openClawError: canonicalChain.diagnostics.openClawError,
-          openClawContextFiles: canonicalChain.diagnostics.openClawContextFiles,
-          fabric: canonicalChain.diagnostics.fabric,
-          rebuiltSystemPrompt: canonicalChain.rebuiltSystemPrompt,
-          rebuiltUserPrompt: canonicalChain.rebuiltUserPrompt,
-          routingPrompt: canonicalChain.routingPrompt,
-          composedSystemPrompt: canonicalChain.composedSystemPrompt,
-          composedUserPrompt: canonicalChain.composedUserPrompt,
-          routingContextPrompt: canonicalChain.routingContextPrompt,
-        },
-        dispatch: {
-          modelTier: effectiveTier,
-          modelId: finalModelId,
-          status: params.status,
-          response: params.response,
-          error: params.error,
-          cost: params.cost,
-        },
+        relatedPanels: ['routing', resolvedPlugin ? 'tools' : 'prompt_inspector', 'transparency'],
+        entityLabel: resolvedPlugin?.id ?? effectiveTier,
+      })
+
+      window.electron.routingAppend?.({
+        timestamp: new Date().toISOString(),
+        queryPreview: canonicalChain.routingPrompt.slice(0, 80),
+        chosenTier: effectiveTier,
+        reason: effectiveReason,
+        confidence: resolvedPlugin ? 1 : 0.72,
+        wasOverridden: settings.routingMode !== 'auto' || Boolean(resolvedPlugin) || shouldFallbackToLocal,
+        conversationId: convId,
+        estimatedCost,
       }).catch?.(() => {})
-    }
 
-    appendTraceEntry({
-      source: 'chat',
-      level: 'info',
-      title: 'Started assistant response',
-      detail: `Conversation ${convId} is now streaming from ${TIER_DISPLAY_LABELS[effectiveTier]}.`,
-      conversationId: convId,
-      stage: 'local model',
-      executionState: 'model_dispatch',
-      relatedPanels: ['chat', 'prompt_inspector', 'transparency'],
-      entityLabel: effectiveTier,
-    })
+      const finalModelId = modelIdForTier(effectiveTier, settings.ollamaModel)
 
-    // Fire plugin beforeMessage hook if active plugin has one (Item 18)
-    if (resolvedPlugin?.hooks?.beforeMessage) {
-      window.electron.pluginRunHook({
-        pluginId: resolvedPlugin.id,
-        pluginName: resolvedPlugin.name,
-        hookType: 'beforeMessage',
-        hookValue: resolvedPlugin.hooks.beforeMessage,
-      }).catch(console.error)
-    }
+      // Add placeholder assistant message
+      const assistantMsg = addMessage(convId, {
+        role: 'assistant',
+        content: '',
+        model: effectiveTier,
+        modelLabel: finalModelId,
+        cost: 0,
+        timestamp: Date.now(),
+        isStreaming: true,
+        routingReason: effectiveReason,
+      })
 
-    await sendMessage({
-      content: canonicalChain.rebuiltUserPrompt,
-      tier: effectiveTier,
-      conversationHistory: [...history, { role: 'user', content: canonicalChain.rebuiltUserPrompt }],
-      settings: {
-        ollamaModel: settings.ollamaModel,
-        extendedThinking: settings.extendedThinking,
-      },
-      signal: abortRef.current.signal,
-      // Plugin system prompt override
-      prebuiltSystemPrompt: canonicalChain.usesPaiSystemPrompt ? canonicalChain.rebuiltSystemPrompt : undefined,
-      systemPromptOverride: resolvedPlugin?.systemPrompt,
-      tierOverride: resolvedPlugin?.tier,
-      onToken: (token) => {
-        accumulatedContent += token
-        updateMessage(convId, assistantMsg.id, {
-          content: accumulatedContent,
-          isStreaming: true,
-        })
-        // Transition to streaming on first token
-        if (accumulatedContent.length === token.length) {
-          setConversationStatus(convId, 'streaming')
-        }
-      },
-      onComplete: (fullText, cost) => {
-        updateMessage(convId, assistantMsg.id, {
-          content: fullText,
-          cost,
-          isStreaming: false,
-        })
-        setConversationStatus(convId, 'finished')
-        appendTraceEntry({
-          source: 'chat',
-          level: 'success',
-          title: 'Completed assistant response',
-          detail: `Received ${fullText.length} characters${cost > 0 ? ` at cost $${cost.toFixed(4)}` : ' with no cloud cost'}.`,
+      // Stream the response
+      abortRef.current = new AbortController()
+      let accumulatedContent = ''
+      let accumulatedThinking = ''
+      let thinkingTraceStarted = false
+      const saveChainArtifact = (params: {
+        status: 'completed' | 'failed'
+        response?: string
+        error?: string
+        cost: number
+      }) => {
+        return window.electron.chainCaptureSave?.({
+          savedAt: new Date().toISOString(),
           conversationId: convId,
-          stage: 'local model',
-          executionState: 'completed',
-          relatedPanels: ['chat', 'cost', 'transparency'],
-          entityLabel: effectiveTier,
-        })
-        if (cost > 0) {
-          addRecord({ id: crypto.randomUUID(), amount: cost, model: effectiveTier, conversationId: convId })
-        }
-        saveChainArtifact({
-          status: 'completed',
-          response: fullText,
-          cost,
-        })
-        const conversationForVault = useConversationStore.getState().conversations.find((conversation) => conversation.id === convId)
-        if (conversationForVault) {
-          saveConversationToVault(conversationForVault)
-            .then((result) => {
-              appendTraceEntry({
-                source: 'memory',
-                level: result.success ? 'success' : 'warn',
-                title: result.success ? 'Conversation written to ArcVault' : 'Conversation write-back failed',
-                detail: result.success
-                  ? result.filePath ?? 'ARCOS conversation exported to vault.'
-                  : result.error ?? 'Vault write failed.',
-                conversationId: convId,
-                relatedPanels: ['memory', 'chat', 'history'],
-                entityLabel: conversationForVault.id,
-              })
+          messageId: assistantMsg.id,
+          userPrompt: resolvedContent,
+          displayedUserPrompt: displayContent,
+          conversationHistoryCount: history.length,
+          memoryCitationCount: stagedMemory?.citations.length ?? 0,
+          activePlugin: resolvedPlugin
+            ? { id: resolvedPlugin.id, name: resolvedPlugin.name, tier: resolvedPlugin.tier }
+            : null,
+          routing: {
+            initialTier: routedTier,
+            initialReason: routedReason,
+            effectiveTier,
+            effectiveReason,
+            fallbackToLocal: shouldFallbackToLocal,
+            estimatedCost,
+          },
+          chain: {
+            path: canonicalChain.diagnostics.chainPath,
+            composerStage: canonicalChain.composerStage,
+            usesPaiSystemPrompt: canonicalChain.usesPaiSystemPrompt,
+            openClawTierOverride: canonicalChain.openClawTierOverride,
+            openClawAnalysis: canonicalChain.diagnostics.openClawAnalysis,
+            openClawRaw: canonicalChain.diagnostics.openClawRaw,
+            openClawError: canonicalChain.diagnostics.openClawError,
+            openClawContextFiles: canonicalChain.diagnostics.openClawContextFiles,
+            fabric: canonicalChain.diagnostics.fabric,
+            rebuiltSystemPrompt: canonicalChain.rebuiltSystemPrompt,
+            rebuiltUserPrompt: canonicalChain.rebuiltUserPrompt,
+            routingPrompt: canonicalChain.routingPrompt,
+            composedSystemPrompt: canonicalChain.composedSystemPrompt,
+            composedUserPrompt: canonicalChain.composedUserPrompt,
+            routingContextPrompt: canonicalChain.routingContextPrompt,
+          },
+          dispatch: {
+            modelTier: effectiveTier,
+            modelId: finalModelId,
+            status: params.status,
+            response: params.response,
+            error: params.error,
+            cost: params.cost,
+          },
+        }).catch?.(() => {})
+      }
+
+      appendTraceEntry({
+        source: 'chat',
+        level: 'info',
+        title: fastTestMode ? 'Started fast Terminal test response' : 'Started assistant response',
+        detail: fastTestMode
+          ? `Thread ${convId} is bypassing PAI context, OpenClaw, Fabric, and required response format for debugging.`
+          : `Conversation ${convId} is now streaming from ${TIER_DISPLAY_LABELS[effectiveTier]}.`,
+        conversationId: convId,
+        stage: 'local model',
+        executionState: 'model_dispatch',
+        relatedPanels: ['chat', 'prompt_inspector', 'transparency'],
+        entityLabel: effectiveTier,
+      })
+
+      // Fire plugin beforeMessage hook if active plugin has one (Item 18)
+      if (resolvedPlugin?.hooks?.beforeMessage) {
+        window.electron.pluginRunHook({
+          pluginId: resolvedPlugin.id,
+          pluginName: resolvedPlugin.name,
+          hookType: 'beforeMessage',
+          hookValue: resolvedPlugin.hooks.beforeMessage,
+        }).catch(console.error)
+      }
+
+      await sendMessage({
+        content: canonicalChain.rebuiltUserPrompt,
+        tier: effectiveTier,
+        conversationHistory: [...history, { role: 'user', content: canonicalChain.rebuiltUserPrompt }],
+        settings: {
+          ollamaModel: settings.ollamaModel,
+          extendedThinking: settings.extendedThinking,
+        },
+        signal: abortRef.current.signal,
+        // Plugin system prompt override
+        prebuiltSystemPrompt: canonicalChain.usesPaiSystemPrompt ? canonicalChain.rebuiltSystemPrompt : undefined,
+        systemPromptOverride: resolvedPlugin?.systemPrompt,
+        tierOverride: resolvedPlugin?.tier,
+        onToken: (token) => {
+          accumulatedContent += token
+          updateMessage(convId, assistantMsg.id, {
+            content: accumulatedContent,
+            isStreaming: true,
+          })
+          // Transition to streaming on first token
+          if (accumulatedContent.length === token.length) {
+            setConversationStatus(convId, 'streaming')
+            window.electron.logAppend?.('info', `Ollama stream visible content started for thread ${convId}.`, undefined, 'prompt_delivery')
+          }
+        },
+        onThinking: (token) => {
+          accumulatedThinking += token
+          if (!thinkingTraceStarted) {
+            thinkingTraceStarted = true
+            appendTraceEntry({
+              source: 'chat',
+              level: 'info',
+              title: 'Model thinking started',
+              detail: 'Ollama is emitting thinking chunks. ARCOS is capturing them in Transparency instead of the Terminal message.',
+              conversationId: convId,
+              stage: 'local model',
+              executionState: 'model_dispatch',
+              relatedPanels: ['transparency', 'services'],
+              entityLabel: finalModelId,
             })
-            .catch((vaultError) => {
-              appendTraceEntry({
-                source: 'memory',
-                level: 'error',
-                title: 'Conversation write-back threw an error',
-                detail: String(vaultError),
-                conversationId: convId,
-                relatedPanels: ['memory', 'chat', 'history'],
-                entityLabel: conversationForVault.id,
-              })
+          }
+          if (accumulatedContent.length === 0 && accumulatedThinking.length === token.length) {
+            setConversationStatus(convId, 'streaming')
+            window.electron.logAppend?.('info', `Ollama stream thinking content started for thread ${convId}.`, undefined, 'prompt_delivery')
+          }
+        },
+        onComplete: (fullText, cost) => {
+          const finalText = fullText || accumulatedContent
+          updateMessage(convId, assistantMsg.id, {
+            content: finalText,
+            cost,
+            isStreaming: false,
+          })
+          setConversationStatus(convId, 'finished')
+          onConversationCreated?.(convId)
+          window.electron.logAppend?.(
+            'info',
+            `Assistant response completed for thread ${convId}.`,
+            `visibleChars=${finalText.length} thinkingChars=${accumulatedThinking.length}`,
+            'prompt_delivery'
+          )
+          appendTraceEntry({
+            source: 'chat',
+            level: 'success',
+            title: 'Completed assistant response',
+            detail: `Received ${finalText.length} characters${cost > 0 ? ` at cost $${cost.toFixed(4)}` : ' with no cloud cost'}.`,
+            conversationId: convId,
+            stage: 'local model',
+            executionState: 'completed',
+            relatedPanels: ['chat', 'cost', 'transparency'],
+            entityLabel: effectiveTier,
+          })
+          if (accumulatedThinking.trim()) {
+            appendTraceEntry({
+              source: 'chat',
+              level: 'info',
+              title: 'Model thinking captured',
+              detail: compactThinkingPreview(accumulatedThinking),
+              conversationId: convId,
+              stage: 'local model',
+              executionState: 'completed',
+              relatedPanels: ['transparency', 'services'],
+              entityLabel: finalModelId,
             })
-        }
-        setStagedMemory(null)
-        setMemoryError(null)
-        setSending(false)
-      },
-      onError: (err) => {
-        updateMessage(convId, assistantMsg.id, {
-          content: `⚠️ Error: ${err.message}`,
-          isStreaming: false,
-        })
-        appendTraceEntry({
-          source: 'chat',
-          level: 'error',
-          title: 'Assistant response failed',
-          detail: err.message,
-          conversationId: convId,
-          stage: 'local model',
-          executionState: 'failed',
-          relatedPanels: ['chat', 'services', 'transparency'],
-          entityLabel: effectiveTier,
-        })
-        saveChainArtifact({
-          status: 'failed',
-          error: err.message,
-          cost: 0,
-        })
-        setConversationStatus(convId, 'error')
-        setError(err.message)
-        setSending(false)
-      },
-    })
+          }
+          if (cost > 0) {
+            addRecord({ id: crypto.randomUUID(), amount: cost, model: effectiveTier, conversationId: convId })
+          }
+          saveChainArtifact({
+            status: 'completed',
+            response: finalText,
+            cost,
+          })
+          if (ARCOS_VOICE_PLAYBACK_ENABLED && voiceModeRef.current) {
+            const spokenSummary = sanitizeVoiceSummary(buildVoiceSummaryFromPaiResponse(finalText))
+            if (spokenSummary) {
+              window.electron.voiceSynthesize({
+                message: spokenSummary,
+              }).then((result) => {
+                if (!result.success && result.error) {
+                  setError(result.error)
+                  return
+                }
+                if (!result.audioDataUrl) return
+                voiceAudioRef.current?.pause()
+                const audio = new Audio(result.audioDataUrl)
+                voiceAudioRef.current = audio
+                audio.play().catch((error) => {
+                  setError(`ARCOS voice playback failed: ${String(error)}`)
+                })
+              }).catch(() => {})
+            }
+          }
+          const conversationForVault = useConversationStore.getState().conversations.find((conversation) => conversation.id === convId)
+          if (conversationForVault) {
+            saveConversationToVault(conversationForVault)
+              .then((result) => {
+                appendTraceEntry({
+                  source: 'memory',
+                  level: result.success ? 'success' : 'warn',
+                  title: result.success ? 'Conversation written to ArcVault' : 'Conversation write-back failed',
+                  detail: result.success
+                    ? result.filePath ?? 'ARCOS conversation exported to vault.'
+                    : result.error ?? 'Vault write failed.',
+                  conversationId: convId,
+                  relatedPanels: ['memory', 'chat', 'history'],
+                  entityLabel: conversationForVault.id,
+                })
+              })
+              .catch((vaultError) => {
+                appendTraceEntry({
+                  source: 'memory',
+                  level: 'error',
+                  title: 'Conversation write-back threw an error',
+                  detail: String(vaultError),
+                  conversationId: convId,
+                  relatedPanels: ['memory', 'chat', 'history'],
+                  entityLabel: conversationForVault.id,
+                })
+              })
+          }
+          setStagedMemory(null)
+          setMemoryError(null)
+          setSending(false)
+        },
+        onError: (err) => {
+          updateMessage(convId, assistantMsg.id, {
+            content: `⚠️ Error: ${err.message}`,
+            isStreaming: false,
+          })
+          appendTraceEntry({
+            source: 'chat',
+            level: 'error',
+            title: 'Assistant response failed',
+            detail: err.message,
+            conversationId: convId,
+            stage: 'local model',
+            executionState: 'failed',
+            relatedPanels: ['chat', 'services', 'transparency'],
+            entityLabel: effectiveTier,
+          })
+          saveChainArtifact({
+            status: 'failed',
+            error: err.message,
+            cost: 0,
+          })
+          setConversationStatus(convId, 'error')
+          setError(err.message)
+          setText(draftToRestore)
+          setSending(false)
+        },
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setError(message)
+      setText(draftToRestore)
+      if (conversationId) setConversationStatus(conversationId, 'error')
+      setSending(false)
+    }
+  }, [
+    sending,
+    memorySearching,
+    disabled,
+    handleMemorySearch,
+    conversationId,
+    createConversation,
+    onConversationCreated,
+    taskModeOpen,
+    taskPacket,
+    stagedMemory,
+    appendTraceEntry,
+    openClawRunning,
+    fabricRunning,
+    settings.ollamaModel,
+    settings.routingMode,
+    settings.routingAggressiveness,
+    settings.dailyBudgetLimit,
+    settings.extendedThinking,
+    fastTestMode,
+    activePlugin,
+    findByCommand,
+    activatePlugin,
+    ollamaRunning,
+    spendingToday,
+    hasApiKey,
+    updateMessage,
+    addMessage,
+    addRecord,
+    setConversationStatus,
+  ])
+
+  const handleSend = async () => {
+    await handleSendWithText(text)
   }
 
   const handleStop = () => {
@@ -511,8 +704,33 @@ export default function MessageInput({ conversationId, disabled = false, onConve
     if (disabled) return
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      void handleSend()
+      void handleSendWithText(text)
     }
+  }
+
+  const toggleVoiceMode = async () => {
+    if (voiceMode) {
+      setVoiceMode(false)
+      return
+    }
+
+    if (!ARCOS_VOICE_PLAYBACK_ENABLED) {
+      setError('Voice playback is temporarily disabled while Terminal generation is being debugged.')
+      return
+    }
+
+    const status = await window.electron.voiceStatus()
+    if (!status.apiKeyConfigured) {
+      setError('ElevenLabs API key is not configured in the PAI voice environment.')
+      return
+    }
+    if (!status.defaultVoiceId) {
+      setError('ElevenLabs voice ID is not configured in the PAI voice environment.')
+      return
+    }
+
+    setError(null)
+    setVoiceMode(true)
   }
 
   return (
@@ -604,6 +822,20 @@ export default function MessageInput({ conversationId, disabled = false, onConve
         </div>
       )}
 
+      {voiceMode && (
+        <div className="flex items-center gap-2 px-1 text-xs text-text-muted">
+          <span className="text-success">●</span>
+          <span>Voice playback active</span>
+        </div>
+      )}
+
+      {fastTestMode && (
+        <div className="flex items-center gap-2 px-1 text-xs text-warning">
+          <span>●</span>
+          <span>Fast test mode active: PAI, OpenClaw, Fabric, and required response format are bypassed.</span>
+        </div>
+      )}
+
       {/* Task Mode panel (Item 19) */}
       {taskModeOpen && (
         <div className="rounded-lg border border-violet-700/40 bg-violet-950/20 px-3 py-2 space-y-1.5">
@@ -657,17 +889,41 @@ export default function MessageInput({ conversationId, disabled = false, onConve
 
       {/* Input box */}
       <div className={`flex items-end gap-3 bg-surface border rounded-xl p-3 transition-colors ${sending ? 'border-accent/50' : taskModeOpen ? 'border-violet-700/60' : 'border-border'}`}>
-        <button
-          onClick={() => setTaskModeOpen((v) => !v)}
-          title="Toggle Task Mode — attach a structured task packet to this message"
-          className={`flex-shrink-0 w-7 h-7 flex items-center justify-center rounded text-xs transition-colors ${
-            taskModeOpen
-              ? 'bg-violet-700/40 text-violet-300 border border-violet-600/60'
-              : 'bg-transparent text-slate-600 hover:text-slate-400 border border-transparent'
-          }`}
-        >
-          ⊞
-        </button>
+        <div className="flex shrink-0 flex-col gap-2">
+          <button
+            onClick={() => void toggleVoiceMode()}
+            title={voiceMode ? 'Disable voice playback' : 'Enable voice playback'}
+            className={`flex h-7 w-7 items-center justify-center rounded text-xs transition-colors ${
+              voiceMode
+                ? 'border border-success/60 bg-success/15 text-success'
+                : 'border border-transparent bg-transparent text-slate-600 hover:text-slate-400'
+            }`}
+          >
+            🔊
+          </button>
+          <button
+            onClick={() => setTaskModeOpen((v) => !v)}
+            title="Toggle Task Mode — attach a structured task packet to this message"
+            className={`flex h-7 w-7 items-center justify-center rounded text-xs transition-colors ${
+              taskModeOpen
+                ? 'bg-violet-700/40 text-violet-300 border border-violet-600/60'
+                : 'bg-transparent text-slate-600 hover:text-slate-400 border border-transparent'
+            }`}
+          >
+            ⊞
+          </button>
+          <button
+            onClick={() => setFastTestMode((value) => !value)}
+            title="Toggle Fast Test Mode — bypass PAI context and required response format"
+            className={`flex h-7 w-7 items-center justify-center rounded text-[10px] font-semibold transition-colors ${
+              fastTestMode
+                ? 'border border-warning/60 bg-warning/15 text-warning'
+                : 'border border-transparent bg-transparent text-slate-600 hover:text-slate-400'
+            }`}
+          >
+            T
+          </button>
+        </div>
         <textarea
           ref={textareaRef}
           value={text}

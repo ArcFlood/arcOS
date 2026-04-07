@@ -50,6 +50,9 @@ contextBridge.exposeInMainWorld('electron', {
 
   openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
   openPath: (targetPath: string) => ipcRenderer.invoke('open-path', targetPath),
+  voiceStatus: () => ipcRenderer.invoke('voice:status'),
+  voiceNotify: (params: { message: string; title?: string; voiceId?: string }) => ipcRenderer.invoke('voice:notify', params),
+  voiceSynthesize: (params: { message: string; voiceId?: string }) => ipcRenderer.invoke('voice:synthesize', params),
 
   // Fabric
   fabricListPatterns: () => ipcRenderer.invoke('fabric-list-patterns'),

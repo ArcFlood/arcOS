@@ -2325,6 +2325,99 @@
         "Generated Python __pycache__ artifacts remain intentionally excluded from the push.",
         "The todo update was made in the root project todo list, outside the ARCOS repo."
       ]
+    },
+    {
+      "entry_id": "codex-2026-04-06-096",
+      "date": "2026-04-06",
+      "agent": "Codex",
+      "task_title": "Close module-system decision and refine workspace movement",
+      "summary": "Marked the module-system decision complete, started the workspace movement refinement pass, widened resize handles to full panel edges, softened drag and resize behavior, and merged the standalone Audit panel into the renamed Dev Tools module.",
+      "files_touched": [
+        "Todo_List.md",
+        "arcos/src/renderer/components/workspace/WorkspaceShell.tsx",
+        "arcos/src/renderer/components/workspace/CodingRuntimePanel.tsx",
+        "arcos/src/renderer/components/workspace/AuditPanel.tsx",
+        "arcos/src/renderer/components/workspace/WorkspacePanelContent.tsx",
+        "arcos/src/renderer/workspace/presets.ts",
+        "arcos/src/renderer/workspace/types.ts"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/components/workspace/WorkspaceShell.tsx src/renderer/components/workspace/CodingRuntimePanel.tsx src/renderer/components/workspace/AuditPanel.tsx src/renderer/components/workspace/WorkspacePanelContent.tsx src/renderer/workspace/presets.ts src/renderer/workspace/types.ts"
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-06-097",
+      "date": "2026-04-06",
+      "agent": "Codex",
+      "task_title": "Add automatic module swapping during drag",
+      "summary": "Updated workspace drag behavior so a module dragged by its header can swap positions with exactly one occupied docked module when the displaced module fits the original slot.",
+      "files_touched": [
+        "arcos/src/renderer/stores/workspaceStore.ts"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/stores/workspaceStore.ts"
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-06-098",
+      "date": "2026-04-06",
+      "agent": "Codex",
+      "task_title": "Build ARCOS Response Tuner",
+      "summary": "Added a persisted ARCOS Response Tuner in Settings and wired it into the canonical chain as an ARCOS-layer instruction block so response identity and style can be tuned without editing PAI CORE, OpenClaw, or Fabric files directly.",
+      "files_touched": [
+        "Todo_List.md",
+        "arcos/src/renderer/stores/types.ts",
+        "arcos/src/renderer/stores/settingsStore.ts",
+        "arcos/src/renderer/components/settings/SettingsPanel.tsx",
+        "arcos/src/renderer/services/canonicalChainService.ts"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/stores/types.ts src/renderer/stores/settingsStore.ts src/renderer/components/settings/SettingsPanel.tsx src/renderer/services/canonicalChainService.ts"
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-06-099",
+      "date": "2026-04-06",
+      "agent": "Codex",
+      "task_title": "Align OpenClaw workspace docs with PAI",
+      "summary": "Updated the live OpenClaw workspace markdown files so AGENTS, HEARTBEAT, IDENTITY, SOUL, and USER align with PAI as the canonical assistant contract and keep OpenClaw scoped to ARCOS gateway/orchestration responsibilities.",
+      "files_touched": [
+        "Todo_List.md",
+        "/Users/noahpowell/.openclaw/workspace/AGENTS.md",
+        "/Users/noahpowell/.openclaw/workspace/HEARTBEAT.md",
+        "/Users/noahpowell/.openclaw/workspace/IDENTITY.md",
+        "/Users/noahpowell/.openclaw/workspace/SOUL.md",
+        "/Users/noahpowell/.openclaw/workspace/USER.md"
+      ],
+      "status": "completed"
+    },
+    {
+      "entry_id": "codex-2026-04-06-100",
+      "date": "2026-04-06",
+      "agent": "Codex",
+      "task_title": "Implement ARCOS voice mode with ElevenLabs bridge",
+      "summary": "Added a speaker-toggle voice mode in Terminal using browser speech recognition for input and the local PAI voice server for ElevenLabs output. ARCOS now plays a welcome line on activation and reads only the RESULTS and NEXT sections of PAI-formatted responses.",
+      "files_touched": [
+        "Todo_List.md",
+        "arcos/src/main/main.ts",
+        "arcos/src/preload/preload.ts",
+        "arcos/src/renderer/electron.d.ts",
+        "arcos/src/renderer/components/MessageInput.tsx"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/main/main.ts src/preload/preload.ts src/renderer/electron.d.ts src/renderer/components/MessageInput.tsx"
+      ],
+      "notes": [
+        "Live microphone permission and voice-server availability still need in-app validation on this machine."
+      ]
     }
   ]
 }

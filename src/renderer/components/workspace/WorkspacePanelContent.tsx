@@ -10,7 +10,6 @@ import MemoryWorkspacePanel from './MemoryWorkspacePanel'
 import HistoryPanel from './HistoryPanel'
 import ToolsPanel from './ToolsPanel'
 import HooksPanel from './HooksPanel'
-import AuditPanel from './AuditPanel'
 import DiscordPanel from './DiscordPanel'
 import { WorkspacePanelId } from '../../workspace/types'
 
@@ -47,8 +46,6 @@ export default function WorkspacePanelContent(props: WorkspacePanelContentProps)
       return <TracePanel />
     case 'hooks':
       return <HooksPanel />
-    case 'audit':
-      return <AuditPanel />
     case 'discord':
       return <DiscordPanel />
     default:

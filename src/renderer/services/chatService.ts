@@ -19,6 +19,7 @@ export interface SendOptions {
     extendedThinking: boolean
   }
   onToken: (token: string) => void
+  onThinking?: (token: string) => void
   onComplete: (fullText: string, cost: number) => void
   onError: (error: Error) => void
   signal?: AbortSignal
@@ -31,7 +32,7 @@ export interface SendOptions {
 export async function sendMessage(opts: SendOptions): Promise<void> {
   const {
     conversationHistory, settings,
-    onToken, onComplete, onError, signal,
+    onToken, onThinking, onComplete, onError, signal,
     systemPromptOverride, prebuiltSystemPrompt, tierOverride,
   } = opts
 
@@ -46,12 +47,22 @@ export async function sendMessage(opts: SendOptions): Promise<void> {
   // ── Local: Ollama ─────────────────────────────────────────────
   if (tier === 'ollama') {
     let chatModel = settings.ollamaModel
-    if (!isChatCapableOllamaModel(chatModel)) {
-      const installedModels = filterChatCapableOllamaModels(await window.electron.ollamaListModels().then((result) => result.models ?? []).catch(() => []))
-      if (installedModels.length === 0) {
-        throw new Error(`Configured Ollama model "${chatModel}" is embedding-only and no chat-capable fallback was found.`)
-      }
-      chatModel = installedModels[0]
+    const installedModels = filterChatCapableOllamaModels(
+      await window.electron.ollamaListModels().then((result) => result.models ?? []).catch(() => [])
+    )
+
+    if (installedModels.length === 0) {
+      throw new Error('No chat-capable Ollama models are currently available.')
+    }
+
+    const configuredModelMissing = !installedModels.includes(chatModel)
+    if (!isChatCapableOllamaModel(chatModel) || configuredModelMissing) {
+      const fallbackModel = installedModels[0]
+      const reason = !isChatCapableOllamaModel(chatModel)
+        ? `Configured Ollama model "${chatModel}" is embedding-only.`
+        : `Configured Ollama model "${chatModel}" is not installed.`
+      window.electron.logAppend?.('warn', `${reason} Falling back to "${fallbackModel}".`)
+      chatModel = fallbackModel
       useSettingsStore.getState().setOllamaModel(chatModel)
     }
 
@@ -64,6 +75,7 @@ export async function sendMessage(opts: SendOptions): Promise<void> {
       ollamaMessages,
       {
         onToken,
+        onThinking,
         onComplete: (text) => onComplete(text, 0),
         onError,
       },

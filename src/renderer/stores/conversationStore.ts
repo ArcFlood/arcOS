@@ -56,6 +56,7 @@ function dbToMsg(row: Record<string, unknown>): Message {
     conversationId: row.conversation_id as string,
     role: row.role as 'user' | 'assistant' | 'system',
     content: row.content as string,
+    thinkingContent: undefined,
     model: (row.model as import('./types').ModelTier | null) ?? null,
     modelLabel: (row.model_label as string | null) ?? undefined,
     cost: row.cost as number,

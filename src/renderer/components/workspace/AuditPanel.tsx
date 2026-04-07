@@ -7,6 +7,10 @@
 
 import { useEffect, useState } from 'react'
 
+interface AuditPanelProps {
+  embedded?: boolean
+}
+
 type AuditStatus = 'pass' | 'warn' | 'fail' | 'skip'
 interface AuditCheckResult {
   name: string
@@ -43,7 +47,7 @@ const STATUS_RING: Record<AuditStatus, string> = {
   skip: 'border-slate-600/50',
 }
 
-export default function AuditPanel() {
+export default function AuditPanel({ embedded = false }: AuditPanelProps) {
   const [report, setReport] = useState<AuditReport | null>(null)
   const [reports, setReports] = useState<AuditReportMeta[]>([])
   const [running, setRunning] = useState(false)
@@ -88,11 +92,14 @@ export default function AuditPanel() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#0f1117] text-slate-200 text-xs">
+    <div className={`flex flex-col ${embedded ? 'h-auto bg-transparent' : 'h-full bg-[#0f1117]'} text-slate-200 text-xs`}>
 
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-700/50 shrink-0">
-        <span className="font-semibold text-sm text-slate-100">Audit</span>
+      <div className={`flex items-center gap-2 px-3 py-2 shrink-0 ${embedded ? 'border-b border-border' : 'border-b border-slate-700/50'}`}>
+        <div>
+          <span className="font-semibold text-sm text-slate-100">Audit</span>
+          <p className="mt-1 text-[11px] text-text-muted">Scheduled workspace integrity and chain quality audits.</p>
+        </div>
         {report && (
           <span className={`ml-1 px-1.5 py-0 rounded text-[10px] font-bold ${STATUS_COLORS[report.overall]}`}>
             {report.overall.toUpperCase()}

@@ -3,6 +3,7 @@ import { FabricPatternResolution, listFabricPatterns, resolveFabricPatternSelect
 import { MemoryCitation, sourceLabel } from './memoryService'
 import { ModelTier, Plugin } from '../stores/types'
 import { ChainPath, TraceEntry, useTraceStore } from '../stores/traceStore'
+import { useSettingsStore } from '../stores/settingsStore'
 
 export interface CanonicalChainOptions {
   prompt: string
@@ -49,9 +50,23 @@ export interface CanonicalChainResult {
 
 const appendTrace = (entry: Omit<TraceEntry, 'id' | 'timestamp'>) => useTraceStore.getState().appendEntry(entry)
 
+const LEGACY_DEFAULT_RESPONSE_TUNER_IDENTITY =
+  'ARCOS is the operating surface for PAI. It should present itself as the visible control plane coordinating the execution chain, not as a generic assistant shell.'
+const LEGACY_DEFAULT_RESPONSE_TUNER_STYLE =
+  'Be direct, structured, and practical. Preserve the required PAI response format and keep the strongest validated upstream findings intact.'
+
 function previewDetail(text: string, max = 280): string {
   if (text.length <= max) return text
   return `${text.slice(0, max)}…`
+}
+
+function summarizeInline(text: string, max = 280): string {
+  const cleaned = text
+    .replace(/```[\s\S]*?```/g, '[code block omitted]')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (cleaned.length <= max) return cleaned
+  return `${cleaned.slice(0, max)}…`
 }
 
 function buildResponseComposerInstruction(fabricExecuted: boolean): string {
@@ -78,6 +93,39 @@ function buildResponseComposerInstruction(fabricExecuted: boolean): string {
   ].join('\n')
 }
 
+function buildResponseTunerSection(): string {
+  const settings = useSettingsStore.getState().settings
+  const responseTunerIdentity = settings.responseTunerIdentity?.trim() === LEGACY_DEFAULT_RESPONSE_TUNER_IDENTITY
+    ? ''
+    : settings.responseTunerIdentity?.trim()
+  const responseTunerStyle = settings.responseTunerStyle?.trim() === LEGACY_DEFAULT_RESPONSE_TUNER_STYLE
+    ? ''
+    : settings.responseTunerStyle?.trim()
+  const responseTunerInstructions = settings.responseTunerInstructions?.trim()
+  const blocks = [
+    responseTunerIdentity
+      ? `ARCOS identity:\n${responseTunerIdentity}`
+      : null,
+    responseTunerStyle
+      ? `Response style:\n${responseTunerStyle}`
+      : null,
+    responseTunerInstructions
+      ? `Additional ARCOS instructions:\n${responseTunerInstructions}`
+      : null,
+  ].filter(Boolean)
+
+  if (blocks.length === 0) {
+    return 'No ARCOS response tuner overrides are configured.'
+  }
+
+  return [
+    'These instructions apply at the ARCOS layer only.',
+    'They refine how ARCOS presents and composes the response without replacing PAI CORE, OpenClaw rules, or Fabric output.',
+    '',
+    ...blocks,
+  ].join('\n')
+}
+
 function buildMemorySection(memoryCitations: MemoryCitation[]): string {
   if (memoryCitations.length === 0) return 'No ARC-Memory citations staged for this request.'
   return memoryCitations
@@ -85,6 +133,14 @@ function buildMemorySection(memoryCitations: MemoryCitation[]): string {
       `${index + 1}. ${citation.title} (${sourceLabel(citation.source_type)}, ${citation.date})\n${citation.excerpt}`
     ))
     .join('\n\n')
+}
+
+function buildMemorySummary(memoryCitations: MemoryCitation[]): string {
+  if (memoryCitations.length === 0) return 'No staged memory.'
+  return [
+    `${memoryCitations.length} staged memory citation(s).`,
+    ...memoryCitations.slice(0, 3).map((citation, index) => `${index + 1}. ${citation.title} (${sourceLabel(citation.source_type)})`),
+  ].join('\n')
 }
 
 function buildConversationSection(history: Array<{ role: string; content: string }>): string {
@@ -95,6 +151,64 @@ function buildConversationSection(history: Array<{ role: string; content: string
   return recent
     .map((message) => `${message.role.toUpperCase()}: ${message.content}`)
     .join('\n\n')
+}
+
+function buildConversationSummary(history: Array<{ role: string; content: string }>): string {
+  const recent = history.filter((message) => message.role === 'user' || message.role === 'assistant')
+  if (recent.length === 0) return 'No prior thread context.'
+
+  const recentTurns = recent.slice(-2)
+  const userCount = recent.filter((message) => message.role === 'user').length
+  const assistantCount = recent.filter((message) => message.role === 'assistant').length
+
+  return [
+    `Recent thread summary: ${recent.length} prior message(s) (${userCount} user, ${assistantCount} assistant).`,
+    ...recentTurns.map((message) => `${message.role.toUpperCase()}: ${summarizeInline(message.content, 180)}`),
+  ].join('\n')
+}
+
+function buildOpenClawDecisionEnvelope(
+  analysis?: Record<string, unknown>,
+  error?: string | null,
+): string {
+  if (!analysis) {
+    return `OpenClaw decision unavailable.${error ? ` Reason: ${error}` : ''}`
+  }
+
+  const notes = Array.isArray(analysis.notes)
+    ? analysis.notes.map((entry) => String(entry)).filter(Boolean).slice(0, 2)
+    : []
+
+  return [
+    `Intent: ${String(analysis.intent ?? 'n/a')}`,
+    `Summary: ${String(analysis.summary ?? 'n/a')}`,
+    `Tier: ${String(analysis.recommended_tier ?? 'none')}`,
+    `Fabric: ${analysis.should_use_fabric ? (analysis.fabric_pattern ?? analysis.fabric_intent ?? 'yes') : 'skip'}`,
+    `Confidence: ${String(analysis.confidence ?? 'n/a')}`,
+    notes.length > 0 ? `Notes: ${notes.join(' | ')}` : null,
+  ].filter(Boolean).join('\n')
+}
+
+function buildFabricComposerBlock(
+  fabric: CanonicalChainResult['diagnostics']['fabric'],
+  fallbackBlock: string,
+): string {
+  if (!fabric.executed) {
+    return fallbackBlock
+  }
+
+  const output = fabric.output ?? ''
+  const trimmedOutput = output.length > 2200
+    ? `${output.slice(0, 2200)}\n\n[Fabric output truncated for local model efficiency]`
+    : output
+
+  return [
+    `Resolved pattern: ${fabric.resolvedPattern ?? 'unknown'}`,
+    `Resolution strategy: ${fabric.strategy}`,
+    `Mode: ${fabric.mode ?? 'unknown'}`,
+    '',
+    trimmedOutput,
+  ].join('\n')
 }
 
 function mapOpenClawTier(value?: string): ModelTier | undefined {
@@ -161,11 +275,6 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
 
   const openClawContext = await window.electron.openClawContext()
   const openClawFiles = openClawContext.success ? (openClawContext.files ?? []) : []
-  const openClawContextBlock = openClawFiles.length === 0
-    ? 'No OpenClaw workspace context files were available.'
-    : openClawFiles.map((file) => `# ${file.name}\n${file.content}`).join('\n\n')
-
-  let openClawAnalysisBlock = 'No live OpenClaw gateway analysis was available.'
   let openClawRaw = ''
   let openClawAnalysis: Record<string, unknown> | undefined
   let openClawError: string | null = null
@@ -193,19 +302,6 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
       openClawTierOverride = mapOpenClawTier(analysis.recommended_tier)
       fabricPatternSuggestion = analysis.should_use_fabric ? (analysis.fabric_pattern ?? null) : null
       fabricIntentSuggestion = analysis.should_use_fabric ? (analysis.fabric_intent ?? null) : null
-      openClawAnalysisBlock = [
-        `Summary: ${analysis.summary ?? 'n/a'}`,
-        `Intent: ${analysis.intent ?? 'n/a'}`,
-        `Workflow: ${analysis.workflow ?? 'n/a'}`,
-        `Recommended tier: ${analysis.recommended_tier ?? 'none'}`,
-        `Recommended model: ${analysis.recommended_model ?? 'none'}`,
-        `Fabric: ${analysis.should_use_fabric ? `yes${analysis.fabric_pattern ? ` (${analysis.fabric_pattern})` : ''}` : 'no'}`,
-        `Fabric intent: ${analysis.fabric_intent ?? 'none'}`,
-        `Confidence: ${analysis.confidence ?? 'n/a'}`,
-        `Reasoning: ${analysis.reasoning ?? 'n/a'}`,
-        analysis.notes && analysis.notes.length > 0 ? `Notes: ${analysis.notes.join(' | ')}` : '',
-      ].filter(Boolean).join('\n')
-
       appendTrace({
         source: 'service',
         level: 'success',
@@ -425,6 +521,11 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
   })
 
   const responseComposerInstruction = buildResponseComposerInstruction(fabricDiagnostics.executed)
+  const responseTunerSection = buildResponseTunerSection()
+  const compactConversationSummary = buildConversationSummary(opts.conversationHistory)
+  const compactMemorySummary = buildMemorySummary(opts.memoryCitations)
+  const openClawDecisionEnvelope = buildOpenClawDecisionEnvelope(openClawAnalysis, openClawError)
+  const compactFabricBlock = buildFabricComposerBlock(fabricDiagnostics, fabricOutputBlock)
   const usesPaiSystemPrompt = opts.isConversationStart
   const rebuiltSystemPrompt = usesPaiSystemPrompt
     ? [
@@ -445,20 +546,20 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
     `Active plugin: ${opts.plugin ? `${opts.plugin.name} (${opts.plugin.architectureRole})` : 'none'}`,
     `Plugin target stages: ${opts.plugin ? opts.plugin.targetStages.join(', ') : 'none'}`,
     '',
-    '### Recent Thread Context',
-    conversationSection,
+    '### Thread Summary',
+    compactConversationSummary,
     '',
-    '### ARC-Memory Context',
-    memorySection,
+    '### Memory Summary',
+    compactMemorySummary,
     '',
-    '### OpenClaw Workspace Context',
-    openClawContextBlock,
-    '',
-    '### OpenClaw Gateway Analysis',
-    openClawAnalysisBlock,
+    '### OpenClaw Decision Envelope',
+    openClawDecisionEnvelope,
     '',
     '### Fabric Output',
-    fabricOutputBlock,
+    compactFabricBlock,
+    '',
+    '### ARCOS Response Tuner',
+    responseTunerSection,
     '',
     '## Response Composer Instruction',
     responseComposerInstruction,
@@ -484,7 +585,7 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
     source: 'chat',
     level: 'success',
     title: 'Response package composed',
-    detail: `PAI system prompt ${usesPaiSystemPrompt ? 'attached for thread start' : 'not attached for this follow-up message'}. Final system prompt size: ${rebuiltSystemPrompt.length} chars. Final user payload size: ${rebuiltUserPrompt.length} chars. Required PAI sections enforced.${fabricDiagnostics.executed ? ' Fabric output preservation mode active.' : ''}`,
+    detail: `PAI system prompt ${usesPaiSystemPrompt ? 'attached for thread start' : 'not attached for this follow-up message'}. Final system prompt size: ${rebuiltSystemPrompt.length} chars. Final user payload size: ${rebuiltUserPrompt.length} chars. OpenClaw runtime files remain internal to the OpenClaw stage. Required PAI sections enforced.${fabricDiagnostics.executed ? ' Fabric output preservation mode active.' : ''}`,
     conversationId: opts.conversationId,
     stage: 'Response Composer',
     executionState: 'model_dispatch',
@@ -500,20 +601,20 @@ export async function executeCanonicalChain(opts: CanonicalChainOptions): Promis
     routingPrompt: [
       opts.prompt,
       '',
-      memorySection,
+      compactMemorySummary,
       '',
-      openClawAnalysisBlock,
+      openClawDecisionEnvelope,
       '',
-      fabricOutputBlock,
+      compactFabricBlock,
     ].join('\n'),
     routingContextPrompt: [
       opts.prompt,
       '',
-      memorySection,
+      compactMemorySummary,
       '',
-      openClawAnalysisBlock,
+      openClawDecisionEnvelope,
       '',
-      fabricOutputBlock,
+      compactFabricBlock,
     ].join('\n'),
     composerStage: {
       canonicalName: 'Response Composer',
