@@ -17,10 +17,17 @@ const DEFAULT_SETTINGS: AppSettings = {
   appearanceTextColor: '#e6edf5',
   appearanceAccentColor: '#8fa1b3',
   appearanceAccentSecondaryColor: '#d4a25a',
+  surfaceTransparency: 'solid',
   responseTunerIdentity: '',
   responseTunerStyle: '',
   responseTunerInstructions: '',
   voiceReadSections: ['RESULTS', 'NEXT'],
+  modelAssignments: {
+    general: 'qwen3:14b',
+    coding: 'qwen3:14b',
+  },
+  permissionPolicy: 'workspace-only',
+  moduleShortcuts: {},
 }
 
 interface SettingsStore {
@@ -77,7 +84,7 @@ function persistSettings(settings: AppSettings): void {
     .catch(console.error)
 }
 
-export const useSettingsStore = create<SettingsStore>((set, get) => ({
+export const useSettingsStore = create<SettingsStore>((set) => ({
   settings: { ...DEFAULT_SETTINGS },
   settingsPanelOpen: false,
   hasApiKey: false,
@@ -90,7 +97,20 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         // Strip any legacy claudeApiKey that may have been stored in the blob.
         const rest = { ...(saved as Partial<AppSettings> & { claudeApiKey?: string }) }
         delete rest.claudeApiKey
-        set({ settings: { ...DEFAULT_SETTINGS, ...rest } })
+        set({
+          settings: {
+            ...DEFAULT_SETTINGS,
+            ...rest,
+            modelAssignments: {
+              ...DEFAULT_SETTINGS.modelAssignments,
+              ...(rest.modelAssignments ?? {}),
+            },
+            moduleShortcuts: {
+              ...DEFAULT_SETTINGS.moduleShortcuts,
+              ...(rest.moduleShortcuts ?? {}),
+            },
+          },
+        })
       }
       // Check key existence in main process
       const keyResult = await window.electron.apiKeyHas?.()
@@ -175,16 +195,32 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   autoFixOllamaModel: (availableModels) => {
     const chatModels = filterChatCapableOllamaModels(availableModels)
     if (chatModels.length === 0) return
-    const { ollamaModel } = get().settings
-    if (!chatModels.includes(ollamaModel)) {
-      const picked = pickPreferredChatModel(chatModels)
-      if (!picked) return
-      console.log(`[Settings] Model "${ollamaModel}" not found — auto-selecting "${picked}"`)
-      set((s) => {
-        const settings = { ...s.settings, ollamaModel: picked }
-        persistSettings(settings)
-        return { settings }
-      })
-    }
+    const picked = pickPreferredChatModel(chatModels)
+    if (!picked) return
+
+    set((s) => {
+      const nextOllamaModel = chatModels.includes(s.settings.ollamaModel) ? s.settings.ollamaModel : picked
+      const nextAssignments = {
+        general: chatModels.includes(s.settings.modelAssignments.general) ? s.settings.modelAssignments.general : nextOllamaModel,
+        coding: chatModels.includes(s.settings.modelAssignments.coding) ? s.settings.modelAssignments.coding : nextOllamaModel,
+      }
+      if (
+        nextOllamaModel === s.settings.ollamaModel &&
+        nextAssignments.general === s.settings.modelAssignments.general &&
+        nextAssignments.coding === s.settings.modelAssignments.coding
+      ) {
+        return s
+      }
+      if (nextOllamaModel !== s.settings.ollamaModel) {
+        console.log(`[Settings] Model "${s.settings.ollamaModel}" not found — auto-selecting "${nextOllamaModel}"`)
+      }
+      const settings = {
+        ...s.settings,
+        ollamaModel: nextOllamaModel,
+        modelAssignments: nextAssignments,
+      }
+      persistSettings(settings)
+      return { settings }
+    })
   },
 }))

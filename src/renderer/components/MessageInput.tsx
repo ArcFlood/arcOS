@@ -5,11 +5,12 @@ import { useServiceStore } from '../stores/serviceStore'
 import { estimateCost, estimateTokens, useCostStore } from '../stores/costStore'
 import { usePluginStore } from '../stores/pluginStore'
 import { ModelTier, PaiVoiceSection } from '../stores/types'
+import { useMessageQueueStore } from '../stores/messageQueueStore'
 import { useTraceStore } from '../stores/traceStore'
 import { sendMessage } from '../services/chatService'
 import type { TaskPacket } from '../stores/types'
 import { executeCanonicalChain } from '../services/canonicalChainService'
-import { routeQuery, TIER_DISPLAY_LABELS } from '../utils/routing'
+import { classifyTaskArea, modelForTaskArea, routeQuery, TIER_DISPLAY_LABELS } from '../utils/routing'
 import { searchMemory, MemoryCitation, sourceLabel } from '../services/memoryService'
 import { saveConversationToVault } from '../utils/exportConversation'
 
@@ -92,6 +93,7 @@ function compactThinkingPreview(text: string, max = 900): string {
 }
 
 const ARCOS_VOICE_PLAYBACK_ENABLED = true
+let terminalSendQueue: Promise<void> = Promise.resolve()
 
 export default function MessageInput({ conversationId, disabled = false, onConversationCreated }: Props) {
   const [text, setText] = useState('')
@@ -134,6 +136,11 @@ export default function MessageInput({ conversationId, disabled = false, onConve
   const activePlugin = usePluginStore((s) => s.activePlugin)
   const activatePlugin = usePluginStore((s) => s.activatePlugin)
   const findByCommand = usePluginStore((s) => s.findByCommand)
+  const queueActive = useMessageQueueStore((s) => s.active)
+  const queuedMessages = useMessageQueueStore((s) => s.queued)
+  const enqueueMessage = useMessageQueueStore((s) => s.enqueue)
+  const startQueuedMessage = useMessageQueueStore((s) => s.start)
+  const finishQueuedMessage = useMessageQueueStore((s) => s.finish)
   const appendTraceEntry = useTraceStore((s) => s.appendEntry)
 
   voiceModeRef.current = voiceMode
@@ -227,7 +234,7 @@ export default function MessageInput({ conversationId, disabled = false, onConve
 
   const handleSendWithText = useCallback(async (rawText: string) => {
     const trimmed = rawText.trim()
-    if (!trimmed || sending || memorySearching || disabled) return
+    if (!trimmed || memorySearching || disabled) return
 
     if (trimmed.startsWith('/memory')) {
       await handleMemorySearch()
@@ -236,10 +243,20 @@ export default function MessageInput({ conversationId, disabled = false, onConve
 
     const convId = conversationId ?? createConversation()
     onConversationCreated?.(convId)
+    const queueId = crypto.randomUUID()
+    enqueueMessage({
+      id: queueId,
+      conversationId: convId,
+      preview: trimmed.slice(0, 96),
+      enqueuedAt: Date.now(),
+    })
+    setText('')
+
+    const runQueuedSend = async () => {
+    startQueuedMessage(queueId)
     const draftToRestore = rawText
     setError(null)
     setSending(true)
-    setText('')
     // Drive session state machine → sending
     setConversationStatus(convId, 'sending')
 
@@ -282,6 +299,8 @@ export default function MessageInput({ conversationId, disabled = false, onConve
               retryPolicy: taskPacket.retryPolicy ?? 'none',
             }
           : undefined
+      const taskArea = classifyTaskArea(resolvedContent)
+      const assignedLocalModel = modelForTaskArea(settings.modelAssignments, taskArea, settings.ollamaModel)
 
       addMessage(convId, {
         role: 'user',
@@ -342,7 +361,7 @@ export default function MessageInput({ conversationId, disabled = false, onConve
             isConversationStart: history.filter((message) => message.role === 'user' || message.role === 'assistant').length === 0,
             memoryCitations: stagedMemory?.citations ?? [],
             plugin: resolvedPlugin,
-            preferredLocalModel: settings.ollamaModel,
+            preferredLocalModel: assignedLocalModel,
             services: {
               openClawRunning,
               fabricRunning,
@@ -362,8 +381,8 @@ export default function MessageInput({ conversationId, disabled = false, onConve
       const shouldFallbackToLocal = routedTier !== 'ollama' && !hasApiKey && ollamaRunning
       const effectiveTier = shouldFallbackToLocal ? 'ollama' : routedTier
       const effectiveReason = shouldFallbackToLocal
-        ? `${routedReason} · Claude API key missing, falling back to ${TIER_DISPLAY_LABELS.ollama}`
-        : routedReason
+        ? `${routedReason} · Claude API key missing, falling back to ${TIER_DISPLAY_LABELS.ollama}. Task area: ${taskArea}.`
+        : `${routedReason} Task area: ${taskArea}.`
 
       const estimatedInputTokens = estimateTokens(
         [
@@ -395,7 +414,7 @@ export default function MessageInput({ conversationId, disabled = false, onConve
         estimatedCost,
       }).catch?.(() => {})
 
-      const finalModelId = modelIdForTier(effectiveTier, settings.ollamaModel)
+      const finalModelId = modelIdForTier(effectiveTier, assignedLocalModel)
 
       // Add placeholder assistant message
       const assistantMsg = addMessage(convId, {
@@ -496,7 +515,7 @@ export default function MessageInput({ conversationId, disabled = false, onConve
         tier: effectiveTier,
         conversationHistory: [...history, { role: 'user', content: canonicalChain.rebuiltUserPrompt }],
         settings: {
-          ollamaModel: settings.ollamaModel,
+          ollamaModel: assignedLocalModel,
           extendedThinking: settings.extendedThinking,
         },
         signal: abortRef.current.signal,
@@ -667,17 +686,25 @@ export default function MessageInput({ conversationId, disabled = false, onConve
       const message = err instanceof Error ? err.message : String(err)
       setError(message)
       setText(draftToRestore)
-      if (conversationId) setConversationStatus(conversationId, 'error')
+      setConversationStatus(convId, 'error')
       setSending(false)
+    } finally {
+      finishQueuedMessage(queueId)
     }
+    }
+
+    terminalSendQueue = terminalSendQueue.then(runQueuedSend, runQueuedSend)
+    void terminalSendQueue
   }, [
-    sending,
     memorySearching,
     disabled,
     handleMemorySearch,
     conversationId,
     createConversation,
     onConversationCreated,
+    enqueueMessage,
+    startQueuedMessage,
+    finishQueuedMessage,
     taskModeOpen,
     taskPacket,
     stagedMemory,
@@ -685,6 +712,7 @@ export default function MessageInput({ conversationId, disabled = false, onConve
     openClawRunning,
     fabricRunning,
     settings.ollamaModel,
+    settings.modelAssignments,
     settings.routingMode,
     settings.routingAggressiveness,
     settings.dailyBudgetLimit,
@@ -849,6 +877,16 @@ export default function MessageInput({ conversationId, disabled = false, onConve
         </div>
       )}
 
+      {(queueActive || queuedMessages.length > 0) && (
+        <div className="flex flex-wrap items-center gap-2 px-1 text-xs text-text-muted">
+          <span className={queueActive ? 'text-accent' : 'text-text-muted'}>●</span>
+          <span>
+            Queue {queueActive ? `running: "${queueActive.preview}"` : 'idle'}
+            {queuedMessages.length > 0 ? ` · ${queuedMessages.length} waiting` : ''}
+          </span>
+        </div>
+      )}
+
       {/* Task Mode panel (Item 19) */}
       {taskModeOpen && (
         <div className="rounded-lg border border-violet-700/40 bg-violet-950/20 px-3 py-2 space-y-1.5">
@@ -944,7 +982,7 @@ export default function MessageInput({ conversationId, disabled = false, onConve
           onKeyDown={handleKeyDown}
           placeholder={
             sending
-              ? 'Generating...'
+              ? 'Queue another message...'
               : memoryCommandQuery
               ? 'Press Enter to search memory...'
               : disabled
@@ -955,20 +993,30 @@ export default function MessageInput({ conversationId, disabled = false, onConve
               ? 'Ask with staged memory context attached...'
               : 'Ask anything or type /command... (Enter to send)'
           }
-          disabled={disabled || sending || memorySearching}
+          disabled={disabled || memorySearching}
           rows={1}
           className="flex-1 bg-transparent resize-none text-sm text-text placeholder:text-text-muted focus:outline-none leading-relaxed disabled:opacity-50 selectable"
           style={{ maxHeight: '200px' }}
           autoFocus
         />
         {sending ? (
-          <button
-            onClick={handleStop}
-            className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-lg bg-surface-elevated hover:bg-border transition-colors text-text-muted border border-border text-xs"
-            title="Stop generating"
-          >
-            ⏹
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              onClick={() => void handleSend()}
+              disabled={disabled || !text.trim() || memorySearching}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-accent/50 bg-accent/15 text-xs text-accent transition-colors hover:bg-accent/25 disabled:cursor-not-allowed disabled:opacity-40"
+              title="Queue message"
+            >
+              +
+            </button>
+            <button
+              onClick={handleStop}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface-elevated text-xs text-text-muted transition-colors hover:bg-border"
+              title="Stop generating"
+            >
+              ⏹
+            </button>
+          </div>
         ) : (
           <button
             onClick={() => void handleSend()}

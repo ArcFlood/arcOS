@@ -47,6 +47,11 @@ contextBridge.exposeInMainWorld('electron', {
     ipcRenderer.on(channel, handler)
     return () => ipcRenderer.off(channel, handler)
   },
+  onPermissionEvent: (callback: (payload: unknown) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: unknown) => callback(payload)
+    ipcRenderer.on('permission:event', handler)
+    return () => ipcRenderer.off('permission:event', handler)
+  },
 
   openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
   openPath: (targetPath: string) => ipcRenderer.invoke('open-path', targetPath),

@@ -136,6 +136,15 @@ declare global {
       workspaceRedockPanel?: (moduleId: string) => Promise<{ success: boolean }>
       workspaceSyncDetachedPanels?: (modules: Array<{ moduleId: string; panelId: string; title?: string }>) => Promise<{ success: boolean }>
       onWorkspaceEvent?: (channel: string, callback: (payload: unknown) => void) => () => void
+      onPermissionEvent?: (callback: (payload: {
+        timestamp: number
+        action: string
+        outcome: 'approved' | 'denied'
+        activePolicy: string
+        requiredPolicy: string
+        reason: string
+        targetPath?: string
+      }) => void) => () => void
       codingRuntimeStatus: () => Promise<{ success: boolean; status?: CodingRuntimeStatus; error?: string }>
       openExternal: (url: string) => Promise<void>
       openPath: (targetPath: string) => Promise<{ success: boolean; error?: string }>
@@ -355,6 +364,7 @@ type ArcToolEntry = {
   name: string
   description: string
   permissions: ArcToolPermission[]
+  requiredPolicy?: string
   active: boolean
   source: ArcToolSource
   category: ArcToolCategory

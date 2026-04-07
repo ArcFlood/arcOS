@@ -310,7 +310,7 @@ function GridModule({
               ×
             </button>
             {isTerminal && closePromptOpen && (
-              <div className="absolute right-0 top-full z-20 mt-1 w-44 rounded-md border border-border bg-[#10151b] p-1 shadow-xl">
+              <div data-keyboard-menu="true" className="absolute right-0 top-full z-20 mt-1 w-44 rounded-md border border-border bg-[#10151b] p-1 shadow-xl">
                 <ActionMenuButton
                   ref={(element) => { closeMenuItemsRef.current[0] = element }}
                   label="Save"

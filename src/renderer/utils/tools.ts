@@ -12,6 +12,8 @@
  *   - category       — grouping for display
  */
 
+import type { PermissionPolicy } from '../stores/types'
+
 export type ArcToolPermission = 'none' | 'read' | 'write' | 'execute' | 'network'
 export type ArcToolSource = 'builtin' | 'mcp' | 'plugin'
 export type ArcToolCategory = 'filesystem' | 'memory' | 'ai' | 'system' | 'fabric' | 'runtime'
@@ -21,9 +23,16 @@ export interface ArcTool {
   name: string
   description: string
   permissions: ArcToolPermission[]
+  requiredPolicy?: PermissionPolicy
   active: boolean
   source: ArcToolSource
   category: ArcToolCategory
+}
+
+export function requiredPolicyForPermissions(permissions: ArcToolPermission[]): PermissionPolicy {
+  if (permissions.includes('execute')) return 'unrestricted'
+  if (permissions.includes('write')) return 'workspace-only'
+  return 'readonly'
 }
 
 // ── Built-in tool definitions ─────────────────────────────────────
@@ -238,7 +247,10 @@ export const BUILTIN_TOOLS: ArcTool[] = [
 export function getToolRegistry(extras: ArcTool[] = []): ArcTool[] {
   const seen = new Set(BUILTIN_TOOLS.map((t) => t.id))
   const deduped = extras.filter((t) => !seen.has(t.id))
-  return [...BUILTIN_TOOLS, ...deduped]
+  return [...BUILTIN_TOOLS, ...deduped].map((tool) => ({
+    ...tool,
+    requiredPolicy: tool.requiredPolicy ?? requiredPolicyForPermissions(tool.permissions),
+  }))
 }
 
 /** Tools grouped by category for display purposes. */

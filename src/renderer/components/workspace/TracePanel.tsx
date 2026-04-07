@@ -12,13 +12,19 @@ const LEVEL_STYLES = {
 
 type Verbosity = 'minimal' | 'standard' | 'detailed' | 'debug'
 
+const VERBOSITY_OPTIONS: Array<{ value: Verbosity; label: string }> = [
+  { value: 'minimal', label: 'Minimal — successes, warnings, and errors' },
+  { value: 'standard', label: 'Standard — useful checkpoints, less chat noise' },
+  { value: 'detailed', label: 'Detailed — more service and orchestration activity' },
+  { value: 'debug', label: 'Debug — every in-memory trace entry' },
+]
+
 export default function TracePanel() {
   const entries = useTraceStore((s) => s.entries)
   const clearEntries = useTraceStore((s) => s.clearEntries)
   const executionSummary = useTraceStore((s) => s.executionSummary)
   const showPanel = useWorkspaceStore((s) => s.showPanel)
   const [verbosity, setVerbosity] = useState<Verbosity>('standard')
-  const [showHelp, setShowHelp] = useState(false)
   const summary = executionSummary()
 
   const filteredEntries = entries.filter((entry) => {
@@ -36,32 +42,29 @@ export default function TracePanel() {
 
   return (
     <div className="space-y-4 p-4">
-      <div className="flex items-center justify-between">
+      <div className="space-y-3">
         <div>
           <p className="arcos-kicker mb-1">Observability</p>
           <p className="text-sm font-semibold text-text">Transparency Feed</p>
-          <p className="text-xs text-text-muted">Live request lifecycle, service actions, and routing checkpoints.</p>
+          <p className="text-xs text-text-muted">
+            Live request lifecycle, service actions, and routing checkpoints. Current Phase is the stage ARCOS believes the active request is in. Lifecycle is the current state, such as idle, routing, tool running, model dispatch, completed, or degraded.
+          </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="space-y-2">
           <select
             value={verbosity}
             onChange={(event) => setVerbosity(event.target.value as Verbosity)}
-            className="arcos-input rounded-md px-2 py-1 text-xs"
+            className="arcos-input w-full rounded-md px-2 py-1 text-xs"
+            title="Choose how much of the Transparency feed to show."
           >
-            <option value="minimal">Minimal</option>
-            <option value="standard">Standard</option>
-            <option value="detailed">Detailed</option>
-            <option value="debug">Debug</option>
+            {VERBOSITY_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
           </select>
           <button
-            onClick={() => setShowHelp((value) => !value)}
-            className="arcos-action rounded-md px-2.5 py-1 text-xs"
-          >
-            {showHelp ? 'Hide Guide' : 'How To Read'}
-          </button>
-          <button
             onClick={clearEntries}
-            className="arcos-action rounded-md px-2.5 py-1 text-xs"
+            title="Clears the in-memory Transparency feed. It does not erase persisted History, routing logs, or saved learnings."
+            className="arcos-action w-full rounded-md px-2.5 py-1 text-xs"
           >
             Reset
           </button>
@@ -69,22 +72,6 @@ export default function TracePanel() {
       </div>
 
       <div className="space-y-2">
-        {showHelp && (
-          <div className="rounded-xl border border-border bg-[#12161b] px-3 py-3">
-            <p className="arcos-kicker mb-2">How To Read Transparency</p>
-            <div className="space-y-2 text-xs leading-5 text-text-muted">
-              <p><span className="text-text">Minimal:</span> only successes, warnings, and errors.</p>
-              <p><span className="text-text">Standard:</span> the normal live feed with most useful checkpoints and fewer low-value chat infos.</p>
-              <p><span className="text-text">Detailed:</span> more stage activity, including additional service and orchestration detail.</p>
-              <p><span className="text-text">Debug:</span> everything ARCOS recorded for the current in-memory trace.</p>
-              <p><span className="text-text">Reset:</span> clears the in-memory Transparency feed. It does not erase persisted History, routing logs, or saved learnings.</p>
-              <p><span className="text-text">Current Phase:</span> the stage ARCOS believes the active request is currently in.</p>
-              <p><span className="text-text">Lifecycle:</span> the current request state, such as idle, routing, tool running, model dispatch, completed, or degraded.</p>
-              <p><span className="text-text">Transparency vs Execution:</span> Transparency is the live observability feed; Execution is the ordered timeline view of the same underlying chain events.</p>
-            </div>
-          </div>
-        )}
-
         <div className="rounded-xl border border-border bg-[#12161b] px-3 py-3">
           <p className="arcos-kicker mb-2">Execution Summary</p>
           <div className="grid gap-3 sm:grid-cols-2">

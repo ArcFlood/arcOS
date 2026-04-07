@@ -377,7 +377,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   createTerminalInFirstAvailableSlot: () => {
     const layout = get().layout
     const panelDef = WORKSPACE_PANELS.find((panel) => panel.id === 'chat')
-    const width = panelDef?.defaultSize?.width ?? 2
+    const width = panelDef?.defaultSize?.width ?? 1
     const height = panelDef?.defaultSize?.height ?? 2
     const target = firstFitForSize(layout, width, height)
     if (!target) {

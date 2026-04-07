@@ -11,9 +11,86 @@ import StartupSequence from './StartupSequence'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useWorkspaceStore } from '../stores/workspaceStore'
+import { useTraceStore } from '../stores/traceStore'
+import { WorkspacePanelId } from '../workspace/types'
 import useAppBootstrap from '../hooks/useAppBootstrap'
 
 const ARCOS_TOTAL_APP_SECONDS_KEY = 'arcos-total-app-seconds'
+
+function matchesModuleShortcut(event: KeyboardEvent, shortcutId?: string): boolean {
+  if (!shortcutId || shortcutId === 'none') return false
+  const parts = shortcutId.split('+')
+  const key = parts[parts.length - 1]
+  if (!key) return false
+  const wantsMod = parts.includes('mod')
+  const wantsAlt = parts.includes('alt')
+  const wantsShift = parts.includes('shift')
+  return (
+    (wantsMod ? event.metaKey || event.ctrlKey : !event.metaKey && !event.ctrlKey) &&
+    event.altKey === wantsAlt &&
+    event.shiftKey === wantsShift &&
+    event.key.toLowerCase() === key
+  )
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  const tag = target.tagName.toLowerCase()
+  return tag === 'input' || tag === 'textarea' || tag === 'select' || target.isContentEditable || Boolean(target.closest('[data-keyboard-menu="true"]'))
+}
+
+function getKeyboardFocusableElements(): HTMLElement[] {
+  return Array.from(document.querySelectorAll<HTMLElement>(
+    'button:not(:disabled), [role="button"]:not([aria-disabled="true"]), a[href], input:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
+  )).filter((element) => {
+    const rect = element.getBoundingClientRect()
+    return (
+      rect.width > 0 &&
+      rect.height > 0 &&
+      window.getComputedStyle(element).visibility !== 'hidden' &&
+      !element.closest('[data-keyboard-menu="true"]')
+    )
+  })
+}
+
+function focusNearestElement(direction: 'up' | 'down' | 'left' | 'right'): boolean {
+  const current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  const focusable = getKeyboardFocusableElements()
+  if (focusable.length === 0) return false
+  if (!current || !focusable.includes(current)) {
+    focusable[0]?.focus()
+    return true
+  }
+
+  const currentRect = current.getBoundingClientRect()
+  const currentX = currentRect.left + currentRect.width / 2
+  const currentY = currentRect.top + currentRect.height / 2
+  const candidates = focusable
+    .filter((element) => element !== current)
+    .map((element) => {
+      const rect = element.getBoundingClientRect()
+      const x = rect.left + rect.width / 2
+      const y = rect.top + rect.height / 2
+      const dx = x - currentX
+      const dy = y - currentY
+      const inDirection =
+        direction === 'right' ? dx > 4 :
+        direction === 'left' ? dx < -4 :
+        direction === 'down' ? dy > 4 :
+        dy < -4
+      if (!inDirection) return null
+      const primary = direction === 'left' || direction === 'right' ? Math.abs(dx) : Math.abs(dy)
+      const secondary = direction === 'left' || direction === 'right' ? Math.abs(dy) : Math.abs(dx)
+      return { element, score: primary * 2 + secondary }
+    })
+    .filter((entry): entry is { element: HTMLElement; score: number } => Boolean(entry))
+    .sort((a, b) => a.score - b.score)
+
+  const next = candidates[0]?.element
+  if (!next) return false
+  next.focus()
+  return true
+}
 
 function addAppTime(seconds: number) {
   const current = Number.parseInt(localStorage.getItem(ARCOS_TOTAL_APP_SECONDS_KEY) ?? '0', 10)
@@ -33,7 +110,12 @@ export default function Layout() {
     title: module.title,
   })))
   const createTerminalInFirstAvailableSlot = useWorkspaceStore((s) => s.createTerminalInFirstAvailableSlot)
+  const layout = useWorkspaceStore((s) => s.layout)
+  const showPanel = useWorkspaceStore((s) => s.showPanel)
+  const hidePanel = useWorkspaceStore((s) => s.hidePanel)
   const handleDetachedWindowClosed = useWorkspaceStore((s) => s.handleDetachedWindowClosed)
+  const appendTraceEntry = useTraceStore((s) => s.appendEntry)
+  const moduleShortcuts = useSettingsStore((s) => s.settings.moduleShortcuts)
 
   const [logOpen, setLogOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -108,19 +190,30 @@ export default function Layout() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const meta = e.metaKey || e.ctrlKey
-      if (meta && e.key === 'k') { e.preventDefault(); createConversation(); return }
+      for (const [panelId, shortcutId] of Object.entries(moduleShortcuts) as Array<[WorkspacePanelId, string]>) {
+        if (panelId === 'chat') continue
+        if (matchesModuleShortcut(e, shortcutId)) {
+          e.preventDefault()
+          const isOpen = layout.modules.some((module) => module.panelId === panelId)
+          if (isOpen) hidePanel(panelId)
+          else showPanel(panelId)
+          return
+        }
+      }
+
+      if (meta && e.key.toLowerCase() === 'k') { e.preventDefault(); createConversation(); return }
       if (meta && e.key.toLowerCase() === 't') {
         e.preventDefault()
         const result = createTerminalInFirstAvailableSlot()
         if (!result.success) {
-          window.alert('No 2x2 space is available. Make a 2x2 opening in the grid, then try again.')
+          window.alert('No 1x2 space is available. Make a 1x2 opening in the grid, then try again.')
         }
         return
       }
       if (meta && e.key === ',') { e.preventDefault(); settingsPanelOpen ? closeSettings() : openSettings(); return }
-      if (meta && e.shiftKey && e.key === 'L') { e.preventDefault(); setLogOpen((v) => !v); return }
-      if (meta && e.shiftKey && e.key === 'H') { e.preventDefault(); setHistoryOpen((v) => !v); return }
-      if (meta && e.shiftKey && e.key === 'M') { e.preventDefault(); setMemoryOpen((v) => !v); return }
+      if (meta && e.shiftKey && e.key.toLowerCase() === 'l') { e.preventDefault(); setLogOpen((v) => !v); return }
+      if (meta && e.shiftKey && e.key.toLowerCase() === 'h') { e.preventDefault(); setHistoryOpen((v) => !v); return }
+      if (meta && e.shiftKey && e.key.toLowerCase() === 'm') { e.preventDefault(); setMemoryOpen((v) => !v); return }
       if (e.key === 'Escape') {
         if (memoryOpen) { setMemoryOpen(false); return }
         if (logOpen) { setLogOpen(false); return }
@@ -130,7 +223,22 @@ export default function Layout() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [settingsPanelOpen, logOpen, historyOpen, memoryOpen, openSettings, closeSettings, createConversation, createTerminalInFirstAvailableSlot])
+  }, [settingsPanelOpen, logOpen, historyOpen, memoryOpen, openSettings, closeSettings, createConversation, createTerminalInFirstAvailableSlot, moduleShortcuts, layout.modules, showPanel, hidePanel])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return
+      if (isEditableTarget(event.target)) return
+      const direction =
+        event.key === 'ArrowUp' ? 'up' :
+        event.key === 'ArrowDown' ? 'down' :
+        event.key === 'ArrowLeft' ? 'left' :
+        'right'
+      if (focusNearestElement(direction)) event.preventDefault()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   // ── Native menu event listeners ───────────────────────────────
   useEffect(() => {
@@ -155,6 +263,23 @@ export default function Layout() {
     })
     return () => cleanup?.()
   }, [handleDetachedWindowClosed])
+
+  useEffect(() => {
+    const cleanup = window.electron.onPermissionEvent?.((payload) => {
+      appendTraceEntry({
+        source: 'system',
+        level: payload.outcome === 'approved' ? 'success' : 'warn',
+        title: payload.outcome === 'approved' ? 'Permission approved' : 'Permission blocked',
+        detail: `${payload.action}. ${payload.reason}${payload.targetPath ? ` Target: ${payload.targetPath}` : ''}`,
+        stage: 'permission enforcement',
+        executionState: payload.outcome === 'approved' ? 'service_action' : 'failed',
+        failureType: payload.outcome === 'approved' ? undefined : 'permission',
+        relatedPanels: ['transparency'],
+        entityLabel: payload.activePolicy,
+      })
+    })
+    return () => cleanup?.()
+  }, [appendTraceEntry])
 
   return (
     <div className="flex h-screen overflow-hidden bg-background text-text">

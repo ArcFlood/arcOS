@@ -74,6 +74,8 @@ const activeStreams = new Map<string, AbortController>()
 let mainWindow: BrowserWindow | null = null
 const detachedPanelWindows = new Map<string, BrowserWindow>()
 const suppressedDetachedPanelNotifications = new Set<string>()
+const APP_SETTINGS_DB_KEY = 'app-settings'
+type PermissionPolicy = 'readonly' | 'workspace-only' | 'ask' | 'unrestricted'
 
 // ── Fix PATH for macOS .app bundles ──────────────────────────────
 // When launched via double-click, Electron doesn't inherit the user's shell PATH.
@@ -94,6 +96,169 @@ if (process.platform === 'darwin') {
   const existing = new Set(current.split(':').filter(Boolean))
   const prepend = extraPaths.filter((p) => !existing.has(p))
   process.env.PATH = [...prepend, current].join(':')
+}
+
+function getPermissionPolicy(): PermissionPolicy {
+  try {
+    const raw = getSetting(APP_SETTINGS_DB_KEY)
+    if (!raw) return 'workspace-only'
+    const parsed = JSON.parse(raw) as { permissionPolicy?: unknown }
+    return parsed.permissionPolicy === 'readonly' ||
+      parsed.permissionPolicy === 'workspace-only' ||
+      parsed.permissionPolicy === 'ask' ||
+      parsed.permissionPolicy === 'unrestricted'
+      ? parsed.permissionPolicy
+      : 'workspace-only'
+  } catch {
+    return 'workspace-only'
+  }
+}
+
+function notifyPermissionEvent(payload: {
+  action: string
+  outcome: 'approved' | 'denied'
+  activePolicy: PermissionPolicy
+  requiredPolicy: PermissionPolicy
+  reason: string
+  targetPath?: string
+}) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('permission:event', {
+      ...payload,
+      timestamp: Date.now(),
+    })
+  }
+}
+
+function permissionDenied(
+  action: string,
+  policy = getPermissionPolicy(),
+  requiredPolicy: PermissionPolicy = 'workspace-only',
+  reason?: string,
+  targetPath?: string,
+) {
+  const detail = reason ?? `Permission policy "${policy}" blocked ${action}.`
+  const error = `${detail} Change Settings -> General -> Permission Policy if this action should be allowed.`
+  appendLog('warn', 'main', error, undefined, 'trust_gate')
+  notifyPermissionEvent({
+    action,
+    outcome: 'denied',
+    activePolicy: policy,
+    requiredPolicy,
+    reason: detail,
+    targetPath,
+  })
+  return {
+    success: false,
+    permissionDenied: true,
+    action,
+    activePolicy: policy,
+    requiredPolicy,
+    reason: detail,
+    targetPath,
+    error,
+  }
+}
+
+function resolvePermissionRoots(): string[] {
+  const env = parseMemoryEnv()
+  return [
+    app.getAppPath(),
+    app.getPath('userData'),
+    path.join(os.homedir(), 'Documents', 'AI Project'),
+    env['VAULT_PATH'] ?? '',
+  ]
+    .filter(Boolean)
+    .map((root) => path.resolve(root))
+}
+
+function isPathInside(parent: string, candidate: string): boolean {
+  const relative = path.relative(parent, candidate)
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+}
+
+function canonicalPathAllowMissing(targetPath: string): string {
+  try {
+    return fs.realpathSync.native(targetPath)
+  } catch {
+    const parent = path.dirname(targetPath)
+    const base = path.basename(targetPath)
+    try {
+      return path.join(fs.realpathSync.native(parent), base)
+    } catch {
+      return path.resolve(targetPath)
+    }
+  }
+}
+
+function canonicalRoots(): string[] {
+  return resolvePermissionRoots().map((root) => {
+    try {
+      return fs.realpathSync.native(root)
+    } catch {
+      return root
+    }
+  })
+}
+
+function requestPermissionApproval(
+  action: string,
+  policy: PermissionPolicy,
+  requiredPolicy: PermissionPolicy,
+  targetPath?: string,
+): boolean {
+  if (policy !== 'ask') return false
+  const result = dialog.showMessageBoxSync(mainWindow ?? undefined, {
+    type: 'warning',
+    buttons: ['Allow Once', 'Deny'],
+    defaultId: 1,
+    cancelId: 1,
+    title: 'ARCOS Permission Approval',
+    message: `Allow ARCOS to ${action}?`,
+    detail: [
+      `Active policy: ${policy}`,
+      `Required policy: ${requiredPolicy}`,
+      targetPath ? `Target: ${targetPath}` : null,
+    ].filter(Boolean).join('\n'),
+  })
+  const approved = result === 0
+  notifyPermissionEvent({
+    action,
+    outcome: approved ? 'approved' : 'denied',
+    activePolicy: policy,
+    requiredPolicy,
+    reason: approved ? 'User approved this action once.' : 'User denied this action.',
+    targetPath,
+  })
+  return approved
+}
+
+function enforceWritePermission(action: string, targetPath?: string) {
+  const policy = getPermissionPolicy()
+  if (policy === 'unrestricted') return null
+  if (policy === 'readonly') {
+    return permissionDenied(action, policy, 'workspace-only', `Writes are not allowed in ${policy} mode.`, targetPath)
+  }
+  if (policy === 'ask') {
+    return requestPermissionApproval(action, policy, targetPath ? 'unrestricted' : 'workspace-only', targetPath)
+      ? null
+      : permissionDenied(action, policy, targetPath ? 'unrestricted' : 'workspace-only', 'User denied this action.', targetPath)
+  }
+  if (!targetPath) return null
+  const resolved = canonicalPathAllowMissing(targetPath)
+  const allowed = canonicalRoots().some((root) => isPathInside(root, resolved))
+  return allowed ? null : permissionDenied(`${action} outside approved workspace roots`, policy, 'unrestricted', `Path is outside approved workspace roots: ${resolved}`, targetPath)
+}
+
+function enforceExecutePermission(action: string) {
+  const policy = getPermissionPolicy()
+  if (policy === 'unrestricted' || policy === 'workspace-only') return null
+  if (policy === 'ask') {
+    return requestPermissionApproval(action, policy, 'workspace-only')
+      ? null
+      : permissionDenied(action, policy, 'workspace-only', 'User denied this action.')
+  }
+  return permissionDenied(action, policy, 'workspace-only', `Execute actions are not allowed in ${policy} mode.`)
 }
 
 async function waitForVite(url: string, timeoutMs = 15000): Promise<void> {
@@ -130,7 +295,8 @@ function createWindow(): BrowserWindow {
     minWidth: 900,
     minHeight: 600,
     titleBarStyle: 'hiddenInset',
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#00000000',
+    transparent: true,
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -171,7 +337,8 @@ function createDetachedPanelWindow(moduleId: string, panelId: string, title?: st
     minWidth: 720,
     minHeight: 480,
     titleBarStyle: 'hiddenInset',
-    backgroundColor: '#12161c',
+    backgroundColor: '#00000000',
+    transparent: true,
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -1704,6 +1871,8 @@ ipcMain.handle('service-status', async (_event, name: string) => {
 
 ipcMain.handle('service-start', (_event, name: string) => {
   try {
+    const denied = enforceExecutePermission(`starting service ${name}`)
+    if (denied) return denied
     if (name === 'ollama') {
       const p = spawn('ollama', ['serve'], {
         detached: true,
@@ -1746,6 +1915,8 @@ ipcMain.handle('service-start', (_event, name: string) => {
 
 ipcMain.handle('service-stop', (_event, name: string) => {
   try {
+    const denied = enforceExecutePermission(`stopping service ${name}`)
+    if (denied) return denied
     if (serviceProcesses[name]) { serviceProcesses[name].kill(); delete serviceProcesses[name] }
     if (name === 'ollama') {
       try { execSync('pkill -x ollama') } catch {
@@ -1880,6 +2051,8 @@ ipcMain.handle('save-conversation-md', async (_event, params: {
   })
 
   if (result.canceled || !result.filePath) return { success: false }
+  const denied = enforceWritePermission('saving conversation markdown', result.filePath)
+  if (denied) return denied
 
   try {
     fs.writeFileSync(result.filePath, content, 'utf8')
@@ -1900,6 +2073,8 @@ ipcMain.handle('layout:export', async (_event, params: LayoutTransferPayload) =>
   })
 
   if (result.canceled || !result.filePath) return { success: false }
+  const denied = enforceWritePermission('exporting layout', result.filePath)
+  if (denied) return denied
 
   try {
     fs.writeFileSync(result.filePath, JSON.stringify(params, null, 2), 'utf8')
@@ -1941,6 +2116,8 @@ ipcMain.handle('ollama-pull-model', async (event, params: {
   streamId: string
   modelName: string
 }) => {
+  const denied = enforceExecutePermission(`pulling Ollama model ${params.modelName}`)
+  if (denied) return denied
   const { streamId, modelName } = params
   const controller = new AbortController()
   activeStreams.set(streamId, controller)
@@ -2010,6 +2187,8 @@ ipcMain.handle('ollama-pull-model', async (event, params: {
 /** Delete an installed Ollama model */
 ipcMain.handle('ollama-delete-model', async (_event, modelName: string) => {
   try {
+    const denied = enforceExecutePermission(`deleting Ollama model ${modelName}`)
+    if (denied) return denied
     const res = await fetch('http://localhost:11434/api/delete', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
@@ -2269,6 +2448,8 @@ ipcMain.handle('memory-query', async (_event, params: {
 
 ipcMain.handle('memory-ingest', async (_event, force: boolean = false) => {
   try {
+    const denied = enforceExecutePermission('running ARC-Memory ingest')
+    if (denied) return denied
     const res = await fetch('http://localhost:8082/ingest', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2339,6 +2520,8 @@ ipcMain.handle('memory:vault-write', (_event, params: VaultWriteParams) => {
     const env = parseMemoryEnv()
     const vaultPath = env['VAULT_PATH'] ?? ''
     if (!vaultPath) return { success: false, error: 'VAULT_PATH not configured in memory-service/.env' }
+    const denied = enforceWritePermission('writing conversation to ArcVault', vaultPath)
+    if (denied) return denied
 
     const date = new Date(params.createdAt)
     const dateStr = date.toISOString().slice(0, 10)
@@ -2391,6 +2574,8 @@ ipcMain.handle('plugins:list', () => {
 })
 
 ipcMain.handle('plugins:install-file', async () => {
+  const denied = enforceWritePermission('installing a plugin')
+  if (denied) return denied
   const result = await dialog.showOpenDialog({
     title: 'Install Plugin',
     filters: [{ name: 'Plugin Manifest', extensions: ['json'] }],
@@ -2509,6 +2694,8 @@ ipcMain.handle('session:read', (_event, filePath: string) => {
 ipcMain.handle('session:write-summary', async (_event, params: {
   data: SessionSummaryData
 }) => {
+  const denied = enforceWritePermission('writing session summary')
+  if (denied) return denied
   const { data } = params
   const apiKey = getApiKeyFromDb()
   let topics = ''
@@ -2563,6 +2750,8 @@ ipcMain.handle('session:should-show-digest', (_event, lastDigestDate: string | n
 // ── IPC: Learnings / Bookmarks (FR-11) ───────────────────────────
 
 ipcMain.handle('learnings:save', (_event, entry: LearningEntry) => {
+  const denied = enforceWritePermission('saving learning entry')
+  if (denied) return denied
   try { return { success: true, filePath: saveLearning(entry) } }
   catch (e) { return { success: false, error: String(e) } }
 })
@@ -2586,6 +2775,8 @@ ipcMain.handle('learnings:open-dir', () => {
 // ── IPC: Spending CSV Export (FR-11) ─────────────────────────────
 
 ipcMain.handle('spending:export-csv', (_event, params: { records: SpendingCsvRow[]; month?: string }) => {
+  const denied = enforceWritePermission('exporting spending CSV')
+  if (denied) return denied
   try {
     const filePath = exportSpendingCsv(params.records, params.month)
     shell.openPath(path.dirname(filePath))

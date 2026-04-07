@@ -2530,6 +2530,99 @@
       "notes": [
         "The todo item was renamed from moving Error Log to Settings to moving it into Dev Tools per the revised instruction."
       ]
+    },
+    {
+      "entry_id": "codex-2026-04-06-106",
+      "date": "2026-04-06",
+      "agent": "Codex",
+      "task_title": "Build Terminal Message Queue and Task Model Assignments",
+      "summary": "Added a serialized Terminal message queue so follow-up sends wait behind the active generation, and added General/Coding local model assignments to Routing.",
+      "files_touched": [
+        "arcos/src/renderer/components/MessageInput.tsx",
+        "arcos/src/renderer/components/workspace/RoutingPanel.tsx",
+        "arcos/src/renderer/stores/messageQueueStore.ts",
+        "arcos/src/renderer/stores/settingsStore.ts",
+        "arcos/src/renderer/stores/types.ts",
+        "arcos/src/renderer/utils/routing.ts",
+        "Todo_List.md"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/components/MessageInput.tsx src/renderer/components/workspace/RoutingPanel.tsx src/renderer/stores/messageQueueStore.ts src/renderer/stores/settingsStore.ts src/renderer/stores/types.ts src/renderer/utils/routing.ts"
+      ],
+      "notes": [
+        "Local model execution remains serialized by default to avoid Ollama model contention."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-06-107",
+      "date": "2026-04-06",
+      "agent": "Codex",
+      "task_title": "Add Permission Enforcement Layer",
+      "summary": "Added a Settings permission policy and enforced it on ARCOS write/export paths plus service/model execution controls.",
+      "files_touched": [
+        "arcos/src/main/main.ts",
+        "arcos/src/renderer/components/settings/SettingsPanel.tsx",
+        "arcos/src/renderer/stores/settingsStore.ts",
+        "arcos/src/renderer/stores/types.ts",
+        "Todo_List.md"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/main/main.ts src/renderer/components/settings/SettingsPanel.tsx src/renderer/stores/settingsStore.ts src/renderer/stores/types.ts"
+      ],
+      "notes": [
+        "Default policy is workspace-only. Read-only blocks write-back/export and explicit service/model execution controls."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-06-108",
+      "date": "2026-04-06",
+      "agent": "Codex",
+      "task_title": "Harden Permission Layer from claw-code",
+      "summary": "Added Ask Each Time permission mode, structured permission denial payloads, canonical path checks, permission events in Transparency, and tool-level required policy metadata.",
+      "files_touched": [
+        "arcos/src/main/main.ts",
+        "arcos/src/preload/preload.ts",
+        "arcos/src/renderer/electron.d.ts",
+        "arcos/src/renderer/components/Layout.tsx",
+        "arcos/src/renderer/components/settings/SettingsPanel.tsx",
+        "arcos/src/renderer/stores/types.ts",
+        "arcos/src/renderer/utils/tools.ts"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/main/main.ts src/preload/preload.ts src/renderer/electron.d.ts src/renderer/components/Layout.tsx src/renderer/components/settings/SettingsPanel.tsx src/renderer/stores/types.ts src/renderer/utils/tools.ts",
+        "npm run build:dir"
+      ],
+      "notes": [
+        "Borrowed concepts from claw-code permission policy/enforcer without importing its Rust runtime."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-06-109",
+      "date": "2026-04-06",
+      "agent": "Codex",
+      "task_title": "Expand ARCOS Theme Library",
+      "summary": "Added four curated appearance themes to the settings theme selector and CSS variable theme system.",
+      "files_touched": [
+        "arcos/src/renderer/index.css",
+        "arcos/src/renderer/components/settings/SettingsPanel.tsx",
+        "arcos/src/renderer/stores/types.ts",
+        "Todo_List.md"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/index.css src/renderer/components/settings/SettingsPanel.tsx src/renderer/stores/types.ts",
+        "git diff --check"
+      ],
+      "notes": [
+        "New themes: Deep Sea, Solar Forge, Paper Trail, and Arctic Glass."
+      ]
     }
   ]
 }

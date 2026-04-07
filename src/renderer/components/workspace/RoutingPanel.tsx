@@ -4,6 +4,7 @@ import { useCostStore } from '../../stores/costStore'
 import { useServiceStore } from '../../stores/serviceStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useTraceStore } from '../../stores/traceStore'
+import type { TaskArea } from '../../stores/types'
 
 type RoutingEntry = {
   timestamp: string
@@ -18,9 +19,12 @@ type RoutingEntry = {
 
 export default function RoutingPanel() {
   const settings = useSettingsStore((s) => s.settings)
+  const updateSettings = useSettingsStore((s) => s.updateSettings)
   const activeConversation = useConversationStore((s) => s.activeConversation())
   useCostStore((s) => s.getSummary())
   const ollamaRunning = useServiceStore((s) => s.getService('ollama')?.running ?? false)
+  const availableModels = useServiceStore((s) => s.availableOllamaModels)
+  const fetchOllamaModels = useServiceStore((s) => s.fetchOllamaModels)
   const executionSummary = useTraceStore((s) => s.executionSummary)
   const [entries, setEntries] = useState<RoutingEntry[]>([])
   const [hasClaudeKey, setHasClaudeKey] = useState(false)
@@ -47,7 +51,22 @@ export default function RoutingPanel() {
   useEffect(() => {
     window.electron.apiKeyHas().then((result) => setHasClaudeKey(result.hasKey)).catch(() => setHasClaudeKey(false))
     window.electron.voiceStatus().then(setVoiceStatus).catch(() => setVoiceStatus(null))
-  }, [])
+    fetchOllamaModels().catch(() => {})
+  }, [fetchOllamaModels])
+
+  const taskAreas: Array<{ id: TaskArea; label: string; description: string }> = [
+    { id: 'general', label: 'General', description: 'Default local model for broad chat, planning, and lightweight analysis.' },
+    { id: 'coding', label: 'Coding', description: 'Default local model when ARCOS detects code, debugging, refactors, or stack traces.' },
+  ]
+
+  const updateModelAssignment = (taskArea: TaskArea, model: string) => {
+    updateSettings({
+      modelAssignments: {
+        ...settings.modelAssignments,
+        [taskArea]: model,
+      },
+    })
+  }
 
   return (
     <div className="space-y-4 p-4">
@@ -70,6 +89,39 @@ export default function RoutingPanel() {
           <Stat label="Claude" value={hasClaudeKey ? 'Connected' : 'Not Connected'} />
           <Stat label="Ollama" value={ollamaRunning ? 'Connected' : 'Offline'} />
           <Stat label="ElevenLabs" value={voiceStatus?.apiKeyConfigured && voiceStatus.defaultVoiceId ? 'Ready' : 'Not Connected'} />
+        </div>
+      </section>
+
+      <section className="arcos-subpanel rounded-xl p-3">
+        <p className="arcos-kicker">Task Model Assignments</p>
+        <p className="mt-2 text-[11px] leading-5 text-text-muted">
+          ARCOS screens each prompt as General or Coding before local dispatch. These assignments choose which installed Ollama model is used for that task area.
+        </p>
+        <div className="mt-3 space-y-3">
+          {taskAreas.map((taskArea) => (
+            <div key={taskArea.id} className="rounded-lg border border-border bg-[#12161b] px-3 py-2.5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-text">{taskArea.label}</p>
+                  <p className="mt-1 text-[11px] leading-5 text-text-muted">{taskArea.description}</p>
+                </div>
+                <select
+                  value={settings.modelAssignments[taskArea.id]}
+                  onChange={(event) => updateModelAssignment(taskArea.id, event.target.value)}
+                  disabled={availableModels.length === 0}
+                  className="min-w-[180px] rounded-lg border border-border bg-surface-elevated px-3 py-2 text-xs text-text outline-none transition-colors focus:border-accent disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {availableModels.length === 0 ? (
+                    <option value={settings.modelAssignments[taskArea.id]}>No local models detected</option>
+                  ) : (
+                    availableModels.map((model) => (
+                      <option key={model} value={model}>{model}</option>
+                    ))
+                  )}
+                </select>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 

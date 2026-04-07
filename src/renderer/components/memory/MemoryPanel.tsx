@@ -100,7 +100,7 @@ export default function MemoryPanel({ open, onClose }: Props) {
             <input
               ref={inputRef}
               type="text"
-              className="input input-bordered input-sm flex-1 bg-base-100 text-sm"
+              className="input input-bordered input-sm flex-1 bg-white text-sm text-slate-950 placeholder:text-slate-500"
               placeholder="Search past conversations..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}

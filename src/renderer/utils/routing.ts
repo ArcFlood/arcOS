@@ -1,8 +1,18 @@
-import { ModelTier, RoutingAggressiveness, RoutingMode } from '../stores/types'
+import { ModelTier, RoutingAggressiveness, RoutingMode, TaskArea } from '../stores/types'
 
 export type RoutingDecision = {
   tier: ModelTier
   reason: string
+}
+
+export function classifyTaskArea(text: string): TaskArea {
+  const normalized = text.toLowerCase()
+  const hasCodeSignal = /```|function |const |let |class |import |export |def |interface |type |tsx|jsx|typescript|javascript|python|react|component|hook|lint|tsc|bug|debug|refactor|stack trace|compile|runtime error/.test(normalized)
+  return hasCodeSignal ? 'coding' : 'general'
+}
+
+export function modelForTaskArea(assignments: Partial<Record<TaskArea, string>> | undefined, taskArea: TaskArea, fallbackModel: string): string {
+  return assignments?.[taskArea]?.trim() || fallbackModel
 }
 
 export function routeQuery(
@@ -56,4 +66,3 @@ export const TIER_DISPLAY_LABELS: Record<ModelTier, string> = {
   'arc-sonnet': '🧠 A.R.C.',
   'arc-opus': '🔮 Opus',
 }
-

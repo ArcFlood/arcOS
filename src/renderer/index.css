@@ -58,6 +58,62 @@
     --arcos-text-dim: #4e8758;
   }
 
+  :root[data-theme='deep-sea'] {
+    --arcos-bg-0: #071015;
+    --arcos-bg-1: #0a1820;
+    --arcos-bg-2: #102431;
+    --arcos-bg-3: #163343;
+    --arcos-bg-4: #20485c;
+    --arcos-line: #2b6072;
+    --arcos-line-strong: #3a7d91;
+    --arcos-text-muted: #9fc5cd;
+    --arcos-text-dim: #638d99;
+    --arcos-success: #59c7a5;
+    --arcos-danger: #e1786b;
+  }
+
+  :root[data-theme='solar-forge'] {
+    --arcos-bg-0: #150f0a;
+    --arcos-bg-1: #21160d;
+    --arcos-bg-2: #2c1e12;
+    --arcos-bg-3: #3d2a18;
+    --arcos-bg-4: #50391f;
+    --arcos-line: #6a4b29;
+    --arcos-line-strong: #8b6336;
+    --arcos-text-muted: #d1b487;
+    --arcos-text-dim: #98744e;
+    --arcos-success: #8fc36a;
+    --arcos-danger: #e27454;
+  }
+
+  :root[data-theme='paper-trail'] {
+    --arcos-bg-0: #18150f;
+    --arcos-bg-1: #221e16;
+    --arcos-bg-2: #2c271d;
+    --arcos-bg-3: #393227;
+    --arcos-bg-4: #4a4031;
+    --arcos-line: #635744;
+    --arcos-line-strong: #817158;
+    --arcos-text-muted: #cabb9b;
+    --arcos-text-dim: #95866c;
+    --arcos-success: #86b870;
+    --arcos-danger: #cf705f;
+  }
+
+  :root[data-theme='arctic-glass'] {
+    --arcos-bg-0: #0c1116;
+    --arcos-bg-1: #121a22;
+    --arcos-bg-2: #19242e;
+    --arcos-bg-3: #22313e;
+    --arcos-bg-4: #2d4051;
+    --arcos-line: #3d5364;
+    --arcos-line-strong: #547085;
+    --arcos-text-muted: #b3c2cb;
+    --arcos-text-dim: #7a8d9a;
+    --arcos-success: #79c7b6;
+    --arcos-danger: #d78383;
+  }
+
   * { box-sizing: border-box; }
   html, body, #root { height: 100%; margin: 0; padding: 0; }
   body {
@@ -73,6 +129,10 @@
   }
   /* Allow text selection in chat messages */
   .selectable { user-select: text; }
+  :focus-visible {
+    outline: 2px solid var(--arcos-accent-strong);
+    outline-offset: 2px;
+  }
   /* Custom scrollbar */
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -201,6 +261,36 @@
     border-radius: 2.4rem;
     border: 1px solid rgba(143, 161, 179, 0.18);
     opacity: 0;
+  }
+
+  :root[data-surface='glass'] .arcos-shell {
+    background: linear-gradient(180deg, rgba(20, 24, 29, 0.42) 0%, rgba(16, 19, 24, 0.32) 100%);
+    backdrop-filter: blur(18px) saturate(1.18);
+  }
+
+  :root[data-surface='glass'] .arcos-toolbar,
+  :root[data-surface='glass'] .arcos-panel-head {
+    background: linear-gradient(180deg, rgba(35, 41, 50, 0.36) 0%, rgba(27, 32, 39, 0.28) 100%);
+    backdrop-filter: blur(16px) saturate(1.16);
+  }
+
+  :root[data-surface='glass'] .arcos-panel {
+    background: linear-gradient(180deg, rgba(28, 34, 41, 0.28) 0%, rgba(22, 27, 33, 0.18) 100%);
+    border: 1px solid rgba(183, 196, 208, 0.16);
+    backdrop-filter: blur(18px) saturate(1.14);
+  }
+
+  :root[data-surface='glass'] .arcos-subpanel,
+  :root[data-surface='glass'] .card {
+    background: rgba(15, 18, 23, 0.24);
+    backdrop-filter: blur(14px) saturate(1.12);
+  }
+
+  :root[data-surface='glass'] .arcos-action,
+  :root[data-surface='glass'] .arcos-input,
+  :root[data-surface='glass'] .input-base {
+    background: linear-gradient(180deg, rgba(13, 16, 20, 0.4) 0%, rgba(17, 20, 24, 0.28) 100%);
+    backdrop-filter: blur(10px);
   }
 
   .btn {

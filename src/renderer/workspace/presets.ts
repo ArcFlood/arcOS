@@ -7,7 +7,7 @@ export const WORKSPACE_PANELS: WorkspacePanelDefinition[] = [
     description: 'Terminal tabs for active task threads inside the broader PAI workspace.',
     icon: '',
     defaultSize: {
-      width: 2,
+      width: 1,
       height: 2,
     },
   },

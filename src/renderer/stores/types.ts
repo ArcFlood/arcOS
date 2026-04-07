@@ -1,3 +1,5 @@
+import type { WorkspacePanelId } from '../workspace/types'
+
 // ── Model Types ───────────────────────────────────────────────────
 // 4-tier system per PRD v2:
 //   ollama      → Free local (Qwen 3 14B default)
@@ -147,8 +149,24 @@ export interface LocalModelInfo {
 // ── Settings ──────────────────────────────────────────────────────
 export type RoutingMode = 'auto' | 'ollama' | 'haiku' | 'arc-sonnet' | 'arc-opus'
 export type RoutingAggressiveness = 'cost-first' | 'balanced' | 'quality-first'
-export type AppearanceTheme = 'default' | 'star-wars' | 'lord-of-the-rings' | 'matrix'
+export type AppearanceTheme =
+  | 'default'
+  | 'star-wars'
+  | 'lord-of-the-rings'
+  | 'matrix'
+  | 'deep-sea'
+  | 'solar-forge'
+  | 'paper-trail'
+  | 'arctic-glass'
 export type PaiVoiceSection = 'ANSWER' | 'SUMMARY' | 'ANALYSIS' | 'ACTIONS' | 'RESULTS' | 'STATUS' | 'CAPTURE' | 'NEXT' | 'COMPLETED'
+export type TaskArea = 'general' | 'coding'
+export type PermissionPolicy = 'readonly' | 'workspace-only' | 'ask' | 'unrestricted'
+export type SurfaceTransparency = 'solid' | 'glass'
+
+export interface ModelAssignments {
+  general: string
+  coding: string
+}
 
 export type PluginArchitectureRole = 'prompt-shaper' | 'tool-surface' | 'service-integration' | 'workspace-module'
 export type PluginExecutionBoundary = 'renderer' | 'main' | 'external-service'
@@ -172,10 +190,14 @@ export interface AppSettings {
   appearanceTextColor: string
   appearanceAccentColor: string
   appearanceAccentSecondaryColor: string
+  surfaceTransparency: SurfaceTransparency
   responseTunerIdentity: string
   responseTunerStyle: string
   responseTunerInstructions: string
   voiceReadSections: PaiVoiceSection[]
+  modelAssignments: ModelAssignments
+  permissionPolicy: PermissionPolicy
+  moduleShortcuts: Partial<Record<WorkspacePanelId, string>>
 }
 
 // ── Plugin ────────────────────────────────────────────────────────

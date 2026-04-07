@@ -121,7 +121,7 @@ export default function ChatArea({ moduleId }: ChatAreaProps) {
               <span className="mt-0.5 block text-[11px] text-text-dim">Thread Menu</span>
             </button>
             {threadMenuOpen && (
-              <div className="absolute left-0 top-full z-20 mt-1 max-h-72 w-72 overflow-auto rounded-md border border-border bg-[#10151b] p-1 shadow-xl">
+              <div data-keyboard-menu="true" className="absolute left-0 top-full z-20 mt-1 max-h-72 w-72 overflow-auto rounded-md border border-border bg-[#10151b] p-1 shadow-xl">
                 <button
                   ref={(element) => { threadMenuItemsRef.current[0] = element }}
                   onClick={handleNewConversation}

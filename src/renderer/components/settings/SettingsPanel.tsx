@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useServiceStore } from '../../stores/serviceStore'
@@ -6,7 +6,9 @@ import ApiKeyInput from './ApiKeyInput'
 import ModelManager from '../models/ModelManager'
 import AnalyticsPanel from '../cost/AnalyticsPanel'
 import versionHistory from '../../data/versionHistory.json'
-import type { PaiVoiceSection } from '../../stores/types'
+import type { PaiVoiceSection, PermissionPolicy } from '../../stores/types'
+import { WORKSPACE_PANELS } from '../../workspace/presets'
+import type { WorkspacePanelId } from '../../workspace/types'
 
 type Tab = 'general' | 'response_tuner' | 'appearance' | 'connections' | 'models' | 'analytics' | 'about'
 
@@ -31,6 +33,58 @@ const PAI_VOICE_SECTIONS: Array<{ id: PaiVoiceSection; label: string; descriptio
   { id: 'NEXT', label: 'Next', description: 'Next steps and follow-up guidance.' },
   { id: 'COMPLETED', label: 'Completed', description: 'Completion summary.' },
 ]
+
+const SHORTCUT_ROWS = [
+  ['New Thread', '⌘K'],
+  ['New Terminal', '⌘T'],
+  ['Settings', '⌘,'],
+  ['Error Log', '⌘⇧L'],
+  ['History', '⌘⇧H'],
+  ['Memory', '⌘⇧M'],
+  ['Close current overlay', 'Esc'],
+  ['Send Prompt', 'Enter'],
+  ['New Line', '⇧Enter'],
+  ['Terminal close: Save', '⌘S'],
+  ['Terminal close: Archive', '⌘↩'],
+  ['Terminal close: Don’t Save', '⌘⌫'],
+  ['Menu navigation', '↑ ↓ ← →'],
+  ['Activate focused button', 'Enter'],
+] as const
+
+const SHORTCUT_ASSIGNABLE_PANELS = WORKSPACE_PANELS.filter((panel) => panel.id !== 'chat')
+
+function shortcutFromKeyboardEvent(event: ReactKeyboardEvent<HTMLInputElement>): string | null {
+  const key = event.key.length === 1 ? event.key.toLowerCase() : event.key.toLowerCase().replace(/\s+/g, '')
+  if (['meta', 'control', 'shift', 'alt', 'escape', 'tab'].includes(key)) return null
+  if (!(event.metaKey || event.ctrlKey || event.altKey || event.shiftKey)) return null
+  const parts = [
+    event.metaKey || event.ctrlKey ? 'mod' : null,
+    event.altKey ? 'alt' : null,
+    event.shiftKey ? 'shift' : null,
+    key,
+  ].filter(Boolean)
+  return parts.join('+')
+}
+
+function shortcutLabel(shortcut?: string): string {
+  if (!shortcut || shortcut === 'none') return 'None'
+  return shortcut
+    .split('+')
+    .map((part) => {
+      if (part === 'mod') return '⌘'
+      if (part === 'alt') return '⌥'
+      if (part === 'shift') return '⇧'
+      if (part === 'enter') return '↩'
+      if (part === 'backspace') return '⌫'
+      if (part === 'delete') return '⌦'
+      if (part === 'arrowup') return '↑'
+      if (part === 'arrowdown') return '↓'
+      if (part === 'arrowleft') return '←'
+      if (part === 'arrowright') return '→'
+      return part.toUpperCase()
+    })
+    .join('')
+}
 
 export default function SettingsPanel() {
   const { settings, updateSettings, closeSettingsPanel, resetToDefaults } = useSettingsStore()
@@ -88,6 +142,34 @@ export default function SettingsPanel() {
           .filter((entry) => selected.has(entry)),
       }
     })
+  }
+
+  const assignModuleShortcut = (panelId: WorkspacePanelId, shortcut: string) => {
+    setLocal((current) => {
+      const moduleShortcuts = { ...current.moduleShortcuts }
+      for (const key of Object.keys(moduleShortcuts) as WorkspacePanelId[]) {
+        if (key !== panelId && shortcut !== 'none' && moduleShortcuts[key] === shortcut) {
+          delete moduleShortcuts[key]
+        }
+      }
+      if (shortcut === 'none') {
+        delete moduleShortcuts[panelId]
+      } else {
+        moduleShortcuts[panelId] = shortcut
+      }
+      return { ...current, moduleShortcuts }
+    })
+  }
+
+  const captureModuleShortcut = (panelId: WorkspacePanelId, event: ReactKeyboardEvent<HTMLInputElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (event.key === 'Backspace' || event.key === 'Delete' || event.key === 'Escape') {
+      assignModuleShortcut(panelId, 'none')
+      return
+    }
+    const shortcut = shortcutFromKeyboardEvent(event)
+    if (shortcut) assignModuleShortcut(panelId, shortcut)
   }
 
   return (
@@ -197,12 +279,53 @@ export default function SettingsPanel() {
 
                   <section className="rounded-xl border border-border bg-[#12161b] px-4 py-4">
                     <p className="arcos-kicker mb-3">Keyboard Shortcuts</p>
-                    <div className="space-y-1 font-mono text-xs">
-                      <div className="flex justify-between gap-4"><span>New Thread</span><kbd className="rounded bg-surface-elevated px-1.5 py-0.5 text-text">⌘K</kbd></div>
-                      <div className="flex justify-between gap-4"><span>Settings</span><kbd className="rounded bg-surface-elevated px-1.5 py-0.5 text-text">⌘,</kbd></div>
-                      <div className="flex justify-between gap-4"><span>Close Settings</span><kbd className="rounded bg-surface-elevated px-1.5 py-0.5 text-text">Esc</kbd></div>
-                      <div className="flex justify-between gap-4"><span>Send Prompt</span><kbd className="rounded bg-surface-elevated px-1.5 py-0.5 text-text">Enter</kbd></div>
-                      <div className="flex justify-between gap-4"><span>New Line</span><kbd className="rounded bg-surface-elevated px-1.5 py-0.5 text-text">⇧Enter</kbd></div>
+                    <div className="grid grid-cols-1 gap-2 font-mono text-xs sm:grid-cols-2">
+                      {SHORTCUT_ROWS.map(([label, shortcut]) => (
+                        <div key={label} className="flex justify-between gap-4 rounded-lg border border-border bg-[#0f1318] px-3 py-2">
+                          <span>{label}</span>
+                          <kbd className="rounded bg-surface-elevated px-1.5 py-0.5 text-text">{shortcut}</kbd>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="rounded-xl border border-border bg-[#12161b] px-4 py-4">
+                    <p className="arcos-kicker mb-3">Module Shortcuts</p>
+                    <div className="mb-3 rounded-lg border border-border bg-[#0f1318] px-4 py-3 text-xs leading-5 text-text-muted">
+                      Click a field and press the shortcut you want. Backspace, Delete, or Escape clears it. Terminal uses Cmd+T because multiple Terminals can exist at once.
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {SHORTCUT_ASSIGNABLE_PANELS.map((panel) => (
+                        <Field key={panel.id} label={panel.title}>
+                          <input
+                            value={shortcutLabel(local.moduleShortcuts[panel.id])}
+                            onKeyDown={(event) => captureModuleShortcut(panel.id, event)}
+                            onChange={() => {}}
+                            readOnly
+                            className="input-base w-full cursor-pointer"
+                            aria-label={`${panel.title} module shortcut`}
+                          />
+                        </Field>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="rounded-xl border border-border bg-[#12161b] px-4 py-4">
+                    <p className="arcos-kicker mb-3">Permission Policy</p>
+                    <Field label="Current Mode">
+                      <select
+                        value={local.permissionPolicy}
+                        onChange={(e) => setLocal((s) => ({ ...s, permissionPolicy: e.target.value as PermissionPolicy }))}
+                        className="input-base w-full"
+                      >
+                        <option value="readonly">Read Only</option>
+                        <option value="workspace-only">Workspace Only</option>
+                        <option value="ask">Ask Each Time</option>
+                        <option value="unrestricted">Unrestricted</option>
+                      </select>
+                    </Field>
+                    <div className="mt-3 rounded-lg border border-border bg-[#0f1318] px-4 py-3 text-xs leading-5 text-text-muted">
+                      Read Only blocks ARCOS write-back/export actions. Workspace Only allows managed writes inside ARCOS project, app data, and configured vault roots. Ask Each Time prompts before write/execute actions. Unrestricted allows user-selected export paths.
                     </div>
                   </section>
                 </div>
@@ -221,8 +344,28 @@ export default function SettingsPanel() {
                         <option value="star-wars">Star Wars</option>
                         <option value="lord-of-the-rings">Lord of the Rings</option>
                         <option value="matrix">Matrix</option>
+                        <option value="deep-sea">Deep Sea</option>
+                        <option value="solar-forge">Solar Forge</option>
+                        <option value="paper-trail">Paper Trail</option>
+                        <option value="arctic-glass">Arctic Glass</option>
                       </select>
                     </Field>
+                  </section>
+
+                  <section className="rounded-xl border border-border bg-[#12161b] px-4 py-4">
+                    <Field label="Surface Transparency">
+                      <select
+                        value={local.surfaceTransparency}
+                        onChange={(e) => setLocal((s) => ({ ...s, surfaceTransparency: e.target.value as typeof s.surfaceTransparency }))}
+                        className="input-base w-full"
+                      >
+                        <option value="solid">Solid</option>
+                        <option value="glass">Glass</option>
+                      </select>
+                    </Field>
+                    <p className="mt-3 text-xs leading-5 text-text-muted">
+                      Glass mode applies the transparent Memory drawer feel across ARCOS panels and toolbars.
+                    </p>
                   </section>
 
                   <section className="rounded-xl border border-border bg-[#12161b] px-4 py-4">
