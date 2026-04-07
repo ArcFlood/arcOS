@@ -209,29 +209,11 @@ function isGhCliAvailable(): boolean {
   }
 }
 
-function getRepoRemote(): string | null {
-  // Try to find the ARCOS repo remote from the project directory.
-  const candidates = [
-    path.join(os.homedir(), 'AI Project', 'arcos'),
-    path.join(os.homedir(), 'arcos'),
-  ]
-  for (const candidate of candidates) {
-    try {
-      const remote = execSync('git remote get-url origin', { cwd: candidate, encoding: 'utf8' }).trim()
-      if (remote) return remote
-    } catch {
-      // try next candidate
-    }
-  }
-  return null
-}
-
 async function submitToGitHub(report: BugReport): Promise<BugReportSubmitResult> {
   const body = reportToMarkdown(report)
   const labels = 'bug,arcos-auto-report'
 
   // Find a repo dir with a remote
-  const repoRemote = getRepoRemote()
   const repoCandidates = [
     path.join(os.homedir(), 'AI Project', 'arcos'),
     path.join(os.homedir(), 'arcos'),

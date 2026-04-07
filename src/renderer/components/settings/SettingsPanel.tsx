@@ -6,6 +6,7 @@ import ApiKeyInput from './ApiKeyInput'
 import ModelManager from '../models/ModelManager'
 import AnalyticsPanel from '../cost/AnalyticsPanel'
 import versionHistory from '../../data/versionHistory.json'
+import type { PaiVoiceSection } from '../../stores/types'
 
 type Tab = 'general' | 'response_tuner' | 'appearance' | 'connections' | 'models' | 'analytics' | 'about'
 
@@ -17,6 +18,18 @@ const TAB_LABELS: Array<{ id: Tab; label: string; kicker: string }> = [
   { id: 'models', label: 'Models', kicker: 'Local runtime inventory' },
   { id: 'analytics', label: 'Analytics', kicker: 'Spend and usage' },
   { id: 'about', label: 'About', kicker: 'Version and reference' },
+]
+
+const PAI_VOICE_SECTIONS: Array<{ id: PaiVoiceSection; label: string; description: string }> = [
+  { id: 'ANSWER', label: 'Answer', description: 'Full direct answer and details.' },
+  { id: 'SUMMARY', label: 'Summary', description: 'High-level response overview.' },
+  { id: 'ANALYSIS', label: 'Analysis', description: 'Reasoning and evaluation details.' },
+  { id: 'ACTIONS', label: 'Actions', description: 'What ARCOS did or recommends doing.' },
+  { id: 'RESULTS', label: 'Results', description: 'The concrete output or answer.' },
+  { id: 'STATUS', label: 'Status', description: 'Current state after the response.' },
+  { id: 'CAPTURE', label: 'Capture', description: 'What should be retained or noted.' },
+  { id: 'NEXT', label: 'Next', description: 'Next steps and follow-up guidance.' },
+  { id: 'COMPLETED', label: 'Completed', description: 'Completion summary.' },
 ]
 
 export default function SettingsPanel() {
@@ -58,6 +71,23 @@ export default function SettingsPanel() {
 
   const revert = () => {
     setLocal({ ...settings })
+  }
+
+  const toggleVoiceSection = (section: PaiVoiceSection) => {
+    setLocal((current) => {
+      const selected = new Set(current.voiceReadSections)
+      if (selected.has(section)) {
+        selected.delete(section)
+      } else {
+        selected.add(section)
+      }
+      return {
+        ...current,
+        voiceReadSections: PAI_VOICE_SECTIONS
+          .map((entry) => entry.id)
+          .filter((entry) => selected.has(entry)),
+      }
+    })
   }
 
   return (
@@ -338,6 +368,46 @@ export default function SettingsPanel() {
                           Open ElevenLabs
                         </button>
                       </div>
+                    </div>
+
+                    <div className="mt-4 rounded-lg border border-border bg-[#0f1318] px-4 py-3">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">Read Aloud Sections</p>
+                          <p className="mt-1 text-xs leading-5 text-text-muted">
+                            Choose which PAI response sections ElevenLabs reads after the response is visible in Terminal.
+                          </p>
+                        </div>
+                        <span className="rounded-full border border-success/30 bg-success/10 px-2 py-1 text-[10px] uppercase tracking-wider text-success">
+                          {(local.voiceReadSections.length > 0 ? local.voiceReadSections : ['RESULTS', 'NEXT']).join(' + ')}
+                        </span>
+                      </div>
+                      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {PAI_VOICE_SECTIONS.map((section) => (
+                          <label
+                            key={section.id}
+                            className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2 transition-colors ${
+                              local.voiceReadSections.includes(section.id)
+                                ? 'border-success/40 bg-success/10'
+                                : 'border-border bg-[#12161b] hover:border-[#8fa1b3]/35'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={local.voiceReadSections.includes(section.id)}
+                              onChange={() => toggleVoiceSection(section.id)}
+                              className="mt-1 h-4 w-4 accent-[var(--accent)]"
+                            />
+                            <span className="min-w-0">
+                              <span className="block text-xs font-semibold text-text">{section.label}</span>
+                              <span className="mt-0.5 block text-[11px] leading-5 text-text-muted">{section.description}</span>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                      <p className="mt-3 text-[11px] leading-5 text-text-muted">
+                        If every box is unchecked, ARCOS falls back to Results + Next.
+                      </p>
                     </div>
                   </section>
 

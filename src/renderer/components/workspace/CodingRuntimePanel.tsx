@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useCodingRuntimeStore } from '../../stores/codingRuntimeStore'
 import AuditPanel from './AuditPanel'
+import ErrorLogPanel from '../debug/ErrorLogPanel'
 
 const READINESS_STYLES = {
   ready: 'border-success/30 bg-success/10 text-success',
@@ -24,6 +25,14 @@ export default function CodingRuntimePanel() {
 
   return (
     <div className="space-y-4 p-4">
+      <section className="rounded-xl border border-border bg-[#12161b] p-3">
+        <div className="mb-3">
+          <p className="arcos-kicker mb-1">Error Log</p>
+          <p className="text-xs text-text-muted">Main and renderer process logs for troubleshooting ARCOS runtime issues.</p>
+        </div>
+        <ErrorLogPanel embedded />
+      </section>
+
       <section className="arcos-subpanel rounded-xl p-3">
         <div className="flex items-start justify-between gap-3">
           <div>

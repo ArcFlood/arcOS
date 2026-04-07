@@ -7,6 +7,7 @@ import MemoryPanel from './memory/MemoryPanel'
 import BugReportDialog from './debug/BugReportDialog'
 import WorkspaceShell from './workspace/WorkspaceShell'
 import WorkspaceTopBar from './workspace/WorkspaceTopBar'
+import StartupSequence from './StartupSequence'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useWorkspaceStore } from '../stores/workspaceStore'
@@ -174,6 +175,7 @@ export default function Layout() {
       <MemoryPanel open={memoryOpen} onClose={() => setMemoryOpen(false)} />
       {showDigest && <WeeklyDigest onDismiss={() => setShowDigest(false)} />}
       <BugReportDialog open={bugReportOpen} onClose={() => setBugReportOpen(false)} />
+      <StartupSequence />
     </div>
   )
 }

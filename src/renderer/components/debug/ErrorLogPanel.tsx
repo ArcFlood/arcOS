@@ -44,9 +44,10 @@ const CATEGORY_RECOVERY: Record<LogCategory, string> = {
 }
 
 interface Props {
-  open: boolean
-  onClose: () => void
+  open?: boolean
+  onClose?: () => void
   onOpenBugReport?: () => void
+  embedded?: boolean
 }
 
 const LEVEL_STYLES: Record<LogEntry['level'], string> = {
@@ -66,7 +67,7 @@ const SOURCE_BADGE: Record<LogEntry['source'], string> = {
   renderer: 'bg-sky-700 text-white',
 }
 
-export default function ErrorLogPanel({ open, onClose, onOpenBugReport }: Props) {
+export default function ErrorLogPanel({ open = true, onClose, onOpenBugReport, embedded = false }: Props) {
   const [entries, setEntries] = useState<LogEntry[]>([])
   const [filter, setFilter] = useState<'all' | 'error' | 'warn' | 'info'>('all')
   const [categoryFilter, setCategoryFilter] = useState<LogCategory | 'all'>('all')
@@ -149,14 +150,13 @@ export default function ErrorLogPanel({ open, onClose, onOpenBugReport }: Props)
     info:  entries.filter((e) => e.level === 'info').length,
   }
 
-  if (!open) return null
+  if (!open && !embedded) return null
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="relative flex flex-col bg-[#111318] border border-slate-700/60 rounded-xl shadow-2xl w-[760px] max-w-[95vw] h-[600px] max-h-[90vh]">
+  const panel = (
+    <div className={`relative flex flex-col ${embedded ? 'h-[520px] bg-transparent' : 'bg-[#111318] shadow-2xl'} border border-slate-700/60 rounded-xl w-full`}>
 
-        {/* Header */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-700/50 shrink-0">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-700/50 shrink-0">
           <span className="text-base font-semibold text-slate-100">Error Log</span>
           <div className="flex gap-1.5 ml-1">
             {counts.error > 0 && (
@@ -207,13 +207,15 @@ export default function ErrorLogPanel({ open, onClose, onOpenBugReport }: Props)
             >
               Clear
             </button>
-            <button
-              onClick={onClose}
-              className="ml-1 text-slate-400 hover:text-slate-100 text-lg leading-none transition-colors"
-              aria-label="Close"
-            >
-              ×
-            </button>
+            {!embedded && onClose && (
+              <button
+                onClick={onClose}
+                className="ml-1 text-slate-400 hover:text-slate-100 text-lg leading-none transition-colors"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            )}
           </div>
         </div>
 
@@ -322,6 +324,15 @@ export default function ErrorLogPanel({ open, onClose, onOpenBugReport }: Props)
             Log file: ~/.noah-ai-hub/logs/arcos.log
           </span>
         </div>
+    </div>
+  )
+
+  if (embedded) return panel
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="h-[600px] max-h-[90vh] w-[760px] max-w-[95vw]">
+        {panel}
       </div>
     </div>
   )

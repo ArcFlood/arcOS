@@ -148,6 +148,7 @@ export interface LocalModelInfo {
 export type RoutingMode = 'auto' | 'ollama' | 'haiku' | 'arc-sonnet' | 'arc-opus'
 export type RoutingAggressiveness = 'cost-first' | 'balanced' | 'quality-first'
 export type AppearanceTheme = 'default' | 'star-wars' | 'lord-of-the-rings' | 'matrix'
+export type PaiVoiceSection = 'ANSWER' | 'SUMMARY' | 'ANALYSIS' | 'ACTIONS' | 'RESULTS' | 'STATUS' | 'CAPTURE' | 'NEXT' | 'COMPLETED'
 
 export type PluginArchitectureRole = 'prompt-shaper' | 'tool-surface' | 'service-integration' | 'workspace-module'
 export type PluginExecutionBoundary = 'renderer' | 'main' | 'external-service'
@@ -174,6 +175,7 @@ export interface AppSettings {
   responseTunerIdentity: string
   responseTunerStyle: string
   responseTunerInstructions: string
+  voiceReadSections: PaiVoiceSection[]
 }
 
 // ── Plugin ────────────────────────────────────────────────────────

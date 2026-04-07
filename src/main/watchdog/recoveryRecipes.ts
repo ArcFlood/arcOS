@@ -6,8 +6,6 @@
  */
 
 import { execSync } from 'child_process'
-import os from 'os'
-import path from 'path'
 import { log } from '../logger'
 
 export type RecoveryAction = 'restart_service' | 'start_service' | 'reload_config' | 'notify_only' | 'noop'

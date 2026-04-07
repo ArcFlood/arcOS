@@ -2418,6 +2418,118 @@
       "notes": [
         "Live microphone permission and voice-server availability still need in-app validation on this machine."
       ]
+    },
+    {
+      "entry_id": "codex-2026-04-06-101",
+      "date": "2026-04-06",
+      "agent": "Codex",
+      "task_title": "Run ARCOS dependency security pass",
+      "summary": "Resolved npm audit findings by upgrading Electron, Vite, react-syntax-highlighter, lodash, and better-sqlite3. Removed unused main-process code that blocked lint after the dependency update.",
+      "files_touched": [
+        "arcos/package.json",
+        "arcos/package-lock.json",
+        "arcos/src/main/bugReport.ts",
+        "arcos/src/main/watchdog/recoveryRecipes.ts"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm audit --json",
+        "npm exec tsc -- --noEmit",
+        "npm run lint",
+        "npm run build:dir"
+      ],
+      "notes": [
+        "GitHub token rotation was handled separately by the user.",
+        "ARCOS origin remote was reset to a tokenless canonical HTTPS URL."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-06-102",
+      "date": "2026-04-06",
+      "agent": "Codex",
+      "task_title": "Add configurable ElevenLabs PAI section playback",
+      "summary": "Added a Settings Connections control for choosing which PAI response sections ElevenLabs reads aloud and wired Terminal playback to use the selected section list. Also self-heals persisted Terminal modules that open without a bound thread.",
+      "files_touched": [
+        "arcos/src/renderer/stores/types.ts",
+        "arcos/src/renderer/stores/settingsStore.ts",
+        "arcos/src/renderer/components/settings/SettingsPanel.tsx",
+        "arcos/src/renderer/components/MessageInput.tsx",
+        "arcos/src/renderer/components/ChatArea.tsx"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/stores/types.ts src/renderer/stores/settingsStore.ts src/renderer/components/MessageInput.tsx src/renderer/components/settings/SettingsPanel.tsx src/renderer/components/ChatArea.tsx"
+      ],
+      "notes": [
+        "Default voice playback sections remain RESULTS and NEXT. Voice playback itself is still under live testing."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-06-103",
+      "date": "2026-04-06",
+      "agent": "Codex",
+      "task_title": "Add ANSWER to voice section controls",
+      "summary": "Added the PAI ANSWER section to ElevenLabs read-aloud options, made voice extraction tolerant of ANSWERS as a plural heading, and aligned Response Composer section enforcement with the updated PAI response format.",
+      "files_touched": [
+        "arcos/src/renderer/stores/types.ts",
+        "arcos/src/renderer/components/MessageInput.tsx",
+        "arcos/src/renderer/components/settings/SettingsPanel.tsx",
+        "arcos/src/renderer/services/canonicalChainService.ts"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/stores/types.ts src/renderer/components/MessageInput.tsx src/renderer/components/settings/SettingsPanel.tsx src/renderer/services/canonicalChainService.ts",
+        "git diff --check"
+      ],
+      "notes": [
+        "PAI CORE currently defines ANSWER singular; ARCOS accepts ANSWERS as a tolerant fallback for voice extraction."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-06-104",
+      "date": "2026-04-06",
+      "agent": "Codex",
+      "task_title": "Build ARCOS startup sequence",
+      "summary": "Added a startup overlay using the ARCOS icon with speaking animation and local MP3 greeting playback. Replaced the previous ElevenLabs-backed project briefing with a bundled audio asset so startup does not depend on voice synthesis.",
+      "files_touched": [
+        "arcos/src/renderer/components/StartupSequence.tsx",
+        "arcos/src/renderer/components/Layout.tsx",
+        "arcos/src/renderer/index.css",
+        "arcos/src/renderer/assets/arcos_default_greeting.mp3",
+        "Todo_List.md"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/components/StartupSequence.tsx src/renderer/components/Layout.tsx",
+        "git diff --check",
+        "npm run build:dir"
+      ],
+      "notes": [
+        "Startup audio now plays from a bundled local MP3 instead of ElevenLabs."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-06-105",
+      "date": "2026-04-06",
+      "agent": "Codex",
+      "task_title": "Embed Error Log in Dev Tools",
+      "summary": "Made the existing Error Log panel reusable in embedded mode and added it to the Dev Tools module beneath Audit, preserving the modal log path for shortcuts and menu access.",
+      "files_touched": [
+        "arcos/src/renderer/components/debug/ErrorLogPanel.tsx",
+        "arcos/src/renderer/components/workspace/CodingRuntimePanel.tsx",
+        "Todo_List.md"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/components/debug/ErrorLogPanel.tsx src/renderer/components/workspace/CodingRuntimePanel.tsx"
+      ],
+      "notes": [
+        "The todo item was renamed from moving Error Log to Settings to moving it into Dev Tools per the revised instruction."
+      ]
     }
   ]
 }

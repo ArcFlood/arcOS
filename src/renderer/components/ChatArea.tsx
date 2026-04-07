@@ -52,6 +52,13 @@ export default function ChatArea({ moduleId }: ChatAreaProps) {
   }, [selectedConversation?.messages.length, selectedConversationId])
 
   useEffect(() => {
+    if (!moduleId || module?.panelId !== 'chat' || module.conversationId) return
+    const conversationId = createConversation()
+    setActiveConversation(conversationId)
+    setModuleConversation(moduleId, conversationId)
+  }, [createConversation, module?.conversationId, module?.panelId, moduleId, setActiveConversation, setModuleConversation])
+
+  useEffect(() => {
     if (!threadMenuOpen) return
     window.setTimeout(() => threadMenuItemsRef.current[0]?.focus(), 0)
   }, [threadMenuOpen])

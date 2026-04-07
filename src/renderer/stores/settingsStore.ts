@@ -20,6 +20,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   responseTunerIdentity: '',
   responseTunerStyle: '',
   responseTunerInstructions: '',
+  voiceReadSections: ['RESULTS', 'NEXT'],
 }
 
 interface SettingsStore {

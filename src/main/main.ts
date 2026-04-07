@@ -62,6 +62,8 @@ import {
   setAutoRespondHandler,
 } from './discord/discordGateway'
 
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
+
 // app.isPackaged is the reliable Electron way to detect production.
 // process.env.NODE_ENV is NOT set by electron-builder at runtime, so
 // checking it in the packaged app always returns "undefined" → isDev=true,

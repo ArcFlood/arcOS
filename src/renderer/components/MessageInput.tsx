@@ -4,7 +4,7 @@ import { useSettingsStore } from '../stores/settingsStore'
 import { useServiceStore } from '../stores/serviceStore'
 import { estimateCost, estimateTokens, useCostStore } from '../stores/costStore'
 import { usePluginStore } from '../stores/pluginStore'
-import { ModelTier } from '../stores/types'
+import { ModelTier, PaiVoiceSection } from '../stores/types'
 import { useTraceStore } from '../stores/traceStore'
 import { sendMessage } from '../services/chatService'
 import type { TaskPacket } from '../stores/types'
@@ -54,11 +54,23 @@ function firstSentences(text: string, maxSentences = 5): string {
     .join(' ')
 }
 
-function buildVoiceSummaryFromPaiResponse(text: string): string {
-  const results = extractSection(text, 'RESULTS', ['STATUS', 'CAPTURE', 'NEXT', 'COMPLETED'])
-  const next = extractSection(text, 'NEXT', ['COMPLETED'])
+const PAI_VOICE_SECTION_ORDER: PaiVoiceSection[] = ['ANSWER', 'SUMMARY', 'ANALYSIS', 'ACTIONS', 'RESULTS', 'STATUS', 'CAPTURE', 'NEXT', 'COMPLETED']
+
+function extractPaiVoiceSection(text: string, section: PaiVoiceSection, nextHeadings: PaiVoiceSection[]): string {
+  if (section !== 'ANSWER') return extractSection(text, section, nextHeadings)
+  return extractSection(text, 'ANSWER', nextHeadings) || extractSection(text, 'ANSWERS', nextHeadings)
+}
+
+function buildVoiceSummaryFromPaiResponse(text: string, sections: PaiVoiceSection[]): string {
+  const selectedSections: PaiVoiceSection[] = sections.length > 0 ? sections : ['RESULTS', 'NEXT']
+  const fragments = selectedSections.flatMap((section) => {
+    const index = PAI_VOICE_SECTION_ORDER.indexOf(section)
+    const nextHeadings = index >= 0 ? PAI_VOICE_SECTION_ORDER.slice(index + 1) : []
+    const content = extractPaiVoiceSection(text, section, nextHeadings)
+    return content ? [`${section.toLowerCase().replace(/^\w/, (char) => char.toUpperCase())}. ${content}`] : []
+  })
   return firstSentences(
-    [results ? `Results. ${results}` : '', next ? `Next. ${next}` : ''].filter(Boolean).join(' '),
+    fragments.join(' '),
     5
   )
 }
@@ -573,7 +585,7 @@ export default function MessageInput({ conversationId, disabled = false, onConve
             cost,
           })
           if (ARCOS_VOICE_PLAYBACK_ENABLED && voiceModeRef.current) {
-            const spokenSummary = sanitizeVoiceSummary(buildVoiceSummaryFromPaiResponse(finalText))
+            const spokenSummary = sanitizeVoiceSummary(buildVoiceSummaryFromPaiResponse(finalText, settings.voiceReadSections))
             if (spokenSummary) {
               window.electron.voiceSynthesize({
                 message: spokenSummary,
@@ -677,6 +689,7 @@ export default function MessageInput({ conversationId, disabled = false, onConve
     settings.routingAggressiveness,
     settings.dailyBudgetLimit,
     settings.extendedThinking,
+    settings.voiceReadSections,
     fastTestMode,
     activePlugin,
     findByCommand,
