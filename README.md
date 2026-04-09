@@ -1,31 +1,56 @@
 # ARCOS
 
-ARCOS is the desktop operating surface for PAI. It is not just a chat shell. It is a local-first control plane for the execution chain:
+ARCOS is a local-first desktop control surface for a PAI-based workflow. It is not a generic chat shell. It is the operating layer that coordinates prompt composition, routing, observability, memory, and local model execution.
 
-`ARCOS app -> user prompt -> PAI core context -> OpenClaw -> Fabric -> Response Composer -> local model`
+Core request path:
 
-## What You Need
+`ARCOS -> PAI core context -> OpenClaw -> Fabric -> Response Composer -> model`
 
-ARCOS depends on more than the Electron app itself.
+Test path:
 
-Required:
+`ARCOS -> model`
+
+The test path is available from the Terminal `T` toggle when you need to bypass PAI/OpenClaw/Fabric and send directly to the model.
+
+## Current Scope
+
+ARCOS currently includes:
+- modular grid workspace with saved layouts and multi-page workspaces
+- Terminal module with queued sends, visible thinking state, model indicator, and optional voice playback
+- Routing, Services, Transparency, History, Memory Search, Dev Tools, Automation, and Hestia modules
+- ARC-Memory integration, archive-to-memory flow, and memory hygiene scanning
+- OpenClaw-aware request composition with runtime files kept internal to the OpenClaw stage
+- Fabric integration for prompt-pattern routing
+- local Ollama execution with request token tracking
+- ElevenLabs playback inside ARCOS
+- startup overlay and bundled greeting audio
+- permission-policy controls and security hardening work in progress
+
+## Runtime Dependencies
+
+Required for the intended local stack:
 - Node.js 20+
 - Ollama
 - OpenClaw
 - Fabric
 
-Optional but expected for the full local stack:
+Optional but expected for the fuller ARCOS experience:
 - ARC-Memory
-- Obsidian vault for memory ingestion/write-back
+- Obsidian vault for memory ingestion and write-back
+- ElevenLabs API key for voice playback
+- iSMC for local sensor telemetry in Hestia
 
-## Important Architecture Note
+Important architectural note:
 
-If someone downloads ARCOS without also setting up OpenClaw and Fabric, they are not running the intended product.
+If ARCOS is run without OpenClaw and Fabric, the app still functions, but it is not running the intended full orchestration path.
 
-ARCOS is the UI and control surface.
-OpenClaw is the gateway/orchestration layer.
-Fabric is the prompt-skill layer.
-Ollama is the default local inference layer.
+Roles:
+- ARCOS: UI, orchestration surface, observability, and operator controls
+- PAI core: base identity and response contract
+- OpenClaw: gateway/orchestration analysis layer
+- Fabric: prompt-skill / pattern layer
+- Ollama: default local inference layer
+- ARC-Memory: memory storage and retrieval layer
 
 ## Quick Start
 
@@ -35,11 +60,10 @@ cd arcos
 npm install
 ```
 
-Then complete the runtime setup in:
-
+Complete setup for the local sidecar stack:
 - [OPENCLAW_SETUP.md](/Users/noahpowell/Documents/AI%20Project/arcos/docs/OPENCLAW_SETUP.md)
 
-After that:
+Then run:
 
 ```bash
 # terminal 1
@@ -52,23 +76,18 @@ fabric --serve
 npm run dev
 ```
 
-## OpenClaw and Fabric Setup
+Build the packaged app:
+
+```bash
+npm run build:dir
+```
+
+## OpenClaw Setup Assets
 
 This repo includes safe template files for the OpenClaw sidecar workspace under:
-
 - [openclaw-template](/Users/noahpowell/Documents/AI%20Project/arcos/openclaw-template)
 
-That template includes:
-- workspace bootstrap files required by ARCOS
-- runtime contract files
-- hook/event contract files
-- a sanitized example `openclaw.example.json`
-
-Do not copy your real `~/.openclaw/openclaw.json` into Git.
-
-## Repo Setup Files
-
-OpenClaw templates:
+Included templates:
 - [openclaw-template/openclaw.example.json](/Users/noahpowell/Documents/AI%20Project/arcos/openclaw-template/openclaw.example.json)
 - [openclaw-template/workspace/BOOTSTRAP.md](/Users/noahpowell/Documents/AI%20Project/arcos/openclaw-template/workspace/BOOTSTRAP.md)
 - [openclaw-template/workspace/ARCOS_RUNTIME.md](/Users/noahpowell/Documents/AI%20Project/arcos/openclaw-template/workspace/ARCOS_RUNTIME.md)
@@ -79,35 +98,42 @@ OpenClaw templates:
 - [openclaw-template/workspace/USER.example.md](/Users/noahpowell/Documents/AI%20Project/arcos/openclaw-template/workspace/USER.example.md)
 - [openclaw-template/workspace/SOUL.example.md](/Users/noahpowell/Documents/AI%20Project/arcos/openclaw-template/workspace/SOUL.example.md)
 
-Setup docs:
-- [docs/OPENCLAW_SETUP.md](/Users/noahpowell/Documents/AI%20Project/arcos/docs/OPENCLAW_SETUP.md)
-
 Validation helper:
 - [scripts/openclaw-boot.sh](/Users/noahpowell/Documents/AI%20Project/arcos/scripts/openclaw-boot.sh)
 
-## Development
+Do not commit your real `~/.openclaw/openclaw.json`.
+
+## Development Notes
+
+Useful commands:
 
 ```bash
 npm run dev
-```
-
-Build the packaged app:
-
-```bash
 npm run build:dir
+npm run lint
+npm run format:check
 ```
 
-## Current Status
+## Project Status
 
-ARCOS has the main structural pieces in place:
-- pocket-grid modular workspace
-- saved layouts and detached panels
-- ARC-Memory integration and write-back
-- observability/history panels
-- OpenClaw visibility in the app
-- canonical staged chat path inside ARCOS
+Implemented and usable:
+- modular workspace pages and module presets
+- Terminal rebuild around core chat flow
+- request token tracking in Terminal and Routing
+- Transparency event feed with lifecycle metadata
+- Hestia local system telemetry module
+- Dev Tools with error log, audit, repo state, and platform update checks
+- Automation module with Hooks and Log tabs
+- session history export and archive-to-memory flow
+- memory hygiene scan for short/duplicate/low-value memory files
+- startup greeting overlay
+- direct ARCOS-hosted ElevenLabs playback
+- main-process refactor out of a single `main.ts` god file
 
-What is still being refined:
-- Response Composer fidelity so Fabric-backed requests preserve upstream quality more literally
-- execution surfaces fed by emitted runtime events instead of staged UI logic
-- continued OpenClaw/Fabric refinement based on live use
+Still under active refinement:
+- Terminal edge cases and queue behavior under heavy use
+- Hestia widget polish and telemetry coverage
+- preload bridge narrowing and IPC hardening follow-through
+- MCP server expansion
+- automation workflow depth
+- Learnings / CAPTURE system
