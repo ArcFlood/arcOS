@@ -19,20 +19,11 @@ type RoutingEntry = {
 
 type Tab = 'sessions' | 'routing' | 'learnings'
 
-type SessionPreview = {
-  started?: string
-  ended?: string
-  duration?: string
-  totalCost?: string
-  topics?: string[]
-}
-
 export default function HistoryPanel() {
   const [activeTab, setActiveTab] = useState<Tab>('sessions')
   const [sessions, setSessions] = useState<SessionFile[]>([])
   const [selectedSession, setSelectedSession] = useState<string | null>(null)
   const [sessionContent, setSessionContent] = useState('')
-  const [sessionPreview, setSessionPreview] = useState<SessionPreview | null>(null)
   const [routingDates, setRoutingDates] = useState<string[]>([])
   const [selectedRoutingDate, setSelectedRoutingDate] = useState<string>('')
   const [routingEntries, setRoutingEntries] = useState<RoutingEntry[]>([])
@@ -73,7 +64,6 @@ export default function HistoryPanel() {
     const result = await window.electron.sessionRead?.(filePath)
     const content = result?.content ?? ''
     setSessionContent(content)
-    setSessionPreview(parseSessionPreview(content))
   }
 
   const loadRoutingDate = async (dateStr: string) => {
@@ -137,29 +127,7 @@ export default function HistoryPanel() {
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto bg-[#101318] p-4">
             {sessionContent ? (
-              <div className="space-y-4">
-                {sessionPreview && (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <HistoryStat label="Started" value={sessionPreview.started ?? 'Unknown'} />
-                    <HistoryStat label="Ended" value={sessionPreview.ended ?? 'Unknown'} />
-                    <HistoryStat label="Duration" value={sessionPreview.duration ?? 'Unknown'} />
-                    <HistoryStat label="Total Cost" value={sessionPreview.totalCost ?? 'Unknown'} />
-                  </div>
-                )}
-                {sessionPreview?.topics && sessionPreview.topics.length > 0 && (
-                  <div className="rounded-xl border border-border bg-[#12161b] px-3 py-3">
-                    <p className="arcos-kicker mb-2">Topics</p>
-                    <div className="flex flex-wrap gap-2">
-                      {sessionPreview.topics.map((topic) => (
-                        <span key={topic} className="rounded-full border border-border px-2 py-1 text-[11px] text-text-muted">
-                          {topic}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-6 text-text">{sessionContent}</pre>
-              </div>
+              <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-6 text-text">{sessionContent}</pre>
             ) : (
               <div className="flex h-full items-center justify-center text-xs italic text-text-muted">
                 Select a session to inspect.
@@ -258,36 +226,4 @@ export default function HistoryPanel() {
       )}
     </div>
   )
-}
-
-function HistoryStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-[#12161b] px-3 py-2">
-      <p className="text-[10px] uppercase tracking-wider text-text-muted">{label}</p>
-      <p className="mt-1 break-words text-xs font-medium text-text">{value}</p>
-    </div>
-  )
-}
-
-function parseSessionPreview(content: string): SessionPreview {
-  const lines = content.split('\n')
-  const preview: SessionPreview = {}
-  const topics: string[] = []
-  let inTopics = false
-
-  for (const line of lines) {
-    if (line.startsWith('**Started:**')) preview.started = line.replace('**Started:**', '').trim()
-    else if (line.startsWith('**Ended:**')) preview.ended = line.replace('**Ended:**', '').trim()
-    else if (line.startsWith('**Duration:**')) preview.duration = line.replace('**Duration:**', '').trim()
-    else if (line.startsWith('**Total cost:**')) preview.totalCost = line.replace('**Total cost:**', '').trim()
-    else if (line.trim() === '## Topics') inTopics = true
-    else if (line.startsWith('## ') && line.trim() !== '## Topics') inTopics = false
-    else if (inTopics) {
-      const normalized = line.trim().replace(/^[-*]\s*/, '')
-      if (normalized && !normalized.startsWith('_')) topics.push(normalized)
-    }
-  }
-
-  if (topics.length > 0) preview.topics = topics
-  return preview
 }

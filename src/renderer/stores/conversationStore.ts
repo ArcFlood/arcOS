@@ -41,7 +41,7 @@ function msgToDb(m: Message) {
 function dbToConv(row: Record<string, unknown>): Omit<Conversation, 'messages'> {
   return {
     id: row.id as string,
-    title: row.title as string,
+    title: row.title === 'New Thread' ? 'Terminal' : row.title as string,
     createdAt: row.created_at as number,
     updatedAt: row.updated_at as number,
     tags: (() => { try { return JSON.parse((row.tags as string) || '[]') as string[] } catch { return [] } })(),
@@ -84,7 +84,7 @@ interface ConversationStore {
   // DB bootstrap — called once on app mount
   loadFromDb: () => Promise<void>
 
-  createConversation: () => string
+  createConversation: (title?: string) => string
   reopenConversation: (id: string) => void
   setActiveConversation: (id: string | null) => void
   closeConversation: (id: string) => void
@@ -190,11 +190,11 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
 
   // ── Mutations (update state + fire-and-forget DB persist) ─────
 
-  createConversation: () => {
+  createConversation: (title = 'Terminal') => {
     const id = generateId()
     const conversation: Conversation = {
       id,
-      title: 'New Thread',
+      title,
       createdAt: Date.now(),
       updatedAt: Date.now(),
       tags: [],

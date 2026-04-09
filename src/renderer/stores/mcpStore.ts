@@ -21,6 +21,8 @@ export interface McpServerConfig {
   url: string               // for http transport: base URL; for stdio: ignored
   transport: McpTransport
   description?: string
+  enabled: boolean
+  trust: 'trusted-local' | 'review-required'
   builtin?: boolean         // built-in servers cannot be removed
 }
 
@@ -48,6 +50,28 @@ const BUILTIN_SERVERS: McpServerConfig[] = [
     url: 'http://localhost:8082',
     transport: 'http',
     description: 'Local semantic memory MCP server — hybrid search + HyDE re-ranking',
+    enabled: true,
+    trust: 'trusted-local',
+    builtin: true,
+  },
+  {
+    id: 'filesystem',
+    name: 'Filesystem MCP',
+    url: '',
+    transport: 'stdio',
+    description: 'Allowlisted local filesystem MCP candidate. Disabled until reviewed and configured.',
+    enabled: false,
+    trust: 'review-required',
+    builtin: true,
+  },
+  {
+    id: 'github',
+    name: 'GitHub MCP',
+    url: '',
+    transport: 'stdio',
+    description: 'Allowlisted GitHub MCP candidate. Disabled until reviewed and configured.',
+    enabled: false,
+    trust: 'review-required',
     builtin: true,
   },
 ]
@@ -120,8 +144,8 @@ export const useMcpStore = create<McpStore>((set, get) => ({
 
   checkHealth: async (targetId?) => {
     const targets = targetId
-      ? get().servers.filter((s) => s.config.id === targetId)
-      : get().servers
+      ? get().servers.filter((s) => s.config.id === targetId && s.config.enabled)
+      : get().servers.filter((s) => s.config.enabled)
 
     await Promise.allSettled(
       targets.map(async (srv) => {
@@ -159,8 +183,8 @@ export const useMcpStore = create<McpStore>((set, get) => ({
 
   refreshTools: async (targetId?) => {
     const targets = targetId
-      ? get().servers.filter((s) => s.config.id === targetId && s.status === 'healthy')
-      : get().servers.filter((s) => s.status === 'healthy')
+      ? get().servers.filter((s) => s.config.id === targetId && s.config.enabled && s.status === 'healthy')
+      : get().servers.filter((s) => s.config.enabled && s.status === 'healthy')
 
     await Promise.allSettled(
       targets.map(async (srv) => {

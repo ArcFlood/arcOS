@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useCodingRuntimeStore } from '../../stores/codingRuntimeStore'
 import AuditPanel from './AuditPanel'
 import ErrorLogPanel from '../debug/ErrorLogPanel'
+import PlatformUpdatesPanel from './PlatformUpdatesPanel'
 
 const READINESS_STYLES = {
   ready: 'border-success/30 bg-success/10 text-success',
@@ -112,12 +113,34 @@ export default function CodingRuntimePanel() {
               </div>
             )}
           </section>
+
+          <section className={`rounded-xl border px-3 py-3 ${status.branchCollision ? 'border-warning/40 bg-warning/10' : 'border-border bg-[#12161b]'}`}>
+            <p className="arcos-kicker">Write-Scope Collision Check</p>
+            <p className="mt-2 text-xs leading-5 text-text-muted">
+              ARCOS checks whether the active branch is mounted in more than one Git worktree. That is the first local guardrail
+              for future multi-agent branch and write-scope collisions.
+            </p>
+            {status.branchCollision ? (
+              <div className="mt-3 space-y-2">
+                <p className="text-xs font-semibold text-warning">Branch collision detected. Avoid parallel edits until this is resolved.</p>
+                {status.branchCollisionDetails.map((entry) => (
+                  <p key={entry} className="break-all rounded-lg border border-warning/30 bg-[#0f1318] px-3 py-2 font-mono text-[11px] text-text">
+                    {entry}
+                  </p>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-3 text-xs text-text-muted">No duplicate active-branch worktree collision detected.</p>
+            )}
+          </section>
         </>
       )}
 
       <section className="rounded-xl border border-border bg-[#12161b]">
         <AuditPanel embedded />
       </section>
+
+      <PlatformUpdatesPanel />
     </div>
   )
 }

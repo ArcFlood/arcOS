@@ -263,36 +263,6 @@
     opacity: 0;
   }
 
-  :root[data-surface='glass'] .arcos-shell {
-    background: linear-gradient(180deg, rgba(20, 24, 29, 0.42) 0%, rgba(16, 19, 24, 0.32) 100%);
-    backdrop-filter: blur(18px) saturate(1.18);
-  }
-
-  :root[data-surface='glass'] .arcos-toolbar,
-  :root[data-surface='glass'] .arcos-panel-head {
-    background: linear-gradient(180deg, rgba(35, 41, 50, 0.36) 0%, rgba(27, 32, 39, 0.28) 100%);
-    backdrop-filter: blur(16px) saturate(1.16);
-  }
-
-  :root[data-surface='glass'] .arcos-panel {
-    background: linear-gradient(180deg, rgba(28, 34, 41, 0.28) 0%, rgba(22, 27, 33, 0.18) 100%);
-    border: 1px solid rgba(183, 196, 208, 0.16);
-    backdrop-filter: blur(18px) saturate(1.14);
-  }
-
-  :root[data-surface='glass'] .arcos-subpanel,
-  :root[data-surface='glass'] .card {
-    background: rgba(15, 18, 23, 0.24);
-    backdrop-filter: blur(14px) saturate(1.12);
-  }
-
-  :root[data-surface='glass'] .arcos-action,
-  :root[data-surface='glass'] .arcos-input,
-  :root[data-surface='glass'] .input-base {
-    background: linear-gradient(180deg, rgba(13, 16, 20, 0.4) 0%, rgba(17, 20, 24, 0.28) 100%);
-    backdrop-filter: blur(10px);
-  }
-
   .btn {
     @apply px-3 py-1.5 rounded-md text-sm font-medium transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
   }
@@ -337,5 +307,133 @@
     @apply rounded-lg border p-4;
     background: linear-gradient(180deg, rgba(32, 38, 46, 0.98) 0%, rgba(24, 29, 36, 0.98) 100%);
     border-color: var(--arcos-line);
+  }
+
+  .hestia-surface {
+    --hestia-canvas: var(--arcos-bg-0);
+    --hestia-surface: var(--arcos-bg-1);
+    --hestia-highlight: var(--arcos-bg-2);
+    --hestia-border: var(--arcos-line);
+    --hestia-border-bright: var(--arcos-line-strong);
+    --hestia-brand: var(--arcos-success);
+    --hestia-gap: 0px;
+    --hestia-radius: 0px;
+    background: var(--arcos-bg-0);
+    color: var(--arcos-text);
+    font-family: var(--arcos-font-sans);
+  }
+
+  .hestia-header {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0 0 0.5rem;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .hestia-grid {
+    position: relative;
+    width: 100%;
+  }
+
+  .hestia-card {
+    border: 1px solid var(--hestia-border);
+    border-radius: var(--hestia-radius);
+    background: var(--hestia-surface);
+    color: var(--arcos-text);
+    padding: 0.55rem;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    transition: border-color 0.2s, background-color 0.2s, transform 0.2s;
+    box-shadow: none;
+  }
+
+  .hestia-widget-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .hestia-widget {
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+  }
+
+  .hestia-widget-body {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .hestia-sensor-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+    gap: 0.25rem;
+  }
+
+  .hestia-fixed-list {
+    max-height: 230px;
+    overflow: auto;
+    padding-right: 0.25rem;
+  }
+
+  .hestia-live-badge,
+  .hestia-mini-badge {
+    border: 1px solid var(--hestia-brand);
+    border-radius: var(--hestia-radius);
+    color: var(--hestia-brand);
+    background: var(--hestia-surface);
+    padding: 0.35rem 0.55rem;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .hestia-service-tile,
+  .hestia-signal {
+    border: 1px solid var(--hestia-border);
+    border-radius: var(--hestia-radius);
+    background: var(--hestia-canvas);
+    padding: 0.45rem 0.5rem;
+    transition: border-color 0.2s, background-color 0.2s;
+  }
+
+  .hestia-service-tile {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .hestia-service-tile:hover,
+  .hestia-signal:hover {
+    border-color: var(--hestia-border-bright);
+    background: var(--hestia-highlight);
+  }
+
+  .hestia-node {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 999px;
+    flex-shrink: 0;
+    box-shadow: 0 0 16px currentColor;
+  }
+
+  .hestia-node-ok { color: var(--arcos-success); background: var(--arcos-success); }
+  .hestia-node-warn { color: var(--arcos-warning); background: var(--arcos-warning); }
+  .hestia-node-error { color: var(--arcos-danger); background: var(--arcos-danger); }
+
+  @media (max-width: 900px) {
+    .hestia-grid {
+      width: 100%;
+    }
   }
 }

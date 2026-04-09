@@ -12,7 +12,7 @@
 import os from 'os'
 import fs from 'fs'
 import path from 'path'
-import { execSync, spawnSync } from 'child_process'
+import { spawn } from 'child_process'
 import { app } from 'electron'
 import { getLogEntries } from './logger'
 
@@ -200,13 +200,64 @@ function saveBugReportFile(report: BugReport): string {
 
 // ── GitHub submission via gh CLI ──────────────────────────────────
 
-function isGhCliAvailable(): boolean {
-  try {
-    execSync('gh --version', { stdio: 'ignore' })
-    return true
-  } catch {
-    return false
-  }
+type CommandResult = { success: boolean; stdout: string; stderr: string; error?: string }
+
+function runCommand(command: string, args: string[], cwd?: string, timeoutMs = 8000): Promise<CommandResult> {
+  return new Promise((resolve) => {
+    let stdout = ''
+    let stderr = ''
+    let settled = false
+    const child = spawn(command, args, {
+      cwd,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+        HOME: process.env.HOME ?? os.homedir(),
+      },
+    })
+
+    const finish = (result: CommandResult) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeout)
+      resolve({
+        ...result,
+        stdout: result.stdout.trim(),
+        stderr: result.stderr.trim(),
+      })
+    }
+
+    const timeout = setTimeout(() => {
+      try {
+        child.kill('SIGTERM')
+      } catch {
+        // Ignore timeout cleanup failures.
+      }
+      finish({ success: false, stdout, stderr, error: `Command timed out after ${timeoutMs}ms` })
+    }, timeoutMs)
+
+    child.stdout?.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString('utf8')
+    })
+    child.stderr?.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString('utf8')
+    })
+    child.on('error', (error) => {
+      finish({ success: false, stdout, stderr, error: error.message })
+    })
+    child.on('close', (code) => {
+      finish({
+        success: code === 0,
+        stdout,
+        stderr,
+        error: code === 0 ? undefined : `Exited with status ${code ?? 'unknown'}`,
+      })
+    })
+  })
+}
+
+async function isGhCliAvailable(): Promise<boolean> {
+  return (await runCommand('gh', ['--version'], undefined, 4000)).success
 }
 
 async function submitToGitHub(report: BugReport): Promise<BugReportSubmitResult> {
@@ -236,13 +287,13 @@ async function submitToGitHub(report: BugReport): Promise<BugReportSubmitResult>
     }
   }
 
-  const result = spawnSync(
+  const result = await runCommand(
     'gh',
     ['issue', 'create', '--title', report.title, '--body', body, '--label', labels],
-    { cwd: repoDir, encoding: 'utf8' },
+    repoDir,
   )
 
-  if (result.status === 0 && result.stdout) {
+  if (result.success && result.stdout) {
     const issueUrl = result.stdout.trim()
     return { success: true, method: 'github', issueUrl }
   }
@@ -250,7 +301,7 @@ async function submitToGitHub(report: BugReport): Promise<BugReportSubmitResult>
   return {
     success: false,
     method: 'github',
-    error: result.stderr || 'gh issue create failed with no stderr',
+    error: result.stderr || result.error || 'gh issue create failed with no stderr',
   }
 }
 
@@ -265,7 +316,7 @@ export async function submitBugReport(
   // Always save locally first so the report is never lost.
   const filePath = saveBugReportFile(report)
 
-  if (isGhCliAvailable()) {
+  if (await isGhCliAvailable()) {
     const ghResult = await submitToGitHub(report)
     if (ghResult.success) {
       return { ...ghResult, filePath }

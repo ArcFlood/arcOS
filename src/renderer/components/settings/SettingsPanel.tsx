@@ -35,8 +35,8 @@ const PAI_VOICE_SECTIONS: Array<{ id: PaiVoiceSection; label: string; descriptio
 ]
 
 const SHORTCUT_ROWS = [
-  ['New Thread', '⌘K'],
-  ['New Terminal', '⌘T'],
+  ['New Terminal Session', '⌘K'],
+  ['New Terminal Session', '⌘T'],
   ['Settings', '⌘,'],
   ['Error Log', '⌘⇧L'],
   ['History', '⌘⇧H'],
@@ -353,22 +353,6 @@ export default function SettingsPanel() {
                   </section>
 
                   <section className="rounded-xl border border-border bg-[#12161b] px-4 py-4">
-                    <Field label="Surface Transparency">
-                      <select
-                        value={local.surfaceTransparency}
-                        onChange={(e) => setLocal((s) => ({ ...s, surfaceTransparency: e.target.value as typeof s.surfaceTransparency }))}
-                        className="input-base w-full"
-                      >
-                        <option value="solid">Solid</option>
-                        <option value="glass">Glass</option>
-                      </select>
-                    </Field>
-                    <p className="mt-3 text-xs leading-5 text-text-muted">
-                      Glass mode applies the transparent Memory drawer feel across ARCOS panels and toolbars.
-                    </p>
-                  </section>
-
-                  <section className="rounded-xl border border-border bg-[#12161b] px-4 py-4">
                     <Field label="Typeface">
                       <select
                         value={local.appearanceFont}
@@ -635,7 +619,7 @@ export default function SettingsPanel() {
                     <p className="mt-0.5 text-xs">v{versionHistory.currentVersion} — PAI operating surface for routing, memory, services, and execution state</p>
                   </div>
                   <div className="rounded-lg border border-border bg-[#12161b] px-4 py-3 text-xs leading-5">
-                    ARCOS is the desktop control surface for PAI. It is not a generic assistant shell; it is the place where services, orchestration, memory, and live task threads stay visible together.
+                    ARCOS is the desktop control surface for PAI. It is not a generic assistant shell; it is the place where services, orchestration, memory, and live task sessions stay visible together.
                   </div>
                   <div className="space-y-2">
                     <p className="font-medium text-text-muted uppercase tracking-wider text-xs">Version History</p>

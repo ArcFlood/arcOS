@@ -798,7 +798,7 @@
       "entry_id": "codex-2026-04-04-031",
       "date": "2026-04-04",
       "agent": "Codex",
-      "task_title": "Complete unified WBS Phase 5 — Fabric reliability and chain role",
+      "task_title": "Complete unified WBS Phase 5 \u2014 Fabric reliability and chain role",
       "summary": "Completed the first remaining phase from the unified ARCOS WBS by tightening Fabric execution reliability and making Fabric-stage participation explicit in the UI. The main-process Fabric runner now tries multiple server route shapes before falling back cleanly to the Fabric CLI, eliminating the lingering 404-style packaged failure path. I also added explicit Fabric-stage metadata to the trace model, surfaced execution mode and stage labels in the Tools panel, and updated trace/execution panels so Fabric now reads as a visible workflow stage in the PAI chain rather than just a generic tool run.",
       "files_touched": [
         "documentation/arcos_wbs.md",
@@ -826,7 +826,7 @@
       "entry_id": "codex-2026-04-04-032",
       "date": "2026-04-04",
       "agent": "Codex",
-      "task_title": "Complete unified WBS Phase 6 — OpenClaw runtime integration",
+      "task_title": "Complete unified WBS Phase 6 \u2014 OpenClaw runtime integration",
       "summary": "Inserted an explicit OpenClaw phase into the unified ARCOS plan and implemented the first real OpenClaw integration slice in the app. ARCOS now treats OpenClaw as a first-class service in the runtime panel, inspects the live ~/.openclaw configuration boundary to determine gateway state and paths, and exposes direct entry points to the OpenClaw control UI, workspace, logs, and config without cloning the OpenClaw codebase into ARCOS.",
       "files_touched": [
         "documentation/arcos_prd.json",
@@ -871,7 +871,7 @@
       "entry_id": "codex-2026-04-04-034",
       "date": "2026-04-04",
       "agent": "Codex",
-      "task_title": "Complete unified WBS Phase 7 — memory in active prompt composition",
+      "task_title": "Complete unified WBS Phase 7 \u2014 memory in active prompt composition",
       "summary": "Implemented `/memory` directly in the ARCOS message composer. The composer now runs ARC-Memory searches from `/memory <query>`, shows inline loading and error states, stages retrieved citations above the input, supports per-citation removal and direct Obsidian opening, and injects the retained memory context into the next outgoing prompt without changing the user-visible message text.",
       "files_touched": [
         "documentation/arcos_wbs.md",
@@ -982,7 +982,7 @@
       "entry_id": "codex-2026-04-04-039",
       "date": "2026-04-04",
       "agent": "Codex",
-      "task_title": "Complete unified WBS Phase 9 — layout portability and local model management",
+      "task_title": "Complete unified WBS Phase 9 \u2014 layout portability and local model management",
       "summary": "Implemented the remaining Phase 9 portability and operations work in ARCOS. Workspace layouts can now be exported and imported through native file dialogs with sanitizer-backed validation, and the model-management surface now includes installed-model metadata such as disk usage, family, parameter size, quantization, active model state, and recommendation notes while preserving in-app pull and delete actions.",
       "files_touched": [
         "documentation/arcos_wbs.md",
@@ -1011,7 +1011,7 @@
       "entry_id": "codex-2026-04-04-040",
       "date": "2026-04-04",
       "agent": "Codex",
-      "task_title": "Complete unified WBS Phase 10 — observability depth",
+      "task_title": "Complete unified WBS Phase 10 \u2014 observability depth",
       "summary": "Completed the observability-depth phase by adding typed execution-state metadata, failure taxonomy, and recovery guidance to ARCOS trace events; strengthening the trace and history panels with machine-grounded summaries, routing confidence, estimated costs, and saved learnings visibility; and adding focused ARC-Memory tests for note normalization, dedupe, result filtering, and Obsidian citation URI generation.",
       "files_touched": [
         "documentation/arcos_wbs.md",
@@ -1046,7 +1046,7 @@
       "entry_id": "codex-2026-04-04-041",
       "date": "2026-04-04",
       "agent": "Codex",
-      "task_title": "Complete unified WBS Phase 11 — extensibility",
+      "task_title": "Complete unified WBS Phase 11 \u2014 extensibility",
       "summary": "Completed the extensibility phase by formalizing plugin manifests around PAI architecture roles, execution boundaries, target stages, and entry surfaces, and by adding a dedicated Runtime panel that exposes structured repo/worktree state, merge readiness, stale-branch signals, and verification scope without relying on raw terminal output.",
       "files_touched": [
         "documentation/arcos_prd.json",
@@ -1768,7 +1768,7 @@
       "date": "2026-04-05",
       "agent": "Codex",
       "task_title": "Restructure Settings module and fix first-pass settings UI issues",
-      "summary": "Rebuilt the Settings module into a fixed-size sidebar layout, reordered the sections to General → Appearance → Connections → Models → Analytics → About, moved budget controls under Connections, moved the Ollama model selector into Models, and fixed the known settings-layout overflow issues in toggles and color fields. I also hardened Claude API key saving in settings state so writes are verified against the main-process key presence check instead of trusting the first IPC result blindly.",
+      "summary": "Rebuilt the Settings module into a fixed-size sidebar layout, reordered the sections to General \u2192 Appearance \u2192 Connections \u2192 Models \u2192 Analytics \u2192 About, moved budget controls under Connections, moved the Ollama model selector into Models, and fixed the known settings-layout overflow issues in toggles and color fields. I also hardened Claude API key saving in settings state so writes are verified against the main-process key presence check instead of trusting the first IPC result blindly.",
       "files_touched": [
         "arcos/src/renderer/components/settings/SettingsPanel.tsx",
         "arcos/src/renderer/stores/settingsStore.ts",
@@ -2622,6 +2622,235 @@
       ],
       "notes": [
         "New themes: Deep Sea, Solar Forge, Paper Trail, and Arctic Glass."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-07-110",
+      "date": "2026-04-07",
+      "agent": "Codex",
+      "task_title": "Refine Hestia Local Telemetry",
+      "summary": "Refined the Hestia module with compact ARCOS-background cards, live chart timelines, disk pie charts, process activity bars, and an optional iSMC CLI sensor backend.",
+      "files_touched": [
+        "arcos/src/main/main.ts",
+        "arcos/src/renderer/electron.d.ts",
+        "arcos/src/renderer/components/workspace/HestiaPanel.tsx",
+        "arcos/src/renderer/index.css"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/main/main.ts src/renderer/electron.d.ts src/renderer/components/workspace/HestiaPanel.tsx",
+        "git diff --check",
+        "npm run build:dir"
+      ],
+      "notes": [
+        "Network widget tracks local network interfaces and byte counters, not open ports.",
+        "iSMC is integrated as an optional external CLI backend because the cloned source is GPL-3.0 and no Go compiler is currently available on PATH to build it here."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-07-111",
+      "date": "2026-04-07",
+      "agent": "Codex",
+      "task_title": "Install iSMC and Fix Hestia Sensor Root",
+      "summary": "Fixed the Hestia iSMC backend project-root lookup, installed iSMC through Homebrew, and stopped leftover ARCOS Electron/Vite processes after build verification.",
+      "files_touched": [
+        "arcos/src/main/main.ts"
+      ],
+      "status": "completed",
+      "verification": [
+        "brew tap dkorunic/tap",
+        "brew install ismc",
+        "ismc version",
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/main/main.ts src/renderer/electron.d.ts src/renderer/components/workspace/HestiaPanel.tsx",
+        "git diff --check",
+        "npm run build:dir"
+      ],
+      "notes": [
+        "Installed iSMC v0.13.5 at /opt/homebrew/bin/ismc.",
+        "Runtime sensor reads currently fail with 'Unable to open Apple SMC; return code 1', so Hestia now reports that specific backend availability state.",
+        "No ARCOS Electron/Vite processes remained after cleanup verification."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-07-112",
+      "date": "2026-04-07",
+      "agent": "Codex",
+      "task_title": "Add Memory Hygiene Cleanup",
+      "summary": "Added a review-first Memory Search hygiene workflow for identifying and deleting empty, very short, duplicate, or placeholder memory files.",
+      "files_touched": [
+        "arcos/src/main/main.ts",
+        "arcos/src/preload/preload.ts",
+        "arcos/src/renderer/electron.d.ts",
+        "arcos/src/renderer/services/memoryService.ts",
+        "arcos/src/renderer/components/workspace/MemoryWorkspacePanel.tsx",
+        "Todo_List.md"
+      ],
+      "status": "built_needs_review",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/main/main.ts src/preload/preload.ts src/renderer/electron.d.ts src/renderer/services/memoryService.ts src/renderer/components/workspace/MemoryWorkspacePanel.tsx",
+        "git diff --check",
+        "npm run build:dir"
+      ],
+      "notes": [
+        "Deletion requires explicit user selection and confirmation.",
+        "The scan covers saved learnings and ARCOS vault markdown files when VAULT_PATH is configured.",
+        "Per updated workflow, Todo item 30 is built but not marked complete until user review."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-07-113",
+      "date": "2026-04-07",
+      "agent": "Codex",
+      "task_title": "Complete Hestia Local Telemetry Review",
+      "summary": "Completed Todo 29 after review by removing nonfunctional Hestia widget resize controls, keeping current fixed widget sizes, and documenting the final Hestia telemetry scope.",
+      "files_touched": [
+        "arcos/src/renderer/components/workspace/HestiaPanel.tsx",
+        "arcos/src/renderer/index.css",
+        "Todo_List.md"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/components/workspace/HestiaPanel.tsx",
+        "git diff --check",
+        "npm run build:dir"
+      ],
+      "notes": [
+        "Widget edge handles were removed after review because resize remained unreliable.",
+        "Hestia keeps fixed ARCOS-defined widget sizes and local telemetry scope.",
+        "Top Processes uses a graph-list view; Sensors use configurable iSMC-backed label/value readings."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-07-114",
+      "date": "2026-04-07",
+      "agent": "Codex",
+      "task_title": "Complete Memory Hygiene Review",
+      "summary": "Completed Todo 30 after review by moving Memory Hygiene to the bottom of Memory Search, making cleanup move files to Trash, adding an under-1KB low-value rule, and simplifying session summary display/output.",
+      "files_touched": [
+        "arcos/src/main/sessionHistory.ts",
+        "arcos/src/main/services/memoryHygiene.ts",
+        "arcos/src/main/ipc/memoryIpc.ts",
+        "arcos/src/renderer/components/workspace/MemoryWorkspacePanel.tsx",
+        "arcos/src/renderer/components/workspace/HistoryPanel.tsx",
+        "Todo_List.md"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/main/sessionHistory.ts src/main/ipc/memoryIpc.ts src/renderer/components/workspace/MemoryWorkspacePanel.tsx src/renderer/components/workspace/HistoryPanel.tsx",
+        "git diff --check",
+        "npm run build:dir"
+      ],
+      "notes": [
+        "Session preview stat boxes were removed from History Sessions.",
+        "New session summaries use CAPTURE instead of Topics and omit generated/notes footer text.",
+        "Memory Hygiene cleanup now moves selected files to Trash and verifies removal from the original location."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-07-115",
+      "date": "2026-04-07",
+      "agent": "Codex",
+      "task_title": "Complete Request Token Budget Tracker",
+      "summary": "Completed Todo 32 after review by replacing preflight payload warning/blocking with visible composed-request token tracking in Terminal and Routing.",
+      "files_touched": [
+        "arcos/src/renderer/components/MessageInput.tsx",
+        "arcos/src/renderer/components/workspace/RoutingPanel.tsx",
+        "arcos/src/main/routingLog.ts",
+        "arcos/src/renderer/electron.d.ts",
+        "Todo_List.md"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/components/MessageInput.tsx",
+        "git diff --check",
+        "npm run build:dir"
+      ],
+      "notes": [
+        "Terminal displays composed request tokens as used/max with remaining tokens per request.",
+        "Routing Execution Summary includes a Request Tokens box using the latest routing entry.",
+        "Threshold-based preflight warning and blocking were removed by user request."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-08-116",
+      "date": "2026-04-08",
+      "agent": "Codex",
+      "task_title": "Complete Terminal Lifecycle State Machine Review",
+      "summary": "Completed Todo 33 after review by moving Terminal to a one-session model, keeping queued follow-up sends, removing failed Terminal-close abort plumbing, and preventing Terminal close while a response is queued or generating.",
+      "files_touched": [
+        "arcos/src/renderer/components/ChatArea.tsx",
+        "arcos/src/renderer/components/MessageInput.tsx",
+        "arcos/src/renderer/components/workspace/WorkspaceShell.tsx",
+        "arcos/src/renderer/stores/messageQueueStore.ts",
+        "arcos/src/main/ipc/modelStreamingIpc.ts",
+        "arcos/src/preload/preload.ts",
+        "arcos/src/renderer/electron.d.ts",
+        "Todo_List.md"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/components/workspace/WorkspaceShell.tsx src/renderer/components/MessageInput.tsx src/renderer/stores/messageQueueStore.ts src/main/ipc/modelStreamingIpc.ts src/preload/preload.ts src/renderer/electron.d.ts src/renderer/services/chatService.ts src/renderer/services/ollamaService.ts src/renderer/services/claudeService.ts",
+        "git diff --check",
+        "npm run build:dir"
+      ],
+      "notes": [
+        "Terminal no longer exposes thread switching; each Terminal owns one session.",
+        "Terminal close is locked while its session is queued or generating because reliable active Ollama abort was removed after failed implementation attempts.",
+        "The original per-stream abort remains for existing explicit stream controls outside Terminal close."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-08-117",
+      "date": "2026-04-08",
+      "agent": "Codex",
+      "task_title": "Complete Typed Process Event Schema Review",
+      "summary": "Completed Todo 34 after review by rendering typed lifecycle status in Transparency and compressing trace cards into a thinner full-width list with two-column metadata.",
+      "files_touched": [
+        "arcos/src/renderer/components/workspace/TracePanel.tsx",
+        "arcos/src/renderer/stores/traceStore.ts",
+        "Todo_List.md"
+      ],
+      "status": "completed",
+      "verification": [
+        "npm exec tsc -- --noEmit",
+        "npx eslint src/renderer/components/workspace/TracePanel.tsx src/renderer/stores/traceStore.ts",
+        "git diff --check",
+        "npm run build:dir"
+      ],
+      "notes": [
+        "Transparency now displays event status alongside source, stage, state, failure, path, and entity metadata.",
+        "Trace event cards remain a single vertical list with full-width cards.",
+        "Metadata inside each trace card is arranged in two columns where space allows."
+      ]
+    },
+    {
+      "entry_id": "codex-2026-04-08-118",
+      "date": "2026-04-08",
+      "agent": "Codex",
+      "task_title": "Complete Branch and Write-Scope Collision Review",
+      "summary": "Completed Todo 35 after review by confirming Dev Tools surfaces worktree/branch collision status and working-tree risk indicators without taking destructive action.",
+      "files_touched": [
+        "Todo_List.md",
+        "arcos/src/main/services/platformUpdates.ts",
+        "arcos/src/renderer/components/workspace/PlatformUpdatesPanel.tsx",
+        "arcos/src/renderer/components/workspace/CodingRuntimePanel.tsx"
+      ],
+      "status": "completed",
+      "verification": [
+        "User reviewed Dev Tools branch/worktree summary",
+        "User confirmed no duplicate active-branch worktree collision detected"
+      ],
+      "notes": [
+        "Reviewed status showed one worktree, zero ahead/behind, zero conflicts, and no stale branch.",
+        "Dirty working-tree counts remain informational: staged, unstaged, and untracked changes are not automatically modified.",
+        "Platform update checks remain check-only and do not run update commands automatically."
       ]
     }
   ]

@@ -9,6 +9,7 @@ export type WorkspacePanelId =
   | 'history'
   | 'cost'
   | 'transparency'
+  | 'hestia'
   | 'hooks'
   | 'discord'
 
@@ -28,6 +29,13 @@ export interface WorkspaceLayout {
   rows: number
   columns: number
   modules: WorkspaceGridModule[]
+}
+
+export interface WorkspacePage {
+  id: string
+  label: string
+  layout: WorkspaceLayout
+  createdAt: number
 }
 
 export interface WorkspaceSavedLayout {

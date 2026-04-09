@@ -5,7 +5,8 @@ import { WORKSPACE_PANELS } from '../../workspace/presets'
 import { WorkspacePanelId } from '../../workspace/types'
 import PanelErrorBoundary from './PanelErrorBoundary'
 import WorkspacePanelContent from './WorkspacePanelContent'
-import { saveConversationToVault } from '../../utils/exportConversation'
+import { archiveConversationToMemory } from '../../utils/exportConversation'
+import { useMessageQueueStore } from '../../stores/messageQueueStore'
 
 const DETACH_ICON_URL = new URL('../../../../detach_icon.png', import.meta.url).href
 
@@ -149,6 +150,7 @@ function GridModule({
 }: WorkspaceShellProps & { moduleId: string; panelId: WorkspacePanelId }) {
   const [closePromptOpen, setClosePromptOpen] = useState(false)
   const [closing, setClosing] = useState(false)
+  const [closeError, setCloseError] = useState<string | null>(null)
   const module = useWorkspaceStore((s) => s.layout.modules.find((entry) => entry.id === moduleId))
   const removeModule = useWorkspaceStore((s) => s.removeModule)
   const moveModule = useWorkspaceStore((s) => s.moveModule)
@@ -156,51 +158,77 @@ function GridModule({
   const detachPanel = useWorkspaceStore((s) => s.detachPanel)
   const recordPanelFailure = useWorkspaceStore((s) => s.recordPanelFailure)
   const resetWorkspace = useWorkspaceStore((s) => s.resetWorkspace)
-  const setModuleConversation = useWorkspaceStore((s) => s.setModuleConversation)
   const activeConversationId = useConversationStore((s) => s.activeConversationId)
   const setActiveConversation = useConversationStore((s) => s.setActiveConversation)
   const conversations = useConversationStore((s) => s.conversations)
+  const closeConversation = useConversationStore((s) => s.closeConversation)
   const deleteConversation = useConversationStore((s) => s.deleteConversation)
+  const activeQueuedMessage = useMessageQueueStore((s) => s.active)
+  const queuedMessages = useMessageQueueStore((s) => s.queued)
+  const removeQueuedMessagesForConversation = useMessageQueueStore((s) => s.removeForConversation)
+  const removeQueuedMessagesForModule = useMessageQueueStore((s) => s.removeForModule)
   const frameRef = useRef<HTMLElement | null>(null)
   const closeMenuRef = useRef<HTMLDivElement | null>(null)
   const closeMenuItemsRef = useRef<Array<HTMLButtonElement | null>>([])
   const panel = WORKSPACE_PANELS.find((entry) => entry.id === panelId)
   const isTerminal = panelId === 'chat'
-  const selectedThread = conversations.find((entry) => entry.id === module?.conversationId) ?? null
+  const selectedSession = conversations.find((entry) => entry.id === module?.conversationId) ?? null
   const isActiveTerminal = Boolean(isTerminal && module?.conversationId && activeConversationId === module.conversationId)
+  const terminalBusyStatuses = ['queued', 'spawning', 'ready', 'sending', 'streaming', 'running']
+  const terminalHasQueueWork = Boolean(
+    isTerminal &&
+    module &&
+    (
+      (activeQueuedMessage?.moduleId && activeQueuedMessage.moduleId === module.id) ||
+      (module.conversationId && activeQueuedMessage?.conversationId === module.conversationId) ||
+      queuedMessages.some((message) => message.moduleId === module.id || message.conversationId === module.conversationId)
+    )
+  )
+  const terminalIsGenerating = Boolean(
+    isTerminal &&
+    selectedSession?.status &&
+    terminalBusyStatuses.includes(selectedSession.status)
+  )
+  const terminalCloseLocked = terminalHasQueueWork || terminalIsGenerating || closing
   const terminalTitle = isTerminal
     ? (module?.title?.trim().replace(/^Terminal:\s*/i, 'Terminal ') || 'Terminal')
     : (panel?.title ?? panelId)
-
   const handleTerminalClose = useCallback(async (action: 'save' | 'archive' | 'discard') => {
-    if (!module || !selectedThread) {
+    if (!module || !selectedSession) {
       if (module) removeModule(module.id)
       setClosePromptOpen(false)
       return
     }
     setClosing(true)
+    setCloseError(null)
+    let closeSucceeded = false
     try {
       if (action === 'archive') {
-        const result = await saveConversationToVault(selectedThread)
+        const result = await archiveConversationToMemory(selectedSession)
         if (!result.success) {
           throw new Error(result.error ?? 'Archive failed')
         }
-        deleteConversation(selectedThread.id)
+        removeQueuedMessagesForConversation(selectedSession.id)
+        if (module.id) removeQueuedMessagesForModule(module.id)
+        deleteConversation(selectedSession.id)
       } else if (action === 'discard') {
-        deleteConversation(selectedThread.id)
+        removeQueuedMessagesForConversation(selectedSession.id)
+        if (module.id) removeQueuedMessagesForModule(module.id)
+        deleteConversation(selectedSession.id)
       } else {
-        setModuleConversation(module.id, null)
-      }
-      if (activeConversationId === selectedThread.id) {
-        const nextThread = conversations.find((entry) => entry.id !== selectedThread.id)
-        setActiveConversation(nextThread?.id ?? null)
+        removeQueuedMessagesForConversation(selectedSession.id)
+        if (module.id) removeQueuedMessagesForModule(module.id)
+        closeConversation(selectedSession.id)
       }
       removeModule(module.id)
+      closeSucceeded = true
+    } catch (error) {
+      setCloseError(error instanceof Error ? error.message : String(error))
     } finally {
       setClosing(false)
-      setClosePromptOpen(false)
+      if (closeSucceeded) setClosePromptOpen(false)
     }
-  }, [module, selectedThread, removeModule, deleteConversation, setModuleConversation, activeConversationId, conversations, setActiveConversation])
+  }, [module, selectedSession, removeModule, deleteConversation, closeConversation, removeQueuedMessagesForConversation, removeQueuedMessagesForModule])
 
   useEffect(() => {
     if (!closePromptOpen) return
@@ -298,7 +326,22 @@ function GridModule({
           <div className="relative" ref={closeMenuRef}>
             <button
               onClick={() => {
+                setCloseError(null)
                 if (isTerminal) {
+                  if (terminalCloseLocked) {
+                    setCloseError('Terminal is generating. Wait for the response to finish before closing it.')
+                    setClosePromptOpen(true)
+                    return
+                  }
+                  if (!selectedSession || selectedSession.messages.length === 0) {
+                    if (selectedSession) {
+                      removeQueuedMessagesForConversation(selectedSession.id)
+                      deleteConversation(selectedSession.id)
+                    }
+                    if (module.id) removeQueuedMessagesForModule(module.id)
+                    removeModule(module.id)
+                    return
+                  }
                   setClosePromptOpen((current) => !current)
                 } else {
                   removeModule(module.id)
@@ -311,30 +354,39 @@ function GridModule({
             </button>
             {isTerminal && closePromptOpen && (
               <div data-keyboard-menu="true" className="absolute right-0 top-full z-20 mt-1 w-44 rounded-md border border-border bg-[#10151b] p-1 shadow-xl">
-                <ActionMenuButton
-                  ref={(element) => { closeMenuItemsRef.current[0] = element }}
-                  label="Save"
-                  detail="Keep this thread for later."
-                  shortcut="⌘S"
-                  disabled={closing}
-                  onClick={() => void handleTerminalClose('save')}
-                />
-                <ActionMenuButton
-                  ref={(element) => { closeMenuItemsRef.current[1] = element }}
-                  label="Archive"
-                  detail="Commit this thread to memory."
-                  shortcut="⌘↩"
-                  disabled={closing}
-                  onClick={() => void handleTerminalClose('archive')}
-                />
-                <ActionMenuButton
-                  ref={(element) => { closeMenuItemsRef.current[2] = element }}
-                  label="Don't Save"
-                  detail="Delete this thread."
-                  shortcut="⌘⌫"
-                  disabled={closing}
-                  onClick={() => void handleTerminalClose('discard')}
-                />
+                {!terminalCloseLocked && (
+                  <>
+                    <ActionMenuButton
+                      ref={(element) => { closeMenuItemsRef.current[0] = element }}
+                      label="Save"
+                      detail="Keep this Terminal for later."
+                      shortcut="⌘S"
+                      disabled={closing}
+                      onClick={() => void handleTerminalClose('save')}
+                    />
+                    <ActionMenuButton
+                      ref={(element) => { closeMenuItemsRef.current[1] = element }}
+                      label="Archive"
+                      detail="Commit to memory and sessions."
+                      shortcut="⌘↩"
+                      disabled={closing}
+                      onClick={() => void handleTerminalClose('archive')}
+                    />
+                    <ActionMenuButton
+                      ref={(element) => { closeMenuItemsRef.current[2] = element }}
+                      label="Don't Save"
+                      detail="Delete this Terminal."
+                      shortcut="⌘⌫"
+                      disabled={closing}
+                      onClick={() => void handleTerminalClose('discard')}
+                    />
+                  </>
+                )}
+                {closeError && (
+                  <div className="mt-1 rounded border border-danger/30 bg-danger/10 px-2 py-1.5 text-[11px] leading-4 text-danger">
+                    {closeError}
+                  </div>
+                )}
               </div>
             )}
           </div>

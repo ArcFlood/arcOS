@@ -2,6 +2,42 @@ export {}
 
 declare global {
   interface Window {
+    arcos?: {
+      models: {
+        list: Window['electron']['ollamaListModels']
+        details: Window['electron']['ollamaListModelDetails']
+        pull: Window['electron']['ollamaPullModel']
+        delete: Window['electron']['ollamaDeleteModel']
+      }
+      memory: {
+        query: Window['electron']['memoryQuery']
+        ingest: Window['electron']['memoryIngest']
+        status: Window['electron']['memoryStatus']
+        vaultWrite: Window['electron']['memoryVaultWrite']
+        hygieneScan: Window['electron']['memoryHygieneScan']
+        hygieneDelete: Window['electron']['memoryHygieneDelete']
+      }
+      workspace: {
+        detachPanel: NonNullable<Window['electron']['workspaceDetachPanel']>
+        redockPanel: NonNullable<Window['electron']['workspaceRedockPanel']>
+        syncDetachedPanels: NonNullable<Window['electron']['workspaceSyncDetachedPanels']>
+      }
+      logs: {
+        readOnly: {
+          getEntries: Window['electron']['logGetEntries']
+          openFile: Window['electron']['logOpenFile']
+        }
+      }
+      admin: {
+        services: {
+          status: Window['electron']['serviceStatus']
+          start: Window['electron']['serviceStart']
+          stop: Window['electron']['serviceStop']
+        }
+        openExternal: Window['electron']['openExternal']
+        openPath: Window['electron']['openPath']
+      }
+    }
     electron: {
       platform: string
       getPlatform: () => Promise<string>
@@ -117,8 +153,13 @@ declare global {
       apiKeySet: (key: string) => Promise<{ success: boolean; error?: string }>
       apiKeyHas: () => Promise<{ hasKey: boolean }>
 
-      streamAbort: (streamId: string) => Promise<void>
+      streamAbort: (streamId: string) => Promise<{ abortedCount: number }>
       onStreamEvent: (streamId: string, callback: (data: unknown) => void) => () => void
+
+      appCloseChooseTerminalAction?: (params: { terminalCount: number }) => Promise<{ action: 'save' | 'archive' | 'discard' | 'cancel' }>
+      appCloseContinue?: () => Promise<{ success: boolean }>
+      appCloseCancel?: () => Promise<{ success: boolean }>
+      onAppCloseRequest?: (callback: () => void) => () => void
 
       serviceStatus: (name: string) => Promise<{
         running: boolean
@@ -146,6 +187,8 @@ declare global {
         targetPath?: string
       }) => void) => () => void
       codingRuntimeStatus: () => Promise<{ success: boolean; status?: CodingRuntimeStatus; error?: string }>
+      platformUpdatesCheck?: () => Promise<PlatformUpdateCheck>
+      hestiaSystemMetrics?: () => Promise<HestiaSystemMetrics>
       openExternal: (url: string) => Promise<void>
       openPath: (targetPath: string) => Promise<{ success: boolean; error?: string }>
       voiceStatus: () => Promise<{ healthy: boolean; port: number; apiKeyConfigured?: boolean; defaultVoiceId?: string; error?: string }>
@@ -307,6 +350,8 @@ declare global {
         totalCost: number
       }) => Promise<{ success: boolean; filePath?: string; error?: string }>
       memoryVaultPath: () => Promise<{ success: boolean; vaultPath: string }>
+      memoryHygieneScan: () => Promise<{ success: boolean; candidates: MemoryHygieneCandidate[]; error?: string }>
+      memoryHygieneDelete: (filePaths: string[]) => Promise<{ success: boolean; deleted: string[]; error?: string }>
 
       db: {
         conversations: {
@@ -393,6 +438,12 @@ type RoutingEntry = {
   wasOverridden: boolean
   conversationId?: string
   estimatedCost?: number
+  requestTokens?: {
+    used: number
+    max: number
+    remaining: number
+    modelId?: string
+  }
 }
 
 // Session file listing entry
@@ -481,9 +532,96 @@ type CodingRuntimeStatus = {
   dirty: boolean
   staleBranch: boolean
   mergeReadiness: 'ready' | 'needs_sync' | 'pending_local_changes' | 'conflicted' | 'unknown'
+  branchCollision: boolean
+  branchCollisionDetails: string[]
   verificationCommands: string[]
   openClawControlUrl: string | null
   environment: 'development' | 'packaged'
+}
+
+type PlatformUpdateTarget = {
+  id: 'openclaw' | 'fabric' | 'pai' | 'claude-parity'
+  name: string
+  status: 'ok' | 'warning' | 'error' | 'unknown'
+  installed: boolean
+  version?: string
+  localPath?: string
+  detail: string
+  manualCheck: string
+  manualUpdate: string
+  lastChecked: string
+}
+
+type PlatformUpdateCheck = {
+  success: boolean
+  checkedAt: string
+  policy: 'check-only-manual-approval'
+  targets: PlatformUpdateTarget[]
+  error?: string
+}
+
+type HestiaSystemMetrics = {
+  success: boolean
+  sampledAt: number
+  platform: string
+  hostname: string
+  uptimeSeconds: number
+  bootTimeIso: string
+  cpu: {
+    model: string
+    coreCount: number
+    loadAverage: number[]
+    totalPercent: number
+    cores: Array<{ index: number; percent: number }>
+  }
+  memory: {
+    totalBytes: number
+    freeBytes: number
+    usedBytes: number
+    usedPercent: number
+  }
+  disks: Array<{
+    filesystem: string
+    sizeBytes: number
+    usedBytes: number
+    availableBytes: number
+    usedPercent: number
+    mount: string
+  }>
+  network: Array<{
+    interfaceName: string
+    address?: string
+    bytesIn?: number
+    bytesOut?: number
+  }>
+  topProcesses: Array<{
+    pid: number
+    cpuPercent: number
+    memoryPercent: number
+    command: string
+  }>
+  sensors: {
+    available: boolean
+    detail: string
+    temperatures: Array<{ name: string; valueCelsius: number }>
+    fans: Array<{ name: string; rpm: number }>
+    power: Array<{ name: string; watts: number }>
+    current: Array<{ name: string; amps: number }>
+    voltage: Array<{ name: string; volts: number }>
+    battery: Array<{ name: string; value: string }>
+  }
+  error?: string
+}
+
+type MemoryHygieneCandidate = {
+  id: string
+  title: string
+  filePath: string
+  source: 'learnings' | 'vault'
+  reason: string
+  sizeBytes: number
+  preview: string
+  modifiedAt: string
 }
 
 // Discord types (Item 6)
@@ -593,6 +731,7 @@ type HookRegistryEntry = {
   description: string
   subscribedEvents: HookEventType[]
   active: boolean
+  sourceFile?: string
 }
 
 type HookStats = {

@@ -12,6 +12,9 @@
     "build:mac": "tsc && vite build && electron-builder --mac",
     "build:dir": "tsc && vite build && electron-builder --dir",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "format": "prettier . --write --ignore-unknown",
+    "format:check": "prettier package.json .prettierrc .prettierignore tsconfig.json tsconfig.node.json vite.config.ts postcss.config.js tailwind.config.js --check --ignore-unknown",
+    "precommit": "npm run lint && npm exec tsc -- --noEmit && npm run format:check",
     "validate:chain": "node scripts/validate-chain.mjs",
     "preview": "vite preview",
     "postinstall": "electron-builder install-app-deps"

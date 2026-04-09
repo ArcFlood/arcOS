@@ -41,7 +41,36 @@ export interface SessionSummaryData {
   notes?: string
 }
 
-export function writeSessionSummary(data: SessionSummaryData, haiku_topics: string): string {
+function extractPaiSection(content: string, section: string): string {
+  const names = ['ANSWER', 'SUMMARY', 'ANALYSIS', 'ACTIONS', 'RESULTS', 'STATUS', 'CAPTURE', 'NEXT', 'COMPLETED']
+  const nextSectionPattern = names.filter((name) => name !== section).join('|')
+  const pattern = new RegExp(`(?:^|\\n)${section}:\\s*([\\s\\S]*?)(?=\\n(?:${nextSectionPattern}):|$)`, 'i')
+  return content.match(pattern)?.[1]?.trim() ?? ''
+}
+
+function sessionCapture(data: SessionSummaryData): string {
+  for (const message of [...data.messages].reverse()) {
+    if (message.role !== 'assistant') continue
+    const capture = extractPaiSection(message.content, 'CAPTURE')
+    if (capture) return capture
+  }
+  const firstUserMessage = data.messages.find((message) => message.role === 'user')?.content.trim()
+  return firstUserMessage || 'No capture available.'
+}
+
+function modelBreakdownLines(data: SessionSummaryData): string[] {
+  const rows: Array<[string, number]> = [
+    ['Local (Ollama)', data.modelBreakdown.ollama],
+    ['Haiku', data.modelBreakdown.haiku],
+    ['A.R.C. Sonnet', data.modelBreakdown.sonnet],
+    ['A.R.C. Opus', data.modelBreakdown.opus],
+  ]
+  const used = rows.filter(([, count]) => count > 0)
+  if (used.length === 0) return ['None']
+  return used.map(([label, count]) => `${label}: ${count}`)
+}
+
+export function writeSessionSummary(data: SessionSummaryData, _haikuTopics: string): string {
   const now = new Date(data.endedAt)
   const started = new Date(data.startedAt)
   const durationMin = Math.round((data.endedAt - data.startedAt) / 60000)
@@ -55,24 +84,19 @@ export function writeSessionSummary(data: SessionSummaryData, haiku_topics: stri
   const lines = [
     `# Session — ${now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`,
     '',
-    `**Started:** ${started.toLocaleTimeString()}  `,
-    `**Ended:** ${now.toLocaleTimeString()}  `,
-    `**Duration:** ${durationMin} min  `,
-    `**Messages:** ${data.messages.filter((m) => m.role !== 'system').length}  `,
-    `**Total cost:** $${data.totalCost.toFixed(4)}  `,
+    `Started: ${started.toLocaleTimeString()}`,
+    `Ended: ${now.toLocaleTimeString()}`,
+    `Duration: ${durationMin} min`,
+    `Messages: ${data.messages.filter((m) => m.role !== 'system').length}`,
+    `Total cost: $${data.totalCost.toFixed(4)}`,
     '',
     '## Model Breakdown',
     '',
-    `| Tier | Messages |`,
-    `|------|----------|`,
-    `| Local (Ollama) | ${data.modelBreakdown.ollama} |`,
-    `| Haiku | ${data.modelBreakdown.haiku} |`,
-    `| A.R.C. Sonnet | ${data.modelBreakdown.sonnet} |`,
-    `| A.R.C. Opus | ${data.modelBreakdown.opus} |`,
+    ...modelBreakdownLines(data),
     '',
-    '## Topics',
+    '## CAPTURE',
     '',
-    haiku_topics || '_No topics extracted_',
+    sessionCapture(data),
     '',
     ...(data.fabricPatternsUsed.length > 0 ? [
       '## Fabric Patterns Used',
@@ -81,9 +105,6 @@ export function writeSessionSummary(data: SessionSummaryData, haiku_topics: stri
       '',
     ] : []),
     ...(data.arcCalls > 0 ? [`**A.R.C. calls:** ${data.arcCalls}`, ''] : []),
-    ...(data.notes ? ['## Notes', '', data.notes, ''] : []),
-    '---',
-    `_Generated automatically by ARCOS_`,
   ]
 
   fs.writeFileSync(filePath, lines.join('\n'), 'utf8')

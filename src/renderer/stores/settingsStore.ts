@@ -17,7 +17,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   appearanceTextColor: '#e6edf5',
   appearanceAccentColor: '#8fa1b3',
   appearanceAccentSecondaryColor: '#d4a25a',
-  surfaceTransparency: 'solid',
   responseTunerIdentity: '',
   responseTunerStyle: '',
   responseTunerInstructions: '',

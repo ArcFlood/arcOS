@@ -4,7 +4,7 @@ export const WORKSPACE_PANELS: WorkspacePanelDefinition[] = [
   {
     id: 'chat',
     title: 'Terminal',
-    description: 'Terminal tabs for active task threads inside the broader PAI workspace.',
+    description: 'Terminal sessions for active tasks inside the broader PAI workspace.',
     icon: '',
     defaultSize: {
       width: 1,
@@ -60,10 +60,20 @@ export const WORKSPACE_PANELS: WorkspacePanelDefinition[] = [
     icon: '◫',
   },
   {
+    id: 'hestia',
+    title: 'Hestia',
+    description: 'Real-time visual dashboard for ARCOS process and service state.',
+    icon: '',
+    defaultSize: {
+      width: 2,
+      height: 2,
+    },
+  },
+  {
     id: 'hooks',
-    title: 'Hooks',
-    description: 'Live chain event stream — all 14 canonical hook events.',
-    icon: '⚡',
+    title: 'Automation',
+    description: 'Hook management and automation event logs.',
+    icon: '',
   },
   {
     id: 'discord',

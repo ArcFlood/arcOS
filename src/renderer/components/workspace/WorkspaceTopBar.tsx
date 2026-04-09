@@ -1,4 +1,4 @@
-import { ReactNode, useMemo, useState } from 'react'
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { WORKSPACE_PANELS } from '../../workspace/presets'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 
@@ -7,10 +7,17 @@ interface WorkspaceTopBarProps {
 }
 
 export default function WorkspaceTopBar({ onOpenSettings }: WorkspaceTopBarProps) {
-  const [openMenu, setOpenMenu] = useState<'layouts' | 'workspace' | null>(null)
+  const [openMenu, setOpenMenu] = useState<'pages' | 'layouts' | 'workspace' | null>(null)
+  const menuRootRef = useRef<HTMLDivElement | null>(null)
   const layout = useWorkspaceStore((s) => s.layout)
+  const pages = useWorkspaceStore((s) => s.pages)
+  const activePageId = useWorkspaceStore((s) => s.activePageId)
   const savedLayouts = useWorkspaceStore((s) => s.savedLayouts)
   const activeLayoutId = useWorkspaceStore((s) => s.activeLayoutId)
+  const createPage = useWorkspaceStore((s) => s.createPage)
+  const activatePage = useWorkspaceStore((s) => s.activatePage)
+  const renamePage = useWorkspaceStore((s) => s.renamePage)
+  const deletePage = useWorkspaceStore((s) => s.deletePage)
   const redockPanel = useWorkspaceStore((s) => s.redockPanel)
   const saveCurrentLayout = useWorkspaceStore((s) => s.saveCurrentLayout)
   const exportCurrentLayout = useWorkspaceStore((s) => s.exportCurrentLayout)
@@ -30,9 +37,22 @@ export default function WorkspaceTopBar({ onOpenSettings }: WorkspaceTopBarProps
     title: module.title,
   })).filter((entry) => entry.panel), [detachedModules])
 
-  const toggleMenu = (menu: 'layouts' | 'workspace') => {
+  const activePage = pages.find((page) => page.id === activePageId)
+
+  const toggleMenu = (menu: 'pages' | 'layouts' | 'workspace') => {
     setOpenMenu((current) => current === menu ? null : menu)
   }
+
+  useEffect(() => {
+    if (!openMenu) return
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!menuRootRef.current?.contains(event.target as Node)) {
+        setOpenMenu(null)
+      }
+    }
+    window.addEventListener('mousedown', handlePointerDown)
+    return () => window.removeEventListener('mousedown', handlePointerDown)
+  }, [openMenu])
 
   return (
     <header className="titlebar-drag arcos-toolbar flex h-14 min-h-14 items-center justify-between border-b px-4">
@@ -41,7 +61,49 @@ export default function WorkspaceTopBar({ onOpenSettings }: WorkspaceTopBarProps
         <p className="mt-0.5 text-sm font-semibold text-text">ARCOS</p>
       </div>
 
-      <div className="titlebar-no-drag flex items-center gap-2">
+      <div ref={menuRootRef} className="titlebar-no-drag flex items-center gap-2">
+        <MenuButton label={`Pages: ${activePage?.label ?? 'Page 1'}`} open={openMenu === 'pages'} onClick={() => toggleMenu('pages')}>
+          <MenuItem
+            label="New Page"
+            description="Create another grid layer for separate ARCOS work."
+            onClick={() => {
+              createPage()
+              setOpenMenu(null)
+            }}
+          />
+          <MenuDivider />
+          {pages.map((page) => (
+            <div key={page.id} className="rounded-lg border border-border bg-[#12161b] p-2">
+              <button
+                onClick={() => {
+                  activatePage(page.id)
+                  setOpenMenu(null)
+                }}
+                className={`w-full rounded-md px-2 py-2 text-left text-xs transition-colors ${
+                  activePageId === page.id ? 'bg-[#1b2027] text-text' : 'text-text-muted hover:bg-[#171c22]'
+                }`}
+              >
+                {page.label}
+              </button>
+              <div className="mt-2 flex gap-2">
+                <MiniAction
+                  label="Rename"
+                  onClick={() => {
+                    const label = window.prompt('Rename page:', page.label)
+                    if (label) renamePage(page.id, label)
+                  }}
+                />
+                <MiniAction
+                  label="Delete"
+                  onClick={() => {
+                    if (window.confirm(`Delete "${page.label}"?`)) deletePage(page.id)
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+        </MenuButton>
+
         <MenuButton label="Layouts" open={openMenu === 'layouts'} onClick={() => toggleMenu('layouts')}>
           <MenuItem
             label="Save Current Layout"

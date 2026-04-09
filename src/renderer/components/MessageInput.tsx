@@ -8,7 +8,6 @@ import { ModelTier, PaiVoiceSection } from '../stores/types'
 import { useMessageQueueStore } from '../stores/messageQueueStore'
 import { useTraceStore } from '../stores/traceStore'
 import { sendMessage } from '../services/chatService'
-import type { TaskPacket } from '../stores/types'
 import { executeCanonicalChain } from '../services/canonicalChainService'
 import { classifyTaskArea, modelForTaskArea, routeQuery, TIER_DISPLAY_LABELS } from '../utils/routing'
 import { searchMemory, MemoryCitation, sourceLabel } from '../services/memoryService'
@@ -16,6 +15,7 @@ import { saveConversationToVault } from '../utils/exportConversation'
 
 interface Props {
   conversationId: string | null
+  moduleId?: string | null
   disabled?: boolean
   onConversationCreated?: (conversationId: string) => void
 }
@@ -93,20 +93,30 @@ function compactThinkingPreview(text: string, max = 900): string {
 }
 
 const ARCOS_VOICE_PLAYBACK_ENABLED = true
+const LOCAL_CONTEXT_BUDGET_TOKENS = 8192
+const CLAUDE_CONTEXT_BUDGET_TOKENS = 200000
+
+type RequestTokenBudget = {
+  used: number
+  max: number
+  remaining: number
+  tier: ModelTier
+  modelId: string
+}
+
+function contextBudgetForTier(tier: ModelTier): number {
+  return tier === 'ollama' ? LOCAL_CONTEXT_BUDGET_TOKENS : CLAUDE_CONTEXT_BUDGET_TOKENS
+}
 let terminalSendQueue: Promise<void> = Promise.resolve()
 
-export default function MessageInput({ conversationId, disabled = false, onConversationCreated }: Props) {
+export default function MessageInput({ conversationId, moduleId = null, disabled = false, onConversationCreated }: Props) {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [voiceMode, setVoiceMode] = useState(false)
   const [fastTestMode, setFastTestMode] = useState(false)
   const [memorySearching, setMemorySearching] = useState(false)
-  // Task Mode (Item 19)
-  const [taskModeOpen, setTaskModeOpen] = useState(false)
-  const [taskPacket, setTaskPacket] = useState<Partial<TaskPacket>>({
-    objective: '', scope: '', expectedOutputFormat: 'prose', retryPolicy: 'none',
-  })
+  const [requestTokenBudget, setRequestTokenBudget] = useState<RequestTokenBudget | null>(null)
   const [memoryError, setMemoryError] = useState<string | null>(null)
   const [stagedMemory, setStagedMemory] = useState<{
     query: string
@@ -115,7 +125,6 @@ export default function MessageInput({ conversationId, disabled = false, onConve
     totalResults: number
   } | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const abortRef = useRef<AbortController | null>(null)
   const voiceModeRef = useRef(false)
   const voiceAudioRef = useRef<HTMLAudioElement | null>(null)
 
@@ -123,6 +132,9 @@ export default function MessageInput({ conversationId, disabled = false, onConve
   const addMessage = useConversationStore((s) => s.addMessage)
   const updateMessage = useConversationStore((s) => s.updateMessage)
   const setConversationStatus = useConversationStore((s) => s.setConversationStatus)
+  const currentConversationStatus = useConversationStore((s) => (
+    conversationId ? s.conversations.find((conversation) => conversation.id === conversationId)?.status ?? null : null
+  ))
 
   const settings = useSettingsStore((s) => s.settings)
   const hasApiKey = useSettingsStore((s) => s.hasApiKey)
@@ -142,6 +154,20 @@ export default function MessageInput({ conversationId, disabled = false, onConve
   const startQueuedMessage = useMessageQueueStore((s) => s.start)
   const finishQueuedMessage = useMessageQueueStore((s) => s.finish)
   const appendTraceEntry = useTraceStore((s) => s.appendEntry)
+  const busyStatuses = ['queued', 'spawning', 'ready', 'sending', 'streaming', 'running']
+  const isLocallyQueued = queuedMessages.some((message) => (
+    (moduleId && message.moduleId === moduleId) || (conversationId && message.conversationId === conversationId)
+  ))
+  const isLocallyActive = Boolean(
+    (moduleId && queueActive?.moduleId === moduleId) ||
+    (conversationId && queueActive?.conversationId === conversationId)
+  )
+  const isTerminalBusy = Boolean(
+    sending ||
+    isLocallyQueued ||
+    isLocallyActive ||
+    (currentConversationStatus && busyStatuses.includes(currentConversationStatus))
+  )
 
   voiceModeRef.current = voiceMode
 
@@ -241,28 +267,10 @@ export default function MessageInput({ conversationId, disabled = false, onConve
       return
     }
 
-    const convId = conversationId ?? createConversation()
+    const convId = conversationId ?? createConversation('Terminal')
     onConversationCreated?.(convId)
     const queueId = crypto.randomUUID()
-    enqueueMessage({
-      id: queueId,
-      conversationId: convId,
-      preview: trimmed.slice(0, 96),
-      enqueuedAt: Date.now(),
-    })
-    setText('')
-
-    const runQueuedSend = async () => {
-    startQueuedMessage(queueId)
-    const draftToRestore = rawText
-    setError(null)
-    setSending(true)
-    // Drive session state machine → sending
-    setConversationStatus(convId, 'sending')
-
-    // ── Slash command detection ────────────────────────────────
-    // If the message starts with a known plugin command, auto-activate it
-    // and strip the command prefix from the actual content.
+    const queueState = useMessageQueueStore.getState()
     const displayContent = trimmed
     let resolvedContent = trimmed
     let resolvedPlugin = activePlugin
@@ -278,38 +286,45 @@ export default function MessageInput({ conversationId, disabled = false, onConve
         resolvedContent = rest || trimmed // fall back to full text if nothing after command
       }
     }
-    // ──────────────────────────────────────────────────────────
+
+    const userMessage = addMessage(convId, {
+      role: 'user',
+      content: displayContent,
+      model: null,
+      cost: 0,
+      timestamp: Date.now(),
+    })
+
+    enqueueMessage({
+      id: queueId,
+      conversationId: convId,
+      moduleId,
+      preview: trimmed.slice(0, 96),
+      enqueuedAt: Date.now(),
+    })
+    setConversationStatus(convId, queueState.active || queueState.queued.length > 0 ? 'queued' : 'spawning')
+    setText('')
+
+    const runQueuedSend = async () => {
+      if (!startQueuedMessage(queueId)) return
+      const draftToRestore = rawText
+      setError(null)
+      setRequestTokenBudget(null)
+      setSending(true)
+      setConversationStatus(convId, 'spawning')
 
     try {
       // Build history from current conversation (before adding new message)
       const currentConversation = useConversationStore.getState().conversations.find((conversation) => conversation.id === convId)
-      const history = (currentConversation?.messages ?? []).map((m) => ({
-        role: m.role,
-        content: m.content,
-      }))
-
-      // Add user message to store (show original text including command)
-      // Build task packet if Task Mode is active (Item 19)
-      const activeTaskPacket: TaskPacket | undefined =
-        taskModeOpen && taskPacket.objective?.trim()
-          ? {
-              objective: taskPacket.objective!.trim(),
-              scope: taskPacket.scope?.trim() || undefined,
-              expectedOutputFormat: taskPacket.expectedOutputFormat ?? 'prose',
-              retryPolicy: taskPacket.retryPolicy ?? 'none',
-            }
-          : undefined
+      const history = (currentConversation?.messages ?? [])
+        .filter((message) => message.id !== userMessage.id)
+        .map((m) => ({
+          role: m.role,
+          content: m.content,
+        }))
       const taskArea = classifyTaskArea(resolvedContent)
       const assignedLocalModel = modelForTaskArea(settings.modelAssignments, taskArea, settings.ollamaModel)
 
-      addMessage(convId, {
-        role: 'user',
-        content: displayContent,
-        model: null,
-        cost: 0,
-        timestamp: Date.now(),
-        taskPacket: activeTaskPacket,
-      })
       if (stagedMemory && stagedMemory.citations.length > 0) {
         appendTraceEntry({
           source: 'memory',
@@ -368,6 +383,8 @@ export default function MessageInput({ conversationId, disabled = false, onConve
             },
           })
 
+      setConversationStatus(convId, 'ready')
+
       // Route decision (may be overridden by plugin tier below)
       const { tier, reason } = routeQuery(canonicalChain.routingPrompt, settings.routingMode, settings.routingAggressiveness, ollamaRunning, spendingToday, settings.dailyBudgetLimit)
 
@@ -383,13 +400,23 @@ export default function MessageInput({ conversationId, disabled = false, onConve
       const effectiveReason = shouldFallbackToLocal
         ? `${routedReason} · Claude API key missing, falling back to ${TIER_DISPLAY_LABELS.ollama}. Task area: ${taskArea}.`
         : `${routedReason} Task area: ${taskArea}.`
+      const finalModelId = modelIdForTier(effectiveTier, assignedLocalModel)
 
       const estimatedInputTokens = estimateTokens(
         [
           ...history.map((message) => message.content),
-          canonicalChain.routingPrompt,
+          canonicalChain.rebuiltSystemPrompt,
+          canonicalChain.rebuiltUserPrompt,
         ].join('\n')
       )
+      const contextBudget = contextBudgetForTier(effectiveTier)
+      setRequestTokenBudget({
+        used: estimatedInputTokens,
+        max: contextBudget,
+        remaining: contextBudget - estimatedInputTokens,
+        tier: effectiveTier,
+        modelId: finalModelId,
+      })
       const estimatedOutputTokens = Math.max(estimateTokens(canonicalChain.rebuiltUserPrompt), 384)
       const estimatedCost = estimateCost(effectiveTier, estimatedInputTokens, estimatedOutputTokens)
 
@@ -397,10 +424,16 @@ export default function MessageInput({ conversationId, disabled = false, onConve
         source: 'routing',
         level: 'info',
         title: `Routed to ${TIER_DISPLAY_LABELS[effectiveTier]}`,
-        detail: `${effectiveReason}${estimatedCost > 0 ? ` Estimated cost: $${estimatedCost.toFixed(4)}.` : ' Local path selected.'}`,
+        detail: `${effectiveReason}${estimatedCost > 0 ? ` Estimated cost: $${estimatedCost.toFixed(4)}.` : ' Local path selected.'} Request tokens: ${estimatedInputTokens.toLocaleString()}/${contextBudget.toLocaleString()} with ${Math.max(0, contextBudget - estimatedInputTokens).toLocaleString()} remaining.`,
         conversationId: convId,
         relatedPanels: ['routing', resolvedPlugin ? 'tools' : 'prompt_inspector', 'transparency'],
         entityLabel: resolvedPlugin?.id ?? effectiveTier,
+        requestTokens: {
+          used: estimatedInputTokens,
+          max: contextBudget,
+          remaining: contextBudget - estimatedInputTokens,
+          modelId: finalModelId,
+        },
       })
 
       window.electron.routingAppend?.({
@@ -412,9 +445,13 @@ export default function MessageInput({ conversationId, disabled = false, onConve
         wasOverridden: settings.routingMode !== 'auto' || Boolean(resolvedPlugin) || shouldFallbackToLocal,
         conversationId: convId,
         estimatedCost,
+        requestTokens: {
+          used: estimatedInputTokens,
+          max: contextBudget,
+          remaining: contextBudget - estimatedInputTokens,
+          modelId: finalModelId,
+        },
       }).catch?.(() => {})
-
-      const finalModelId = modelIdForTier(effectiveTier, assignedLocalModel)
 
       // Add placeholder assistant message
       const assistantMsg = addMessage(convId, {
@@ -429,7 +466,7 @@ export default function MessageInput({ conversationId, disabled = false, onConve
       })
 
       // Stream the response
-      abortRef.current = new AbortController()
+      setConversationStatus(convId, 'sending')
       let accumulatedContent = ''
       let accumulatedThinking = ''
       let thinkingTraceStarted = false
@@ -491,7 +528,7 @@ export default function MessageInput({ conversationId, disabled = false, onConve
         level: 'info',
         title: fastTestMode ? 'Started fast Terminal test response' : 'Started assistant response',
         detail: fastTestMode
-          ? `Thread ${convId} is bypassing PAI context, OpenClaw, Fabric, and required response format for debugging.`
+          ? `Terminal ${convId} is bypassing PAI context, OpenClaw, Fabric, and required response format for debugging.`
           : `Conversation ${convId} is now streaming from ${TIER_DISPLAY_LABELS[effectiveTier]}.`,
         conversationId: convId,
         stage: 'local model',
@@ -518,7 +555,6 @@ export default function MessageInput({ conversationId, disabled = false, onConve
           ollamaModel: assignedLocalModel,
           extendedThinking: settings.extendedThinking,
         },
-        signal: abortRef.current.signal,
         // Plugin system prompt override
         prebuiltSystemPrompt: canonicalChain.usesPaiSystemPrompt ? canonicalChain.rebuiltSystemPrompt : undefined,
         systemPromptOverride: resolvedPlugin?.systemPrompt,
@@ -531,14 +567,18 @@ export default function MessageInput({ conversationId, disabled = false, onConve
           })
           // Transition to streaming on first token
           if (accumulatedContent.length === token.length) {
-            setConversationStatus(convId, 'streaming')
-            window.electron.logAppend?.('info', `Ollama stream visible content started for thread ${convId}.`, undefined, 'prompt_delivery')
+            setConversationStatus(convId, 'running')
+            window.electron.logAppend?.('info', `Ollama stream visible content started for terminal ${convId}.`, undefined, 'prompt_delivery')
           }
         },
         onThinking: (token) => {
           accumulatedThinking += token
           if (!thinkingTraceStarted) {
             thinkingTraceStarted = true
+            updateMessage(convId, assistantMsg.id, {
+              content: 'Thinking',
+              isStreaming: true,
+            })
             appendTraceEntry({
               source: 'chat',
               level: 'info',
@@ -552,8 +592,8 @@ export default function MessageInput({ conversationId, disabled = false, onConve
             })
           }
           if (accumulatedContent.length === 0 && accumulatedThinking.length === token.length) {
-            setConversationStatus(convId, 'streaming')
-            window.electron.logAppend?.('info', `Ollama stream thinking content started for thread ${convId}.`, undefined, 'prompt_delivery')
+            setConversationStatus(convId, 'running')
+            window.electron.logAppend?.('info', `Ollama stream thinking content started for terminal ${convId}.`, undefined, 'prompt_delivery')
           }
         },
         onComplete: (fullText, cost) => {
@@ -567,7 +607,7 @@ export default function MessageInput({ conversationId, disabled = false, onConve
           onConversationCreated?.(convId)
           window.electron.logAppend?.(
             'info',
-            `Assistant response completed for thread ${convId}.`,
+            `Assistant response completed for terminal ${convId}.`,
             `visibleChars=${finalText.length} thinkingChars=${accumulatedThinking.length}`,
             'prompt_delivery'
           )
@@ -656,6 +696,11 @@ export default function MessageInput({ conversationId, disabled = false, onConve
           setSending(false)
         },
         onError: (err) => {
+          const errorStatus = /without returning any tokens|zero output|empty response/i.test(err.message)
+            ? 'zero_output_failure'
+            : /Ollama|Claude|provider|stream|API|HTTP/i.test(err.message)
+            ? 'provider_failure'
+            : 'error'
           updateMessage(convId, assistantMsg.id, {
             content: `⚠️ Error: ${err.message}`,
             isStreaming: false,
@@ -676,7 +721,7 @@ export default function MessageInput({ conversationId, disabled = false, onConve
             error: err.message,
             cost: 0,
           })
-          setConversationStatus(convId, 'error')
+          setConversationStatus(convId, errorStatus)
           setError(err.message)
           setText(draftToRestore)
           setSending(false)
@@ -686,7 +731,7 @@ export default function MessageInput({ conversationId, disabled = false, onConve
       const message = err instanceof Error ? err.message : String(err)
       setError(message)
       setText(draftToRestore)
-      setConversationStatus(convId, 'error')
+      setConversationStatus(convId, /without returning any tokens|zero output|empty response/i.test(message) ? 'zero_output_failure' : 'provider_failure')
       setSending(false)
     } finally {
       finishQueuedMessage(queueId)
@@ -702,11 +747,10 @@ export default function MessageInput({ conversationId, disabled = false, onConve
     conversationId,
     createConversation,
     onConversationCreated,
+    moduleId,
     enqueueMessage,
     startQueuedMessage,
     finishQueuedMessage,
-    taskModeOpen,
-    taskPacket,
     stagedMemory,
     appendTraceEntry,
     openClawRunning,
@@ -733,12 +777,6 @@ export default function MessageInput({ conversationId, disabled = false, onConve
 
   const handleSend = async () => {
     await handleSendWithText(text)
-  }
-
-  const handleStop = () => {
-    abortRef.current?.abort()
-    setSending(false)
-    if (conversationId) setConversationStatus(conversationId, 'idle')
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -831,7 +869,7 @@ export default function MessageInput({ conversationId, disabled = false, onConve
         </div>
       )}
 
-      {memoryCommandQuery && !sending && (
+      {memoryCommandQuery && !isTerminalBusy && (
         <div className="flex items-center gap-2 px-1 text-xs text-text-muted">
           <span>🧠</span>
           <span className="font-medium text-accent">Memory query</span>
@@ -840,7 +878,7 @@ export default function MessageInput({ conversationId, disabled = false, onConve
       )}
 
       {/* Routing preview */}
-      {previewTier && text.trim() && !sending && !memoryCommandQuery && (
+      {previewTier && text.trim() && !isTerminalBusy && !memoryCommandQuery && (
         <div className="flex items-center gap-2 px-1 text-xs text-text-muted">
           <span>→</span>
           <span className={`font-medium ${TIER_COLORS[previewTier]}`}>{TIER_DISPLAY_LABELS[previewTier]}</span>
@@ -870,11 +908,19 @@ export default function MessageInput({ conversationId, disabled = false, onConve
         </div>
       )}
 
-      {fastTestMode && (
-        <div className="flex items-center gap-2 px-1 text-xs text-warning">
-          <span>●</span>
-          <span>Fast test mode active: PAI, OpenClaw, Fabric, and required response format are bypassed.</span>
+      {requestTokenBudget && (
+        <div className="flex flex-wrap items-center gap-2 px-1 text-xs text-text-muted">
+          <span className={requestTokenBudget.remaining < 0 ? 'text-danger' : requestTokenBudget.remaining < requestTokenBudget.max * 0.1 ? 'text-warning' : 'text-accent'}>●</span>
+          <span>
+            Request tokens {requestTokenBudget.used.toLocaleString()}/{requestTokenBudget.max.toLocaleString()} ·{' '}
+            {Math.max(0, requestTokenBudget.remaining).toLocaleString()} remaining per request
+          </span>
+          <span className="opacity-60">{requestTokenBudget.modelId}</span>
         </div>
+      )}
+
+      {fastTestMode && (
+        <div className="px-1 text-xs text-warning">Fast test mode</div>
       )}
 
       {(queueActive || queuedMessages.length > 0) && (
@@ -887,59 +933,8 @@ export default function MessageInput({ conversationId, disabled = false, onConve
         </div>
       )}
 
-      {/* Task Mode panel (Item 19) */}
-      {taskModeOpen && (
-        <div className="rounded-lg border border-violet-700/40 bg-violet-950/20 px-3 py-2 space-y-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-violet-300 uppercase tracking-wider">Task Mode</span>
-            <button
-              onClick={() => setTaskModeOpen(false)}
-              className="text-[11px] text-slate-500 hover:text-slate-300"
-            >
-              ✕ Close
-            </button>
-          </div>
-          <input
-            type="text"
-            placeholder="Objective (required for task packet)"
-            value={taskPacket.objective ?? ''}
-            onChange={(e) => setTaskPacket((p) => ({ ...p, objective: e.target.value }))}
-            className="w-full bg-slate-800/60 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-violet-500"
-          />
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Scope (optional)"
-              value={taskPacket.scope ?? ''}
-              onChange={(e) => setTaskPacket((p) => ({ ...p, scope: e.target.value }))}
-              className="flex-1 bg-slate-800/60 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-violet-500"
-            />
-            <select
-              value={taskPacket.expectedOutputFormat ?? 'prose'}
-              onChange={(e) => setTaskPacket((p) => ({ ...p, expectedOutputFormat: e.target.value as TaskPacket['expectedOutputFormat'] }))}
-              className="bg-slate-800/60 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-violet-500"
-            >
-              <option value="prose">Prose</option>
-              <option value="json">JSON</option>
-              <option value="code">Code</option>
-              <option value="list">List</option>
-              <option value="table">Table</option>
-            </select>
-            <select
-              value={taskPacket.retryPolicy ?? 'none'}
-              onChange={(e) => setTaskPacket((p) => ({ ...p, retryPolicy: e.target.value as TaskPacket['retryPolicy'] }))}
-              className="bg-slate-800/60 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-violet-500"
-            >
-              <option value="none">No retry</option>
-              <option value="once">Retry ×1</option>
-              <option value="twice">Retry ×2</option>
-            </select>
-          </div>
-        </div>
-      )}
-
       {/* Input box */}
-      <div className={`flex items-end gap-3 bg-surface border rounded-xl p-3 transition-colors ${sending ? 'border-accent/50' : taskModeOpen ? 'border-violet-700/60' : 'border-border'}`}>
+      <div className={`flex items-end gap-3 bg-surface border rounded-xl p-3 transition-colors ${isTerminalBusy ? 'border-accent/50' : 'border-border'}`}>
         <div className="flex shrink-0 flex-col gap-2">
           <button
             onClick={() => void toggleVoiceMode()}
@@ -951,17 +946,6 @@ export default function MessageInput({ conversationId, disabled = false, onConve
             }`}
           >
             🔊
-          </button>
-          <button
-            onClick={() => setTaskModeOpen((v) => !v)}
-            title="Toggle Task Mode — attach a structured task packet to this message"
-            className={`flex h-7 w-7 items-center justify-center rounded text-xs transition-colors ${
-              taskModeOpen
-                ? 'bg-violet-700/40 text-violet-300 border border-violet-600/60'
-                : 'bg-transparent text-slate-600 hover:text-slate-400 border border-transparent'
-            }`}
-          >
-            ⊞
           </button>
           <button
             onClick={() => setFastTestMode((value) => !value)}
@@ -981,17 +965,17 @@ export default function MessageInput({ conversationId, disabled = false, onConve
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={
-            sending
+            isTerminalBusy
               ? 'Queue another message...'
               : memoryCommandQuery
               ? 'Press Enter to search memory...'
               : disabled
-              ? 'This terminal is idle.'
+              ? ''
               : activePlugin
-              ? `${activePlugin.icon} ${activePlugin.name} active — ask anything...`
+              ? `${activePlugin.icon} ${activePlugin.name}`
               : stagedMemory
-              ? 'Ask with staged memory context attached...'
-              : 'Ask anything or type /command... (Enter to send)'
+              ? 'Ask with memory'
+              : 'Message ARCOS'
           }
           disabled={disabled || memorySearching}
           rows={1}
@@ -999,7 +983,7 @@ export default function MessageInput({ conversationId, disabled = false, onConve
           style={{ maxHeight: '200px' }}
           autoFocus
         />
-        {sending ? (
+        {isTerminalBusy ? (
           <div className="flex shrink-0 items-center gap-2">
             <button
               onClick={() => void handleSend()}
@@ -1008,13 +992,6 @@ export default function MessageInput({ conversationId, disabled = false, onConve
               title="Queue message"
             >
               +
-            </button>
-            <button
-              onClick={handleStop}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface-elevated text-xs text-text-muted transition-colors hover:bg-border"
-              title="Stop generating"
-            >
-              ⏹
             </button>
           </div>
         ) : (

@@ -153,16 +153,21 @@ function buildConversationSection(history: Array<{ role: string; content: string
     .join('\n\n')
 }
 
-function buildConversationSummary(history: Array<{ role: string; content: string }>): string {
+function buildConversationSummary(history: Array<{ role: string; content: string }>, rawExchangeLimit = 10): string {
   const recent = history.filter((message) => message.role === 'user' || message.role === 'assistant')
   if (recent.length === 0) return 'No prior thread context.'
 
-  const recentTurns = recent.slice(-2)
+  const rawMessageLimit = Math.max(2, rawExchangeLimit * 2)
+  const recentTurns = recent.slice(-rawMessageLimit)
+  const compactedCount = Math.max(0, recent.length - recentTurns.length)
   const userCount = recent.filter((message) => message.role === 'user').length
   const assistantCount = recent.filter((message) => message.role === 'assistant').length
 
   return [
     `Recent thread summary: ${recent.length} prior message(s) (${userCount} user, ${assistantCount} assistant).`,
+    compactedCount > 0
+      ? `${compactedCount} older message(s) compacted out of the raw context window. Original saved thread content is preserved outside this prompt.`
+      : 'No older messages were compacted for this request.',
     ...recentTurns.map((message) => `${message.role.toUpperCase()}: ${summarizeInline(message.content, 180)}`),
   ].join('\n')
 }

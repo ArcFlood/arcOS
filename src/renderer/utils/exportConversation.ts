@@ -12,6 +12,16 @@ const MODEL_LABELS: Record<string, string> = {
   'arc-sonnet': 'Claude Sonnet (A.R.C.)',
 }
 
+type SessionSummaryPayload = {
+  startedAt: number
+  endedAt: number
+  messages: Array<{ role: string; content: string; model?: string; cost?: number }>
+  modelBreakdown: { ollama: number; haiku: number; sonnet: number; opus: number }
+  totalCost: number
+  fabricPatternsUsed: string[]
+  arcCalls: number
+}
+
 /**
  * Convert a Conversation to a Markdown string suitable for export.
  */
@@ -87,4 +97,62 @@ export async function saveConversationToVault(
     tags: conversation.tags,
     totalCost: conversation.totalCost,
   })
+}
+
+function conversationSessionSummaryData(conversation: Conversation): SessionSummaryPayload {
+  const modelBreakdown = { ollama: 0, haiku: 0, sonnet: 0, opus: 0 }
+  for (const message of conversation.messages) {
+    if (message.role === 'system') continue
+    if (message.model === 'haiku') modelBreakdown.haiku += 1
+    else if (message.model === 'arc-sonnet') modelBreakdown.sonnet += 1
+    else if (message.model === 'arc-opus') modelBreakdown.opus += 1
+    else modelBreakdown.ollama += 1
+  }
+
+  return {
+    startedAt: conversation.createdAt,
+    endedAt: conversation.updatedAt || Date.now(),
+    messages: conversation.messages.map((message) => ({
+      role: message.role,
+      content: message.content,
+      model: message.model ?? undefined,
+      cost: message.cost,
+    })),
+    modelBreakdown,
+    totalCost: conversation.totalCost,
+    fabricPatternsUsed: [],
+    arcCalls: conversation.messages.filter((message) => message.model === 'arc-sonnet' || message.model === 'arc-opus').length,
+  }
+}
+
+export async function writeConversationSessionSummary(
+  conversation: Conversation
+): Promise<{ success: boolean; filePath?: string; error?: string }> {
+  return window.electron.sessionWriteSummary({
+    data: conversationSessionSummaryData(conversation),
+  })
+}
+
+export async function archiveConversationToMemory(
+  conversation: Conversation
+): Promise<{ success: boolean; vaultPath?: string; sessionPath?: string; error?: string }> {
+  const vaultResult = await saveConversationToVault(conversation)
+  if (!vaultResult.success) {
+    return { success: false, error: vaultResult.error ?? 'Archive failed' }
+  }
+
+  const sessionResult = await writeConversationSessionSummary(conversation)
+  if (!sessionResult.success) {
+    return {
+      success: false,
+      vaultPath: vaultResult.filePath,
+      error: sessionResult.error ?? 'Archive saved to memory vault, but session summary failed.',
+    }
+  }
+
+  return {
+    success: true,
+    vaultPath: vaultResult.filePath,
+    sessionPath: sessionResult.filePath,
+  }
 }

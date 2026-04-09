@@ -48,6 +48,17 @@ export interface MemoryStatus {
   ingest_running: boolean
 }
 
+export interface MemoryHygieneCandidate {
+  id: string
+  title: string
+  filePath: string
+  source: 'learnings' | 'vault'
+  reason: string
+  sizeBytes: number
+  preview: string
+  modifiedAt: string
+}
+
 // ── Query ─────────────────────────────────────────────────────────
 
 export interface MemorySearchOptions {
@@ -136,6 +147,24 @@ export async function triggerIngest(force = false): Promise<{ success: boolean; 
     return await window.electron.memoryIngest(force)
   } catch (e) {
     return { success: false, error: String(e) }
+  }
+}
+
+// ── Hygiene ──────────────────────────────────────────────────────
+
+export async function scanMemoryHygiene(): Promise<{ success: boolean; candidates: MemoryHygieneCandidate[]; error?: string }> {
+  try {
+    return await window.electron.memoryHygieneScan()
+  } catch (e) {
+    return { success: false, candidates: [], error: String(e) }
+  }
+}
+
+export async function deleteMemoryHygieneCandidates(filePaths: string[]): Promise<{ success: boolean; deleted: string[]; error?: string }> {
+  try {
+    return await window.electron.memoryHygieneDelete(filePaths)
+  } catch (e) {
+    return { success: false, deleted: [], error: String(e) }
   }
 }
 

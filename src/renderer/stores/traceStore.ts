@@ -31,6 +31,27 @@ export type ChainPath =
   | 'openclaw-plus-fabric'
   | 'degraded-fallback'
 
+export type ProcessEventStatus =
+  | 'queued'
+  | 'running'
+  | 'blocked'
+  | 'completed'
+  | 'failed'
+  | 'degraded'
+
+export interface ProcessEventEntity {
+  id?: string
+  type?: string
+  label?: string
+}
+
+export interface RequestTokenBudget {
+  used: number
+  max: number
+  remaining: number
+  modelId?: string
+}
+
 export interface TraceEntry {
   id: string
   timestamp: number
@@ -38,6 +59,9 @@ export interface TraceEntry {
   source: TraceSource
   title: string
   detail?: string
+  eventType?: string
+  status?: ProcessEventStatus
+  entity?: ProcessEventEntity
   stage?: string
   executionState?: ExecutionLifecycleState
   failureType?: FailureType
@@ -47,6 +71,7 @@ export interface TraceEntry {
   relatedPanels?: WorkspacePanelId[]
   entityLabel?: string
   chainPath?: ChainPath
+  requestTokens?: RequestTokenBudget
 }
 
 export interface ExecutionSummary {
@@ -58,6 +83,7 @@ export interface ExecutionSummary {
   degradedMode: boolean
   latestConversationId: string | null
   chainPath: ChainPath | 'unknown'
+  requestTokens?: RequestTokenBudget
 }
 
 interface TraceStore {
@@ -78,6 +104,7 @@ const DEFAULT_SUMMARY: ExecutionSummary = {
   degradedMode: false,
   latestConversationId: null,
   chainPath: 'unknown',
+  requestTokens: undefined,
 }
 
 function inferExecutionState(entry: Omit<TraceEntry, 'id' | 'timestamp'>): ExecutionLifecycleState {
@@ -149,6 +176,15 @@ function inferStage(entry: Omit<TraceEntry, 'id' | 'timestamp'>): string | undef
   }
 }
 
+function lifecycleStateToProcessStatus(state: ExecutionLifecycleState, level: TraceLevel): ProcessEventStatus {
+  if (level === 'error' || state === 'failed') return 'failed'
+  if (level === 'warn' || state === 'degraded') return 'degraded'
+  if (state === 'completed') return 'completed'
+  if (state === 'idle') return 'queued'
+  if (state === 'query_received') return 'queued'
+  return 'running'
+}
+
 function summarize(entries: TraceEntry[], conversationId?: string | null): ExecutionSummary {
   const scoped = conversationId
     ? entries.filter((entry) => entry.conversationId === conversationId || !entry.conversationId)
@@ -168,6 +204,7 @@ function summarize(entries: TraceEntry[], conversationId?: string | null): Execu
     degradedMode: scoped.some((entry) => entry.degraded || entry.level === 'warn'),
     latestConversationId: latest.conversationId ?? null,
     chainPath: scoped.find((entry) => entry.chainPath)?.chainPath ?? 'unknown',
+    requestTokens: scoped.find((entry) => entry.requestTokens)?.requestTokens,
   }
 }
 
@@ -176,15 +213,18 @@ export const useTraceStore = create<TraceStore>((set, get) => ({
 
   appendEntry: (entry) =>
     set((state) => {
+      const inferredExecutionState = inferExecutionState(entry)
       const next: TraceEntry[] = [
         {
           id: crypto.randomUUID(),
           timestamp: Date.now(),
           stage: inferStage(entry),
-          executionState: inferExecutionState(entry),
+          executionState: inferredExecutionState,
           failureType: inferFailureType(entry),
           recoveryAction: inferRecoveryAction(entry),
           degraded: entry.degraded ?? entry.level === 'warn',
+          status: entry.status ?? lifecycleStateToProcessStatus(inferredExecutionState, entry.level),
+          entity: entry.entity ?? (entry.entityLabel ? { label: entry.entityLabel } : undefined),
           ...entry,
         },
         ...state.entries,

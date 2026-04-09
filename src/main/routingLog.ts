@@ -22,6 +22,12 @@ export interface RoutingEntry {
   wasOverridden: boolean     // true if user manually changed the tier
   conversationId?: string
   estimatedCost?: number     // USD estimate before send
+  requestTokens?: {
+    used: number
+    max: number
+    remaining: number
+    modelId?: string
+  }
 }
 
 const HISTORY_ROOT = path.join(os.homedir(), '.noah-ai-hub', 'history', 'routing')

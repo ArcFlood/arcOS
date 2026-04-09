@@ -96,10 +96,16 @@ export interface Message {
  */
 export type ConversationStatus =
   | 'idle'        // no active request
+  | 'queued'      // waiting behind another local generation
+  | 'spawning'    // queue item selected and chain setup is starting
+  | 'ready'       // prompt is composed and dispatch is ready
   | 'sending'     // request dispatched, awaiting first token
   | 'streaming'   // receiving token stream
+  | 'running'     // provider has emitted thinking or visible output
   | 'blocked'     // request blocked (budget, permission, etc.)
   | 'error'       // last request ended with an error
+  | 'provider_failure' // provider/API failed before a usable response
+  | 'zero_output_failure' // provider completed without visible output
   | 'finished'    // last request completed successfully
 
 export interface Conversation {
@@ -161,7 +167,6 @@ export type AppearanceTheme =
 export type PaiVoiceSection = 'ANSWER' | 'SUMMARY' | 'ANALYSIS' | 'ACTIONS' | 'RESULTS' | 'STATUS' | 'CAPTURE' | 'NEXT' | 'COMPLETED'
 export type TaskArea = 'general' | 'coding'
 export type PermissionPolicy = 'readonly' | 'workspace-only' | 'ask' | 'unrestricted'
-export type SurfaceTransparency = 'solid' | 'glass'
 
 export interface ModelAssignments {
   general: string
@@ -190,7 +195,6 @@ export interface AppSettings {
   appearanceTextColor: string
   appearanceAccentColor: string
   appearanceAccentSecondaryColor: string
-  surfaceTransparency: SurfaceTransparency
   responseTunerIdentity: string
   responseTunerStyle: string
   responseTunerInstructions: string
@@ -244,6 +248,8 @@ export interface CodingRuntimeStatus {
   dirty: boolean
   staleBranch: boolean
   mergeReadiness: 'ready' | 'needs_sync' | 'pending_local_changes' | 'conflicted' | 'unknown'
+  branchCollision: boolean
+  branchCollisionDetails: string[]
   verificationCommands: string[]
   openClawControlUrl: string | null
   environment: 'development' | 'packaged'

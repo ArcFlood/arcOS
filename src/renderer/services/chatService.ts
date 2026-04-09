@@ -22,7 +22,6 @@ export interface SendOptions {
   onThinking?: (token: string) => void
   onComplete: (fullText: string, cost: number) => void
   onError: (error: Error) => void
-  signal?: AbortSignal
   // Plugin overrides — when a plugin is active, these replace the defaults
   systemPromptOverride?: string
   prebuiltSystemPrompt?: string
@@ -32,7 +31,7 @@ export interface SendOptions {
 export async function sendMessage(opts: SendOptions): Promise<void> {
   const {
     conversationHistory, settings,
-    onToken, onThinking, onComplete, onError, signal,
+    onToken, onThinking, onComplete, onError,
     systemPromptOverride, prebuiltSystemPrompt, tierOverride,
   } = opts
 
@@ -79,7 +78,6 @@ export async function sendMessage(opts: SendOptions): Promise<void> {
         onComplete: (text) => onComplete(text, 0),
         onError,
       },
-      signal
     )
     return
   }
@@ -135,6 +133,5 @@ export async function sendMessage(opts: SendOptions): Promise<void> {
         )
       },
     },
-    signal
   )
 }

@@ -13,18 +13,16 @@ export default function App() {
     appearanceTextColor,
     appearanceAccentColor,
     appearanceAccentSecondaryColor,
-    surfaceTransparency,
   } = useSettingsStore((s) => s.settings)
 
   useEffect(() => {
     document.documentElement.dataset.theme = appearanceTheme
-    document.documentElement.dataset.surface = surfaceTransparency
     document.documentElement.style.setProperty('--arcos-font-sans', `'${appearanceFont}', 'IBM Plex Sans', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif`)
     document.documentElement.style.setProperty('--arcos-text', appearanceTextColor)
     document.documentElement.style.setProperty('--arcos-accent', appearanceAccentColor)
     document.documentElement.style.setProperty('--arcos-accent-strong', appearanceAccentColor)
     document.documentElement.style.setProperty('--arcos-warning', appearanceAccentSecondaryColor)
-  }, [appearanceTheme, surfaceTransparency, appearanceFont, appearanceTextColor, appearanceAccentColor, appearanceAccentSecondaryColor])
+  }, [appearanceTheme, appearanceFont, appearanceTextColor, appearanceAccentColor, appearanceAccentSecondaryColor])
 
   if (detachedPanel && detachedModule) {
     return <DetachedPanelWindow panelId={detachedPanel} moduleId={detachedModule} />

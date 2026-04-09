@@ -11,6 +11,7 @@ import HistoryPanel from './HistoryPanel'
 import ToolsPanel from './ToolsPanel'
 import HooksPanel from './HooksPanel'
 import DiscordPanel from './DiscordPanel'
+import HestiaPanel from './HestiaPanel'
 import { WorkspacePanelId } from '../../workspace/types'
 
 export interface WorkspacePanelContentProps {
@@ -44,6 +45,8 @@ export default function WorkspacePanelContent(props: WorkspacePanelContentProps)
       return <div className="p-4"><AnalyticsPanel /></div>
     case 'transparency':
       return <TracePanel />
+    case 'hestia':
+      return <HestiaPanel />
     case 'hooks':
       return <HooksPanel />
     case 'discord':

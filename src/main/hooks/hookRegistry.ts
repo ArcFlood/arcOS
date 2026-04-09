@@ -21,6 +21,9 @@ import type { HookEvent, HookEventType, HookRegistryEntry } from '../../renderer
 
 const HOOK_LOG_DIR = path.join(os.homedir(), '.noah-ai-hub', 'hook-logs')
 const MAX_MEMORY_EVENTS = 200
+const HOOK_REGISTRY_SOURCE = fs.existsSync(path.join(process.cwd(), 'src/main/hooks/hookRegistry.ts'))
+  ? path.join(process.cwd(), 'src/main/hooks/hookRegistry.ts')
+  : __filename
 
 const memoryEvents: HookEvent[] = []
 const subscribers = new Set<BrowserWindow>()
@@ -39,24 +42,28 @@ const BUILTIN_HOOKS: HookRegistryEntry[] = [
     description: 'Persists session state to OpenClaw workspace memory files.',
     subscribedEvents: ['request.accepted', 'model.dispatch.completed'],
     active: true,
+    sourceFile: HOOK_REGISTRY_SOURCE,
   },
   {
     name: 'command-logger',
     description: 'Logs all tool and file actions to the OpenClaw command log.',
     subscribedEvents: ['tool.action', 'file.action'],
     active: true,
+    sourceFile: HOOK_REGISTRY_SOURCE,
   },
   {
     name: 'bootstrap-extra-files',
     description: 'Loads additional workspace files at boot time.',
     subscribedEvents: ['pai_context.loaded'],
     active: true,
+    sourceFile: HOOK_REGISTRY_SOURCE,
   },
   {
     name: 'boot-md',
     description: 'Injects boot-time markdown context into the first request.',
     subscribedEvents: ['request.accepted'],
     active: true,
+    sourceFile: HOOK_REGISTRY_SOURCE,
   },
 ]
 

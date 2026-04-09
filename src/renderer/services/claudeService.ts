@@ -11,8 +11,7 @@ export async function streamClaudeChat(
   model: string,
   systemPrompt: string,
   messages: Array<{ role: string; content: string }>,
-  callbacks: StreamCallbacks & { onUsage?: (usage: ClaudeUsage) => void },
-  signal?: AbortSignal
+  callbacks: StreamCallbacks & { onUsage?: (usage: ClaudeUsage) => void }
 ): Promise<void> {
   const streamId = crypto.randomUUID()
   let fullText = ''
@@ -45,13 +44,7 @@ export async function streamClaudeChat(
       }
     })
 
-    signal?.addEventListener('abort', () => {
-      cleanup()
-      window.electron.streamAbort(streamId)
-      resolve()
-    })
-
     // Note: apiKey is intentionally omitted — main process reads it directly from DB
-    window.electron.claudeStreamStart({ streamId, model, systemPrompt, messages })
+    void window.electron.claudeStreamStart({ streamId, model, systemPrompt, messages })
   })
 }

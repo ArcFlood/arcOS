@@ -1,8 +1,5 @@
 /**
- * HooksPanel.tsx — Workspace panel for viewing live hook events.
- *
- * Shows the 14 canonical chain events as they fire, with filtering
- * by stage/type/status. Also shows registered internal hooks.
+ * HooksPanel.tsx — Automation module for managing hooks and viewing events.
  */
 
 import { useEffect, useState } from 'react'
@@ -40,7 +37,7 @@ export default function HooksPanel() {
   const [stageFilter, setStageFilter] = useState<HookStage | 'all'>('all')
   const [statusFilter, setStatusFilter] = useState<HookEventStatus | 'all'>('all')
   const [search, setSearch] = useState('')
-  const [tab, setTab] = useState<'events' | 'registry'>('events')
+  const [tab, setTab] = useState<'hooks' | 'log'>('hooks')
 
   // Start listening when panel mounts
   useEffect(() => {
@@ -71,7 +68,7 @@ export default function HooksPanel() {
 
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-700/50 shrink-0">
-        <span className="font-semibold text-sm text-slate-100">Hooks</span>
+        <span className="font-semibold text-sm text-slate-100">Automation</span>
         <span className="ml-1 px-1.5 py-0 rounded bg-slate-700 text-slate-300 text-[10px]">
           {stats.totalEvents} total
         </span>
@@ -82,21 +79,21 @@ export default function HooksPanel() {
         )}
         <div className="ml-auto flex gap-1.5">
           <button
-            onClick={() => setTab('events')}
-            className={`px-2 py-0.5 rounded text-[10px] transition-colors ${tab === 'events' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-slate-200'}`}
+            onClick={() => setTab('hooks')}
+            className={`px-2 py-0.5 rounded text-[10px] transition-colors ${tab === 'hooks' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-slate-200'}`}
           >
-            Events
+            Hooks
           </button>
           <button
-            onClick={() => setTab('registry')}
-            className={`px-2 py-0.5 rounded text-[10px] transition-colors ${tab === 'registry' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-slate-200'}`}
+            onClick={() => setTab('log')}
+            className={`px-2 py-0.5 rounded text-[10px] transition-colors ${tab === 'log' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-slate-200'}`}
           >
-            Registry
+            Log
           </button>
         </div>
       </div>
 
-      {tab === 'registry' ? (
+      {tab === 'hooks' ? (
         <RegistryTab registeredHooks={registeredHooks} />
       ) : (
         <>
@@ -218,9 +215,15 @@ function RegistryTab({ registeredHooks }: { registeredHooks: import('../../store
         <div className="text-slate-500">No hooks registered.</div>
       ) : (
         registeredHooks.map((hook) => (
-          <div
+          <button
             key={hook.name}
-            className="rounded border border-slate-700/50 bg-slate-800/40 px-3 py-2"
+            type="button"
+            onClick={() => {
+              if (hook.sourceFile) void window.electron.openPath(hook.sourceFile)
+            }}
+            disabled={!hook.sourceFile}
+            className="w-full rounded border border-slate-700/50 bg-slate-800/40 px-3 py-2 text-left transition-colors hover:border-indigo-500/70 disabled:cursor-default disabled:hover:border-slate-700/50"
+            title={hook.sourceFile ? `Open ${hook.sourceFile}` : 'No source file registered for this hook'}
           >
             <div className="flex items-center gap-2">
               <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${hook.active ? 'bg-emerald-400' : 'bg-slate-500'}`} />
@@ -230,6 +233,9 @@ function RegistryTab({ registeredHooks }: { registeredHooks: import('../../store
               </span>
             </div>
             <div className="mt-1 text-[10px] text-slate-400">{hook.description}</div>
+            {hook.sourceFile && (
+              <div className="mt-1 truncate text-[9px] text-indigo-300">Source: {hook.sourceFile}</div>
+            )}
             <div className="mt-1 flex flex-wrap gap-1">
               {hook.subscribedEvents.map((ev) => (
                 <span key={ev} className="px-1.5 py-0 rounded bg-slate-700 text-[9px] text-slate-300 font-mono">
@@ -237,7 +243,7 @@ function RegistryTab({ registeredHooks }: { registeredHooks: import('../../store
                 </span>
               ))}
             </div>
-          </div>
+          </button>
         ))
       )}
     </div>

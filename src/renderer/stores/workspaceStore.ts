@@ -4,6 +4,7 @@ import { DEFAULT_WORKSPACE_LAYOUT, WORKSPACE_PANELS } from '../workspace/presets
 import {
   WorkspaceGridModule,
   WorkspaceLayout,
+  WorkspacePage,
   WorkspacePanelId,
   WorkspacePlacementTarget,
   WorkspaceSavedLayout,
@@ -16,12 +17,16 @@ const MAX_GRID_SIZE = 8
 interface PersistedWorkspaceState {
   activeLayoutId: string | null
   layout: WorkspaceLayout
+  activePageId?: string | null
+  pages?: WorkspacePage[]
   savedLayouts: WorkspaceSavedLayout[]
 }
 
 interface WorkspaceStore {
   activeLayoutId: string | null
   layout: WorkspaceLayout
+  pages: WorkspacePage[]
+  activePageId: string | null
   savedLayouts: WorkspaceSavedLayout[]
   pendingPlacement: WorkspacePlacementTarget | null
   diagnostics: string[]
@@ -44,6 +49,11 @@ interface WorkspaceStore {
   handleDetachedWindowClosed: (moduleId: string) => void
   redockAllPanels: () => void
   setGridSize: (rows: number, columns: number) => void
+  createPage: (label?: string) => string
+  activatePage: (pageId: string) => void
+  renamePage: (pageId: string, label: string) => void
+  deletePage: (pageId: string) => void
+  cyclePage: () => void
   saveCurrentLayout: (label: string) => string | null
   exportCurrentLayout: (label?: string) => Promise<boolean>
   importLayout: () => Promise<boolean>
@@ -60,8 +70,52 @@ function cloneLayout(layout: WorkspaceLayout): WorkspaceLayout {
   return JSON.parse(JSON.stringify(layout)) as WorkspaceLayout
 }
 
-function persist(activeLayoutId: string | null, layout: WorkspaceLayout, savedLayouts: WorkspaceSavedLayout[]): void {
-  const payload: PersistedWorkspaceState = { activeLayoutId, layout, savedLayouts }
+function createWorkspacePage(label: string, layout: WorkspaceLayout): WorkspacePage {
+  return {
+    id: `page-${crypto.randomUUID()}`,
+    label,
+    layout: cloneLayout(layout),
+    createdAt: Date.now(),
+  }
+}
+
+function updateActivePageLayout(pages: WorkspacePage[], activePageId: string | null, layout: WorkspaceLayout): WorkspacePage[] {
+  if (!activePageId) return pages
+  return pages.map((page) => (
+    page.id === activePageId ? { ...page, layout: cloneLayout(layout) } : page
+  ))
+}
+
+function persist(
+  activeLayoutId: string | null,
+  layout: WorkspaceLayout,
+  savedLayouts: WorkspaceSavedLayout[],
+  pages?: WorkspacePage[],
+  activePageId?: string | null,
+): void {
+  let persistedPages = pages
+  let persistedActivePageId = activePageId
+  if (!persistedPages || persistedActivePageId === undefined) {
+    try {
+      const previous = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') as PersistedWorkspaceState
+      persistedActivePageId = persistedActivePageId === undefined ? (previous.activePageId ?? null) : persistedActivePageId
+      persistedPages = previous.pages ?? []
+    } catch {
+      persistedActivePageId = persistedActivePageId ?? null
+      persistedPages = []
+    }
+  }
+  const nextPages = persistedPages.length > 0
+    ? persistedPages
+    : [createWorkspacePage('Page 1', layout)]
+  const nextActivePageId = persistedActivePageId ?? nextPages[0]?.id ?? null
+  const payload: PersistedWorkspaceState = {
+    activeLayoutId,
+    layout,
+    savedLayouts,
+    pages: nextPages,
+    activePageId: nextActivePageId,
+  }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
 }
 
@@ -252,7 +306,7 @@ function addModule(layout: WorkspaceLayout, panelId: WorkspacePanelId, column: n
     id: crypto.randomUUID(),
     panelId,
     title: panelId === 'chat' ? nextTerminalTitle(base) : undefined,
-    conversationId: panelId === 'chat' ? useConversationStore.getState().createConversation() : undefined,
+    conversationId: panelId === 'chat' ? useConversationStore.getState().createConversation(nextTerminalTitle(base)) : undefined,
     detached: false,
     column,
     row,
@@ -297,9 +351,13 @@ function collectInvalidPanels(layout: Partial<WorkspaceLayout>): string[] {
   return [...invalid]
 }
 
+const DEFAULT_WORKSPACE_PAGE = createWorkspacePage('Page 1', DEFAULT_WORKSPACE_LAYOUT)
+
 export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   activeLayoutId: null,
   layout: cloneLayout(DEFAULT_WORKSPACE_LAYOUT),
+  pages: [DEFAULT_WORKSPACE_PAGE],
+  activePageId: DEFAULT_WORKSPACE_PAGE.id,
   savedLayouts: [],
   pendingPlacement: null,
   diagnostics: [],
@@ -319,6 +377,23 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
         ...savedLayout,
         layout: result.layout,
       }))
+      const persistedPages = Array.isArray(parsed.pages) && parsed.pages.length > 0
+        ? parsed.pages
+        : [createWorkspacePage('Page 1', currentResult.layout)]
+      const pageResults = persistedPages.map((page) => ({
+        page,
+        result: sanitizeLayout(page.layout, `Workspace page "${page.label}"`),
+      }))
+      const pages = pageResults.map(({ page, result }, index) => ({
+        ...page,
+        label: page.label?.trim() || `Page ${index + 1}`,
+        layout: result.layout,
+      }))
+      const activePageId = pages.some((page) => page.id === parsed.activePageId)
+        ? parsed.activePageId!
+        : pages[0]?.id ?? null
+      const activePage = pages.find((page) => page.id === activePageId)
+      const activeLayout = activePage?.layout ?? currentResult.layout
       const diagnostics = [
         ...collectInvalidPanels(parsed.layout).map((panelId) => `Dropped unregistered panel "${panelId}" from persisted workspace state.`),
         ...(parsed.savedLayouts ?? []).flatMap((savedLayout) => collectInvalidPanels(savedLayout.layout)).map(
@@ -326,26 +401,35 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
         ),
         ...currentResult.diagnostics,
         ...savedLayoutResults.flatMap(({ result }) => result.diagnostics),
+        ...pageResults.flatMap(({ result }) => result.diagnostics),
       ]
 
       set({
         activeLayoutId: savedLayouts.some((savedLayout) => savedLayout.id === parsed.activeLayoutId)
           ? parsed.activeLayoutId
           : null,
-        layout: currentResult.layout,
+        layout: activeLayout,
+        pages,
+        activePageId,
         savedLayouts,
         diagnostics: uniqueStrings(diagnostics),
       })
       persist(
         savedLayouts.some((savedLayout) => savedLayout.id === parsed.activeLayoutId) ? parsed.activeLayoutId : null,
-        currentResult.layout,
-        savedLayouts
+        activeLayout,
+        savedLayouts,
+        updateActivePageLayout(pages, activePageId, activeLayout),
+        activePageId
       )
-      void window.electron.workspaceSyncDetachedPanels?.(buildDetachedModulePayloads(currentResult.layout))
+      void window.electron.workspaceSyncDetachedPanels?.(buildDetachedModulePayloads(activeLayout))
     } catch {
+      const layout = cloneLayout(DEFAULT_WORKSPACE_LAYOUT)
+      const page = createWorkspacePage('Page 1', layout)
       set({
         activeLayoutId: null,
-        layout: cloneLayout(DEFAULT_WORKSPACE_LAYOUT),
+        layout,
+        pages: [page],
+        activePageId: page.id,
         savedLayouts: [],
         diagnostics: ['Workspace state was unreadable and has been reset to an empty grid.'],
       })
@@ -369,8 +453,9 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
 
   addPanelAtCell: (panelId, column, row) => {
     const layout = addModule(get().layout, panelId, column, row)
-    persist(get().activeLayoutId, layout, get().savedLayouts)
-    set({ layout, pendingPlacement: null })
+    const pages = updateActivePageLayout(get().pages, get().activePageId, layout)
+    persist(get().activeLayoutId, layout, get().savedLayouts, pages, get().activePageId)
+    set({ layout, pages, pendingPlacement: null })
     void window.electron.workspaceSyncDetachedPanels?.(buildDetachedModulePayloads(layout))
   },
 
@@ -384,8 +469,9 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
       return { success: false }
     }
     const nextLayout = addModule(layout, 'chat', target.column, target.row)
-    persist(get().activeLayoutId, nextLayout, get().savedLayouts)
-    set({ layout: nextLayout, pendingPlacement: null })
+    const pages = updateActivePageLayout(get().pages, get().activePageId, nextLayout)
+    persist(get().activeLayoutId, nextLayout, get().savedLayouts, pages, get().activePageId)
+    set({ layout: nextLayout, pages, pendingPlacement: null })
     void window.electron.workspaceSyncDetachedPanels?.(buildDetachedModulePayloads(nextLayout))
     const created = nextLayout.modules.find((module) => !layout.modules.some((existing) => existing.id === module.id))
     return { success: true, moduleId: created?.id, conversationId: created?.conversationId ?? undefined }
@@ -397,8 +483,9 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
     const module = layout.modules.find((entry) => entry.id === moduleId)
     if (!module) return
     module.title = trimmed.length > 0 ? trimmed : (module.panelId === 'chat' ? nextTerminalTitle(layout) : undefined)
-    persist(get().activeLayoutId, layout, get().savedLayouts)
-    set({ layout })
+    const pages = updateActivePageLayout(get().pages, get().activePageId, layout)
+    persist(get().activeLayoutId, layout, get().savedLayouts, pages, get().activePageId)
+    set({ layout, pages })
   },
 
   setModuleConversation: (moduleId, conversationId) => {
@@ -406,8 +493,9 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
     const module = layout.modules.find((entry) => entry.id === moduleId)
     if (!module) return
     module.conversationId = conversationId
-    persist(get().activeLayoutId, layout, get().savedLayouts)
-    set({ layout })
+    const pages = updateActivePageLayout(get().pages, get().activePageId, layout)
+    persist(get().activeLayoutId, layout, get().savedLayouts, pages, get().activePageId)
+    set({ layout, pages })
   },
 
   showPanel: (panelId) => {
@@ -426,15 +514,17 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
 
   hidePanel: (panelId) => {
     const layout = removePanel(get().layout, panelId)
-    persist(get().activeLayoutId, layout, get().savedLayouts)
-    set({ layout })
+    const pages = updateActivePageLayout(get().pages, get().activePageId, layout)
+    persist(get().activeLayoutId, layout, get().savedLayouts, pages, get().activePageId)
+    set({ layout, pages })
   },
 
   removeModule: (moduleId) => {
     const layout = cloneLayout(get().layout)
     layout.modules = layout.modules.filter((module) => module.id !== moduleId)
-    persist(get().activeLayoutId, layout, get().savedLayouts)
-    set({ layout })
+    const pages = updateActivePageLayout(get().pages, get().activePageId, layout)
+    persist(get().activeLayoutId, layout, get().savedLayouts, pages, get().activePageId)
+    set({ layout, pages })
     void window.electron.workspaceSyncDetachedPanels?.(buildDetachedModulePayloads(layout))
   },
 
@@ -486,14 +576,16 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
         if (entry.id === displacedModule.id) return swappedModule
         return entry
       })
-      persist(get().activeLayoutId, layout, get().savedLayouts)
-      set({ layout })
+      const pages = updateActivePageLayout(get().pages, get().activePageId, layout)
+      persist(get().activeLayoutId, layout, get().savedLayouts, pages, get().activePageId)
+      set({ layout, pages })
       return
     }
 
     layout.modules = layout.modules.map((entry) => entry.id === moduleId ? nextModule : entry)
-    persist(get().activeLayoutId, layout, get().savedLayouts)
-    set({ layout })
+    const pages = updateActivePageLayout(get().pages, get().activePageId, layout)
+    persist(get().activeLayoutId, layout, get().savedLayouts, pages, get().activePageId)
+    set({ layout, pages })
   },
 
   resizeModule: (moduleId, column, row, width, height) => {
@@ -514,8 +606,9 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
     }
 
     layout.modules = layout.modules.map((entry) => entry.id === moduleId ? nextModule : entry)
-    persist(get().activeLayoutId, layout, get().savedLayouts)
-    set({ layout })
+    const pages = updateActivePageLayout(get().pages, get().activePageId, layout)
+    persist(get().activeLayoutId, layout, get().savedLayouts, pages, get().activePageId)
+    set({ layout, pages })
   },
 
   detachPanel: (moduleId) => {
@@ -523,8 +616,9 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
     const module = layout.modules.find((entry) => entry.id === moduleId)
     if (!module) return
     module.detached = true
-    persist(get().activeLayoutId, layout, get().savedLayouts)
-    set({ layout })
+    const pages = updateActivePageLayout(get().pages, get().activePageId, layout)
+    persist(get().activeLayoutId, layout, get().savedLayouts, pages, get().activePageId)
+    set({ layout, pages })
     void window.electron.workspaceDetachPanel?.({
       moduleId: module.id,
       panelId: module.panelId,
@@ -555,8 +649,9 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
       module.row = target.row
       module.detached = false
     }
-    persist(get().activeLayoutId, layout, get().savedLayouts)
-    set({ layout })
+    const pages = updateActivePageLayout(get().pages, get().activePageId, layout)
+    persist(get().activeLayoutId, layout, get().savedLayouts, pages, get().activePageId)
+    set({ layout, pages })
     void window.electron.workspaceSyncDetachedPanels?.(buildDetachedModulePayloads(layout))
   },
 
@@ -582,9 +677,11 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
       module.row = target.row
       module.detached = false
     }
-    persist(get().activeLayoutId, layout, get().savedLayouts)
+    const pages = updateActivePageLayout(get().pages, get().activePageId, layout)
+    persist(get().activeLayoutId, layout, get().savedLayouts, pages, get().activePageId)
     set({
       layout,
+      pages,
       diagnostics: [
         ...get().diagnostics,
         `${module.title ?? WORKSPACE_PANELS.find((panel) => panel.id === module.panelId)?.title ?? module.panelId} window closed and returned to the grid.`,
@@ -609,9 +706,11 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
       targetModule.detached = false
       void window.electron.workspaceRedockPanel?.(module.id)
     }
-    persist(get().activeLayoutId, layout, get().savedLayouts)
+    const pages = updateActivePageLayout(get().pages, get().activePageId, layout)
+    persist(get().activeLayoutId, layout, get().savedLayouts, pages, get().activePageId)
     set((state) => ({
       layout,
+      pages,
       diagnostics: stranded.length === 0
         ? state.diagnostics
         : uniqueStrings([
@@ -643,8 +742,89 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
 
     layout.rows = nextRows
     layout.columns = nextColumns
-    persist(get().activeLayoutId, layout, get().savedLayouts)
-    set({ layout })
+    const pages = updateActivePageLayout(get().pages, get().activePageId, layout)
+    persist(get().activeLayoutId, layout, get().savedLayouts, pages, get().activePageId)
+    set({ layout, pages })
+  },
+
+  createPage: (label) => {
+    const trimmed = label?.trim()
+    const pageLabel = trimmed || `Page ${get().pages.length + 1}`
+    const syncedPages = updateActivePageLayout(get().pages, get().activePageId, get().layout)
+    const layout = cloneLayout(DEFAULT_WORKSPACE_LAYOUT)
+    const page = createWorkspacePage(pageLabel, layout)
+    const pages = [...syncedPages, page]
+    persist(null, layout, get().savedLayouts, pages, page.id)
+    set({
+      activeLayoutId: null,
+      layout,
+      pages,
+      activePageId: page.id,
+      pendingPlacement: null,
+      diagnostics: uniqueStrings([...get().diagnostics, `Created workspace page "${page.label}".`]),
+    })
+    void window.electron.workspaceSyncDetachedPanels?.([])
+    return page.id
+  },
+
+  activatePage: (pageId) => {
+    const page = get().pages.find((entry) => entry.id === pageId)
+    if (!page) return
+    const result = sanitizeLayout(page.layout, `Workspace page "${page.label}"`)
+    const layout = cloneLayout(result.layout)
+    const pages = get().pages.map((entry) => (
+      entry.id === pageId ? { ...entry, layout } : entry
+    ))
+    persist(null, layout, get().savedLayouts, pages, pageId)
+    set((state) => ({
+      activeLayoutId: null,
+      activePageId: pageId,
+      layout,
+      pages,
+      pendingPlacement: null,
+      diagnostics: uniqueStrings([...state.diagnostics, ...result.diagnostics]),
+    }))
+    void window.electron.workspaceSyncDetachedPanels?.(buildDetachedModulePayloads(layout))
+  },
+
+  renamePage: (pageId, label) => {
+    const trimmed = label.trim()
+    if (!trimmed) return
+    const pages = get().pages.map((page) => (
+      page.id === pageId ? { ...page, label: trimmed } : page
+    ))
+    persist(get().activeLayoutId, get().layout, get().savedLayouts, pages, get().activePageId)
+    set({ pages })
+  },
+
+  deletePage: (pageId) => {
+    const currentPages = get().pages
+    if (currentPages.length <= 1) {
+      set((state) => ({
+        diagnostics: uniqueStrings([...state.diagnostics, 'Cannot delete the only workspace page.']),
+      }))
+      return
+    }
+    const pages = currentPages.filter((page) => page.id !== pageId)
+    const activePageId = get().activePageId === pageId ? pages[0]?.id ?? null : get().activePageId
+    const layout = cloneLayout(pages.find((page) => page.id === activePageId)?.layout ?? DEFAULT_WORKSPACE_LAYOUT)
+    persist(null, layout, get().savedLayouts, pages, activePageId)
+    set({
+      activeLayoutId: null,
+      activePageId,
+      layout,
+      pages,
+      pendingPlacement: null,
+    })
+    void window.electron.workspaceSyncDetachedPanels?.(buildDetachedModulePayloads(layout))
+  },
+
+  cyclePage: () => {
+    const pages = get().pages
+    if (pages.length <= 1) return
+    const currentIndex = Math.max(0, pages.findIndex((page) => page.id === get().activePageId))
+    const nextPage = pages[(currentIndex + 1) % pages.length]
+    if (nextPage) get().activatePage(nextPage.id)
   },
 
   saveCurrentLayout: (label) => {
@@ -657,7 +837,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
       createdAt: Date.now(),
     }
     const savedLayouts = [...get().savedLayouts, savedLayout]
-    persist(savedLayout.id, get().layout, savedLayouts)
+    persist(savedLayout.id, get().layout, savedLayouts, get().pages, get().activePageId)
     set({ savedLayouts, activeLayoutId: savedLayout.id })
     return savedLayout.id
   },
@@ -713,10 +893,12 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
       createdAt: Date.now(),
     }
     const savedLayouts = [...get().savedLayouts, savedLayout]
-    persist(savedLayout.id, sanitized.layout, savedLayouts)
+    const pages = updateActivePageLayout(get().pages, get().activePageId, sanitized.layout)
+    persist(savedLayout.id, sanitized.layout, savedLayouts, pages, get().activePageId)
     set((state) => ({
       activeLayoutId: savedLayout.id,
       layout: sanitized.layout,
+      pages,
       savedLayouts,
       diagnostics: uniqueStrings([...state.diagnostics, ...sanitized.diagnostics]),
     }))
@@ -729,10 +911,12 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
     if (!savedLayout) return
     const result = sanitizeLayout(savedLayout.layout, `Saved layout "${savedLayout.label}"`)
     const layout = cloneLayout(result.layout)
-    persist(savedLayout.id, layout, get().savedLayouts)
+    const pages = updateActivePageLayout(get().pages, get().activePageId, layout)
+    persist(savedLayout.id, layout, get().savedLayouts, pages, get().activePageId)
     set((state) => ({
       activeLayoutId: savedLayout.id,
       layout,
+      pages,
       diagnostics: uniqueStrings([...state.diagnostics, ...result.diagnostics]),
     }))
     void window.electron.workspaceSyncDetachedPanels?.(buildDetachedModulePayloads(layout))
@@ -744,7 +928,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
     const savedLayouts = get().savedLayouts.map((savedLayout) => (
       savedLayout.id === layoutId ? { ...savedLayout, label: trimmed } : savedLayout
     ))
-    persist(get().activeLayoutId, get().layout, savedLayouts)
+    persist(get().activeLayoutId, get().layout, savedLayouts, get().pages, get().activePageId)
     set({ savedLayouts })
   },
 
@@ -759,7 +943,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
       createdAt: Date.now(),
     }
     const savedLayouts = [...get().savedLayouts, duplicate]
-    persist(get().activeLayoutId, get().layout, savedLayouts)
+    persist(get().activeLayoutId, get().layout, savedLayouts, get().pages, get().activePageId)
     set({ savedLayouts })
     return duplicate.id
   },
@@ -767,16 +951,18 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   deleteSavedLayout: (layoutId) => {
     const savedLayouts = get().savedLayouts.filter((savedLayout) => savedLayout.id !== layoutId)
     const activeLayoutId = get().activeLayoutId === layoutId ? null : get().activeLayoutId
-    persist(activeLayoutId, get().layout, savedLayouts)
+    persist(activeLayoutId, get().layout, savedLayouts, get().pages, get().activePageId)
     set({ savedLayouts, activeLayoutId })
   },
 
   resetWorkspace: () => {
     const layout = cloneLayout(DEFAULT_WORKSPACE_LAYOUT)
-    persist(null, layout, get().savedLayouts)
+    const pages = updateActivePageLayout(get().pages, get().activePageId, layout)
+    persist(null, layout, get().savedLayouts, pages, get().activePageId)
     set({
       activeLayoutId: null,
       layout,
+      pages,
       pendingPlacement: null,
       diagnostics: ['Workspace reset to an empty ARCOS grid.'],
       panelFailureCounts: {},

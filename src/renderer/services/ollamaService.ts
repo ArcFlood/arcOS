@@ -8,8 +8,7 @@ export interface StreamCallbacks {
 export async function streamOllamaChat(
   model: string,
   messages: Array<{ role: string; content: string }>,
-  callbacks: StreamCallbacks,
-  signal?: AbortSignal
+  callbacks: StreamCallbacks
 ): Promise<void> {
   const streamId = crypto.randomUUID()
   let fullText = ''
@@ -50,14 +49,6 @@ export async function streamOllamaChat(
         callbacks.onError(new Error(data.error ?? 'Unknown Ollama error'))
         resolve()
       }
-    })
-
-    signal?.addEventListener('abort', () => {
-      if (!settle()) return
-      window.clearTimeout(timeout)
-      cleanup()
-      window.electron.streamAbort(streamId)
-      resolve()
     })
 
     void window.electron.ollamaStreamStart({ streamId, model, messages }).catch((error) => {

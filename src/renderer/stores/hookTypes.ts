@@ -101,4 +101,5 @@ export interface HookRegistryEntry {
   description: string
   subscribedEvents: HookEventType[]
   active: boolean
+  sourceFile?: string
 }

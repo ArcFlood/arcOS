@@ -36,6 +36,9 @@ export default function TracePanel() {
 
   const panelTitle = (panelId: string) => WORKSPACE_PANELS.find((panel) => panel.id === panelId)?.title ?? panelId
   const formatChainPath = (value: string) => value.replace(/-/g, ' ')
+  const requestTokensLabel = summary.requestTokens
+    ? `${summary.requestTokens.used.toLocaleString()}/${summary.requestTokens.max.toLocaleString()} · ${Math.max(0, summary.requestTokens.remaining).toLocaleString()} left`
+    : 'No request yet'
   const latestOpenClaw = entries.find((entry) => entry.stage === 'OpenClaw' && entry.level === 'success')
   const latestFabric = entries.find((entry) => entry.stage === 'Fabric' && (entry.level === 'success' || entry.level === 'error'))
   const latestComposer = entries.find((entry) => entry.stage === 'Response Composer')
@@ -80,6 +83,7 @@ export default function TracePanel() {
             <SummaryStat label="Last Good Checkpoint" value={summary.lastSuccessfulCheckpoint} />
             <SummaryStat label="Mode" value={summary.degradedMode ? 'Degraded' : 'Normal'} />
             <SummaryStat label="Chain Path" value={formatChainPath(summary.chainPath)} />
+            <SummaryStat label="Request Tokens" value={requestTokensLabel} />
           </div>
           {(summary.activeBlocker || summary.recommendedRecoveryAction) && (
             <div className="mt-3 rounded-lg border border-amber-700/40 bg-amber-950/10 px-3 py-2">
@@ -117,52 +121,47 @@ export default function TracePanel() {
             No trace entries yet. Send a message or start/stop a service to populate the feed.
           </div>
         ) : (
-          filteredEntries.map((entry) => (
-            <div
-              key={entry.id}
-              className={`rounded-xl border px-3 py-3 ${LEVEL_STYLES[entry.level]}`}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <p className="min-w-0 break-words text-sm font-medium">{entry.title}</p>
-                <span className="text-[11px] opacity-70">
-                  {new Date(entry.timestamp).toLocaleTimeString()}
-                </span>
+          <div className="space-y-1.5">
+            {filteredEntries.map((entry) => (
+              <div
+                key={entry.id}
+                className={`rounded-lg border px-2.5 py-1.5 ${LEVEL_STYLES[entry.level]}`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="min-w-0 break-words text-xs font-semibold leading-5">{entry.title}</p>
+                  <span className="shrink-0 text-[10px] opacity-70">
+                    {new Date(entry.timestamp).toLocaleTimeString()}
+                  </span>
+                </div>
+                <div className="mt-1 grid gap-x-3 gap-y-1 text-[10px] uppercase tracking-wider opacity-70 sm:grid-cols-2">
+                  <p>source: {entry.source}</p>
+                  {entry.status && <p>status: {entry.status}</p>}
+                  {entry.stage && <p>stage: {entry.stage}</p>}
+                  {entry.executionState && <p>state: {entry.executionState}</p>}
+                  {entry.failureType && <p>failure: {entry.failureType}</p>}
+                  {entry.chainPath && <p>path: {formatChainPath(entry.chainPath)}</p>}
+                  {entry.entityLabel && <p>{entry.entityLabel}</p>}
+                </div>
+                {entry.detail && (
+                  <p className="mt-1 whitespace-pre-wrap break-words text-[11px] leading-4 opacity-90">{entry.detail}</p>
+                )}
+                {entry.recoveryAction && (
+                  <p className="mt-1 text-[11px] leading-4 opacity-90">next: {entry.recoveryAction}</p>
+                )}
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {(entry.relatedPanels ?? []).filter((panelId) => panelId !== 'transparency').map((panelId) => (
+                    <button
+                      key={`${entry.id}-${panelId}`}
+                      onClick={() => showPanel(panelId)}
+                      className="arcos-action rounded px-1.5 py-0.5 text-[9px] uppercase tracking-wider"
+                    >
+                      {panelTitle(panelId)}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <p className="mt-1 text-[11px] uppercase tracking-wider opacity-70">{entry.source}</p>
-              {entry.detail && (
-                <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-5 opacity-90">{entry.detail}</p>
-              )}
-              {entry.stage && (
-                <p className="mt-2 text-[11px] uppercase tracking-wider opacity-70">stage: {entry.stage}</p>
-              )}
-              {entry.executionState && (
-                <p className="mt-2 text-[11px] uppercase tracking-wider opacity-70">state: {entry.executionState}</p>
-              )}
-              {entry.failureType && (
-                <p className="mt-2 text-[11px] uppercase tracking-wider opacity-70">failure: {entry.failureType}</p>
-              )}
-              {entry.chainPath && (
-                <p className="mt-2 text-[11px] uppercase tracking-wider opacity-70">path: {formatChainPath(entry.chainPath)}</p>
-              )}
-              {entry.entityLabel && (
-                <p className="mt-2 text-[11px] uppercase tracking-wider opacity-70">{entry.entityLabel}</p>
-              )}
-              {entry.recoveryAction && (
-                <p className="mt-2 text-xs leading-5 opacity-90">next: {entry.recoveryAction}</p>
-              )}
-              <div className="mt-3 flex flex-wrap gap-2">
-                {(entry.relatedPanels ?? []).filter((panelId) => panelId !== 'transparency').map((panelId) => (
-                  <button
-                    key={`${entry.id}-${panelId}`}
-                    onClick={() => showPanel(panelId)}
-                    className="arcos-action rounded px-2 py-1 text-[10px] uppercase tracking-wider"
-                  >
-                    {panelTitle(panelId)}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))
+            ))}
+          </div>
         )}
       </div>
     </div>

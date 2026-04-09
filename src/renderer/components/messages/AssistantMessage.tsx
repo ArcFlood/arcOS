@@ -43,6 +43,8 @@ function BookmarkButton({ message }: { message: Message }) {
 }
 
 export default function AssistantMessage({ message }: { message: Message }) {
+  const isThinkingPlaceholder = message.isStreaming && message.content.trim() === 'Thinking'
+
   return (
     <div className="flex justify-start group">
       <div className="max-w-[85%] w-full">
@@ -55,35 +57,42 @@ export default function AssistantMessage({ message }: { message: Message }) {
           {message.isStreaming && (
             <span className="inline-block w-2 h-4 bg-text-muted animate-pulse rounded-sm ml-1" />
           )}
-          <div className="prose prose-sm prose-invert max-w-none text-text leading-relaxed">
-            <ReactMarkdown
-              components={{
-                code({ node: _node, className, children, ...props }) {
-                  const match = /language-(\w+)/.exec(className || '')
-                  const isBlock = match !== null
-                  return isBlock ? (
-                    <SyntaxHighlighter
-                      style={oneDark}
-                      language={match[1]}
-                      PreTag="div"
-                      customStyle={{ borderRadius: '6px', fontSize: '13px', margin: '8px 0' }}
-                    >
-                      {String(children).replace(/\n$/, '')}
-                    </SyntaxHighlighter>
-                  ) : (
-                    <code
-                      className="bg-surface-elevated px-1.5 py-0.5 rounded text-xs font-mono"
-                      {...props}
-                    >
-                      {children}
-                    </code>
-                  )
-                },
-              }}
-            >
-              {message.content}
-            </ReactMarkdown>
-          </div>
+          {isThinkingPlaceholder ? (
+            <div className="flex items-center gap-2 text-sm text-text-muted">
+              <span className="h-2 w-2 rounded-full bg-accent animate-pulse" />
+              <span>Thinking...</span>
+            </div>
+          ) : (
+            <div className="prose prose-sm prose-invert max-w-none text-text leading-relaxed">
+              <ReactMarkdown
+                components={{
+                  code({ node: _node, className, children, ...props }) {
+                    const match = /language-(\w+)/.exec(className || '')
+                    const isBlock = match !== null
+                    return isBlock ? (
+                      <SyntaxHighlighter
+                        style={oneDark}
+                        language={match[1]}
+                        PreTag="div"
+                        customStyle={{ borderRadius: '6px', fontSize: '13px', margin: '8px 0' }}
+                      >
+                        {String(children).replace(/\n$/, '')}
+                      </SyntaxHighlighter>
+                    ) : (
+                      <code
+                        className="bg-surface-elevated px-1.5 py-0.5 rounded text-xs font-mono"
+                        {...props}
+                      >
+                        {children}
+                      </code>
+                    )
+                  },
+                }}
+              >
+                {message.content}
+              </ReactMarkdown>
+            </div>
+          )}
         </div>
 
         {/* Footer row */}

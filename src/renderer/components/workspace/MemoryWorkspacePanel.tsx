@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   searchMemory, getMemoryStatus, triggerIngest,
   sourceLabel, sourceColor, formatMemoryRank,
-  MemoryChunk, MemoryQueryResult, MemoryStatus,
+  scanMemoryHygiene, deleteMemoryHygieneCandidates,
+  MemoryChunk, MemoryHygieneCandidate, MemoryQueryResult, MemoryStatus,
 } from '../../services/memoryService'
 import { useTraceStore } from '../../stores/traceStore'
 
@@ -13,6 +14,10 @@ export default function MemoryWorkspacePanel() {
   const [searching, setSearching] = useState(false)
   const [ingesting, setIngesting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [hygieneCandidates, setHygieneCandidates] = useState<MemoryHygieneCandidate[] | null>(null)
+  const [selectedHygienePaths, setSelectedHygienePaths] = useState<string[]>([])
+  const [hygieneScanning, setHygieneScanning] = useState(false)
+  const [hygieneDeleting, setHygieneDeleting] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const appendTraceEntry = useTraceStore((s) => s.appendEntry)
 
@@ -81,6 +86,51 @@ export default function MemoryWorkspacePanel() {
       detail: res.message ?? 'ARC-Memory ingest call completed.',
       relatedPanels: ['memory', 'services'],
       entityLabel: 'ingest',
+    })
+  }
+
+  const handleHygieneScan = async () => {
+    setHygieneScanning(true)
+    setError(null)
+    const res = await scanMemoryHygiene()
+    setHygieneScanning(false)
+    if (!res.success) {
+      setError(res.error ?? 'Memory hygiene scan failed')
+      return
+    }
+    setHygieneCandidates(res.candidates)
+    setSelectedHygienePaths(res.candidates.map((candidate) => candidate.filePath))
+    appendTraceEntry({
+      source: 'memory',
+      level: 'info',
+      title: 'Memory hygiene scan completed',
+      detail: `${res.candidates.length} low-value memory candidate${res.candidates.length === 1 ? '' : 's'} found.`,
+      relatedPanels: ['memory', 'history'],
+      entityLabel: 'hygiene',
+    })
+  }
+
+  const handleHygieneDelete = async () => {
+    if (selectedHygienePaths.length === 0) return
+    const confirmed = window.confirm(`Move ${selectedHygienePaths.length} selected low-value memory file${selectedHygienePaths.length === 1 ? '' : 's'} to Trash?`)
+    if (!confirmed) return
+    setHygieneDeleting(true)
+    setError(null)
+    const res = await deleteMemoryHygieneCandidates(selectedHygienePaths)
+    setHygieneDeleting(false)
+    if (!res.success) {
+      setError(res.error ?? 'Memory hygiene delete failed')
+      return
+    }
+    setHygieneCandidates((current) => current?.filter((candidate) => !res.deleted.includes(candidate.filePath)) ?? null)
+    setSelectedHygienePaths([])
+    appendTraceEntry({
+      source: 'memory',
+      level: 'success',
+      title: 'Memory hygiene cleanup completed',
+      detail: `${res.deleted.length} low-value memory file${res.deleted.length === 1 ? '' : 's'} moved to Trash. Re-index memory to refresh search results.`,
+      relatedPanels: ['memory', 'services'],
+      entityLabel: 'hygiene',
     })
   }
 
@@ -161,6 +211,69 @@ export default function MemoryWorkspacePanel() {
           )
         })}
       </div>
+
+      <section className="arcos-subpanel rounded-xl p-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="arcos-kicker">Memory Hygiene</p>
+            <p className="mt-1 text-xs leading-5 text-text-muted">
+              Finds empty, under-1KB, duplicate, or placeholder memory files. Selected files are moved to Trash after confirmation.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={handleHygieneScan}
+              disabled={hygieneScanning || hygieneDeleting}
+              className="arcos-action rounded px-2 py-1 text-[10px] uppercase tracking-wider disabled:opacity-40"
+            >
+              {hygieneScanning ? 'Scanning' : 'Scan'}
+            </button>
+            <button
+              onClick={handleHygieneDelete}
+              disabled={hygieneDeleting || selectedHygienePaths.length === 0}
+              className="btn-danger rounded px-2 py-1 text-[10px] uppercase tracking-wider disabled:opacity-40"
+            >
+              {hygieneDeleting ? 'Moving' : `Move to Trash ${selectedHygienePaths.length || ''}`}
+            </button>
+          </div>
+        </div>
+        {hygieneCandidates && (
+          <div className="mt-3 space-y-2">
+            {hygieneCandidates.length === 0 ? (
+              <p className="text-xs text-text-muted">No low-value memory candidates found.</p>
+            ) : (
+              hygieneCandidates.map((candidate) => {
+                const checked = selectedHygienePaths.includes(candidate.filePath)
+                return (
+                  <label key={candidate.id} className="block rounded-lg border border-border bg-[#12161b] px-3 py-2 text-xs">
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          setSelectedHygienePaths((current) => checked
+                            ? current.filter((entry) => entry !== candidate.filePath)
+                            : [...current, candidate.filePath])
+                        }}
+                        className="mt-1"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="break-words font-semibold text-text">{candidate.title}</p>
+                          <span className="rounded border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-text-muted">{candidate.source}</span>
+                        </div>
+                        <p className="mt-1 text-[11px] text-warning">{candidate.reason}</p>
+                        <p className="mt-1 break-words text-[11px] leading-5 text-text-muted">{candidate.preview}</p>
+                        <p className="mt-1 truncate text-[10px] text-text-muted">{candidate.filePath}</p>
+                      </div>
+                    </div>
+                  </label>
+                )
+              })
+            )}
+          </div>
+        )}
+      </section>
     </div>
   )
 }

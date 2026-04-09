@@ -1,0 +1,15 @@
+node_modules
+dist
+dist-electron
+release
+Chart.js
+hestia-core
+iSMC
+memory-service
+**/__pycache__/**
+**/*.pyc
+**/*.node
+**/*.mp3
+**/*.png
+**/*.icns
+package-lock.json

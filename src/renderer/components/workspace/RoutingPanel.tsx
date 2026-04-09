@@ -15,6 +15,12 @@ type RoutingEntry = {
   wasOverridden: boolean
   conversationId?: string
   estimatedCost?: number
+  requestTokens?: {
+    used: number
+    max: number
+    remaining: number
+    modelId?: string
+  }
 }
 
 export default function RoutingPanel() {
@@ -39,6 +45,11 @@ export default function RoutingPanel() {
   const chainPathLabel = summary.chainPath === 'unknown'
     ? 'unknown'
     : summary.chainPath.replace(/-/g, ' ')
+  const latestEntry = entries.find((entry) => !activeConversation?.id || entry.conversationId === activeConversation.id)
+  const requestTokens = summary.requestTokens ?? latestEntry?.requestTokens
+  const requestTokensLabel = requestTokens
+    ? `${requestTokens.used.toLocaleString()}/${requestTokens.max.toLocaleString()} · ${Math.max(0, requestTokens.remaining).toLocaleString()} left`
+    : 'unknown'
 
   useEffect(() => {
     const load = async () => {
@@ -71,15 +82,18 @@ export default function RoutingPanel() {
   return (
     <div className="space-y-4 p-4">
       <section className="arcos-subpanel rounded-xl p-3">
-        <p className="arcos-kicker">Current Policy</p>
+        <p className="arcos-kicker">Execution Summary</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <Stat label="Mode" value={settings.routingMode} />
           <Stat label="Monthly Budget" value={`$${settings.monthlyBudgetLimit.toFixed(2)}`} />
           <Stat label="Ollama" value={ollamaRunning ? 'Online' : 'Offline'} />
           <Stat label="Chain Path" value={chainPathLabel} />
+          <Stat label="Current Phase" value={summary.currentPhase} />
+          <Stat label="Request Tokens" value={requestTokensLabel} />
         </div>
         <div className="mt-3 space-y-2 text-xs leading-5 text-text-muted">
           <p><span className="text-text">Chain Path:</span> the route the current request took through ARCOS. `unknown` means there is no completed chain summary yet for the active thread.</p>
+          <p><span className="text-text">Request Tokens:</span> estimated composed request usage as `used/max`, plus remaining tokens for that model request.</p>
         </div>
       </section>
 

@@ -33,6 +33,14 @@ contextBridge.exposeInMainWorld('electron', {
   },
 
   // Services
+  appCloseChooseTerminalAction: (params: { terminalCount: number }) => ipcRenderer.invoke('app-close:choose-terminal-action', params),
+  appCloseContinue: () => ipcRenderer.invoke('app-close:continue'),
+  appCloseCancel: () => ipcRenderer.invoke('app-close:cancel'),
+  onAppCloseRequest: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('app-close:request', handler)
+    return () => ipcRenderer.off('app-close:request', handler)
+  },
   serviceStatus: (name: string) => ipcRenderer.invoke('service-status', name),
   serviceStart: (name: string) => ipcRenderer.invoke('service-start', name),
   serviceStop: (name: string) => ipcRenderer.invoke('service-stop', name),
@@ -40,6 +48,8 @@ contextBridge.exposeInMainWorld('electron', {
   workspaceRedockPanel: (moduleId: string) => ipcRenderer.invoke('workspace:redock-panel', moduleId),
   workspaceSyncDetachedPanels: (modules: Array<{ moduleId: string; panelId: string; title?: string }>) => ipcRenderer.invoke('workspace:sync-detached-panels', modules),
   codingRuntimeStatus: () => ipcRenderer.invoke('coding-runtime:status'),
+  platformUpdatesCheck: () => ipcRenderer.invoke('platform-updates:check'),
+  hestiaSystemMetrics: () => ipcRenderer.invoke('hestia:system-metrics'),
   onWorkspaceEvent: (channel: string, callback: (payload: unknown) => void) => {
     const allowed = ['workspace:detached-panel-closed']
     if (!allowed.includes(channel)) return () => {}
@@ -179,6 +189,8 @@ contextBridge.exposeInMainWorld('electron', {
   memoryStatus: () => ipcRenderer.invoke('memory-status'),
   memoryVaultWrite: (params: object) => ipcRenderer.invoke('memory:vault-write', params),
   memoryVaultPath: () => ipcRenderer.invoke('memory:vault-path'),
+  memoryHygieneScan: () => ipcRenderer.invoke('memory:hygiene-scan'),
+  memoryHygieneDelete: (filePaths: string[]) => ipcRenderer.invoke('memory:hygiene-delete', filePaths),
 
   // SQLite database
   db: {
@@ -209,4 +221,41 @@ contextBridge.exposeInMainWorld('electron', {
 
   // Tool surface registry (Item 21)
   toolsList: () => ipcRenderer.invoke('tools:list'),
+})
+
+contextBridge.exposeInMainWorld('arcos', {
+  models: {
+    list: () => ipcRenderer.invoke('ollama-list-models'),
+    details: () => ipcRenderer.invoke('ollama-list-model-details'),
+    pull: (params: object) => ipcRenderer.invoke('ollama-pull-model', params),
+    delete: (modelName: string) => ipcRenderer.invoke('ollama-delete-model', modelName),
+  },
+  memory: {
+    query: (params: object) => ipcRenderer.invoke('memory-query', params),
+    ingest: (force?: boolean) => ipcRenderer.invoke('memory-ingest', force ?? false),
+    status: () => ipcRenderer.invoke('memory-status'),
+    vaultWrite: (params: object) => ipcRenderer.invoke('memory:vault-write', params),
+    hygieneScan: () => ipcRenderer.invoke('memory:hygiene-scan'),
+    hygieneDelete: (filePaths: string[]) => ipcRenderer.invoke('memory:hygiene-delete', filePaths),
+  },
+  workspace: {
+    detachPanel: (payload: { moduleId: string; panelId: string; title?: string }) => ipcRenderer.invoke('workspace:detach-panel', payload),
+    redockPanel: (moduleId: string) => ipcRenderer.invoke('workspace:redock-panel', moduleId),
+    syncDetachedPanels: (modules: Array<{ moduleId: string; panelId: string; title?: string }>) => ipcRenderer.invoke('workspace:sync-detached-panels', modules),
+  },
+  logs: {
+    readOnly: {
+      getEntries: () => ipcRenderer.invoke('log:get-entries'),
+      openFile: () => ipcRenderer.invoke('log:open-file'),
+    },
+  },
+  admin: {
+    services: {
+      status: (name: string) => ipcRenderer.invoke('service-status', name),
+      start: (name: string) => ipcRenderer.invoke('service-start', name),
+      stop: (name: string) => ipcRenderer.invoke('service-stop', name),
+    },
+    openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
+    openPath: (targetPath: string) => ipcRenderer.invoke('open-path', targetPath),
+  },
 })

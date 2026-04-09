@@ -5,7 +5,7 @@
  * to the 'failed' state and the service name matches.
  */
 
-import { execSync } from 'child_process'
+import { spawn } from 'child_process'
 import { log } from '../logger'
 
 export type RecoveryAction = 'restart_service' | 'start_service' | 'reload_config' | 'notify_only' | 'noop'
@@ -29,7 +29,7 @@ export const RECOVERY_RECIPES: RecoveryRecipe[] = [
     action: 'start_service',
     command: 'ollama serve',
     hint: 'Attempting to restart the Ollama server. Check that the ollama binary is in PATH.',
-    maxAttempts: 3,
+    maxAttempts: 1,
   },
   {
     serviceName: 'arc-memory',
@@ -71,7 +71,8 @@ export function executeRecovery(recipe: RecoveryRecipe): boolean {
 
   try {
     log.info(`[watchdog] Attempting recovery for ${recipe.serviceName}: ${recipe.command}`)
-    execSync(recipe.command, {
+    const child = spawn(recipe.command, {
+      shell: true,
       detached: true,
       stdio: 'ignore',
       env: {
@@ -85,6 +86,7 @@ export function executeRecovery(recipe: RecoveryRecipe): boolean {
         ].join(':'),
       },
     })
+    child.unref()
     return true
   } catch (e) {
     log.error(`[watchdog] Recovery command failed for ${recipe.serviceName}`, String(e))

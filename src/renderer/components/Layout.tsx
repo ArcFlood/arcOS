@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import SettingsPanel from './settings/SettingsPanel'
 import ErrorLogPanel from './debug/ErrorLogPanel'
 import SessionHistoryPanel from './history/SessionHistoryPanel'
@@ -13,6 +13,7 @@ import { useConversationStore } from '../stores/conversationStore'
 import { useWorkspaceStore } from '../stores/workspaceStore'
 import { useTraceStore } from '../stores/traceStore'
 import { WorkspacePanelId } from '../workspace/types'
+import { archiveConversationToMemory } from '../utils/exportConversation'
 import useAppBootstrap from '../hooks/useAppBootstrap'
 
 const ARCOS_TOTAL_APP_SECONDS_KEY = 'arcos-total-app-seconds'
@@ -102,7 +103,8 @@ export default function Layout() {
   const settingsPanelOpen = useSettingsStore((s) => s.settingsPanelOpen)
   const openSettings = useSettingsStore((s) => s.openSettingsPanel)
   const closeSettings = useSettingsStore((s) => s.closeSettingsPanel)
-  const createConversation = useConversationStore((s) => s.createConversation)
+  const conversations = useConversationStore((s) => s.conversations)
+  const deleteConversation = useConversationStore((s) => s.deleteConversation)
   const hydrateWorkspace = useWorkspaceStore((s) => s.hydrate)
   const detachedModules = useWorkspaceStore((s) => s.layout.modules.filter((module) => module.detached).map((module) => ({
     moduleId: module.id,
@@ -110,9 +112,11 @@ export default function Layout() {
     title: module.title,
   })))
   const createTerminalInFirstAvailableSlot = useWorkspaceStore((s) => s.createTerminalInFirstAvailableSlot)
+  const cyclePage = useWorkspaceStore((s) => s.cyclePage)
   const layout = useWorkspaceStore((s) => s.layout)
   const showPanel = useWorkspaceStore((s) => s.showPanel)
   const hidePanel = useWorkspaceStore((s) => s.hidePanel)
+  const setModuleConversation = useWorkspaceStore((s) => s.setModuleConversation)
   const handleDetachedWindowClosed = useWorkspaceStore((s) => s.handleDetachedWindowClosed)
   const appendTraceEntry = useTraceStore((s) => s.appendEntry)
   const moduleShortcuts = useSettingsStore((s) => s.settings.moduleShortcuts)
@@ -124,6 +128,13 @@ export default function Layout() {
   const [bugReportOpen, setBugReportOpen] = useState(false)
 
   useAppBootstrap()
+
+  const createTerminalSession = useCallback(() => {
+    const result = createTerminalInFirstAvailableSlot()
+    if (!result.success) {
+      window.alert('No 1x2 space is available. Make a 1x2 opening in the grid, then try again.')
+    }
+  }, [createTerminalInFirstAvailableSlot])
 
   useEffect(() => {
     const startedAt = Date.now()
@@ -201,15 +212,13 @@ export default function Layout() {
         }
       }
 
-      if (meta && e.key.toLowerCase() === 'k') { e.preventDefault(); createConversation(); return }
+      if (meta && e.key.toLowerCase() === 'k') { e.preventDefault(); createTerminalSession(); return }
       if (meta && e.key.toLowerCase() === 't') {
         e.preventDefault()
-        const result = createTerminalInFirstAvailableSlot()
-        if (!result.success) {
-          window.alert('No 1x2 space is available. Make a 1x2 opening in the grid, then try again.')
-        }
+        createTerminalSession()
         return
       }
+      if (meta && e.key.toLowerCase() === 'e') { e.preventDefault(); cyclePage(); return }
       if (meta && e.key === ',') { e.preventDefault(); settingsPanelOpen ? closeSettings() : openSettings(); return }
       if (meta && e.shiftKey && e.key.toLowerCase() === 'l') { e.preventDefault(); setLogOpen((v) => !v); return }
       if (meta && e.shiftKey && e.key.toLowerCase() === 'h') { e.preventDefault(); setHistoryOpen((v) => !v); return }
@@ -223,7 +232,7 @@ export default function Layout() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [settingsPanelOpen, logOpen, historyOpen, memoryOpen, openSettings, closeSettings, createConversation, createTerminalInFirstAvailableSlot, moduleShortcuts, layout.modules, showPanel, hidePanel])
+  }, [settingsPanelOpen, logOpen, historyOpen, memoryOpen, openSettings, closeSettings, createTerminalSession, cyclePage, moduleShortcuts, layout.modules, showPanel, hidePanel])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -244,7 +253,7 @@ export default function Layout() {
   useEffect(() => {
     const cleanups: Array<() => void> = []
     if (window.electron.onMenuEvent) {
-      cleanups.push(window.electron.onMenuEvent('menu:new-chat', () => createConversation()))
+      cleanups.push(window.electron.onMenuEvent('menu:new-chat', createTerminalSession))
       cleanups.push(window.electron.onMenuEvent('menu:open-settings', () => openSettings()))
       cleanups.push(window.electron.onMenuEvent('menu:open-log', () => setLogOpen(true)))
       cleanups.push(window.electron.onMenuEvent('menu:open-history', () => setHistoryOpen(true)))
@@ -280,6 +289,57 @@ export default function Layout() {
     })
     return () => cleanup?.()
   }, [appendTraceEntry])
+
+  useEffect(() => {
+    const cleanup = window.electron.onAppCloseRequest?.(() => {
+      const run = async () => {
+        const conversationsById = new Map(conversations.map((conversation) => [conversation.id, conversation]))
+        const terminalSessions = layout.modules
+          .filter((module) => module.panelId === 'chat' && !module.detached && module.conversationId)
+          .map((module) => ({
+            moduleId: module.id,
+            conversation: conversationsById.get(module.conversationId!),
+          }))
+          .filter((entry): entry is { moduleId: string; conversation: NonNullable<typeof entry.conversation> } => (
+            Boolean(entry.conversation && entry.conversation.messages.length > 0)
+          ))
+
+        if (terminalSessions.length === 0) {
+          await window.electron.appCloseContinue?.()
+          return
+        }
+
+        const result = await window.electron.appCloseChooseTerminalAction?.({ terminalCount: terminalSessions.length })
+        const action = result?.action ?? 'cancel'
+        if (action === 'cancel') {
+          await window.electron.appCloseCancel?.()
+          return
+        }
+
+        if (action === 'archive') {
+          for (const entry of terminalSessions) {
+            const archiveResult = await archiveConversationToMemory(entry.conversation)
+            if (!archiveResult.success) {
+              window.alert(`Archive failed for "${entry.conversation.title}": ${archiveResult.error ?? 'Unknown error'}`)
+              await window.electron.appCloseCancel?.()
+              return
+            }
+            setModuleConversation(entry.moduleId, null)
+            deleteConversation(entry.conversation.id)
+          }
+        } else if (action === 'discard') {
+          for (const entry of terminalSessions) {
+            setModuleConversation(entry.moduleId, null)
+            deleteConversation(entry.conversation.id)
+          }
+        }
+
+        await window.electron.appCloseContinue?.()
+      }
+      void run()
+    })
+    return () => cleanup?.()
+  }, [conversations, deleteConversation, layout.modules, setModuleConversation])
 
   return (
     <div className="flex h-screen overflow-hidden bg-background text-text">
